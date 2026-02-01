@@ -1,0 +1,12 @@
+[build]
+  base = "app"
+  publish = "app/dist"
+  command = "npm install && npm run build"
+
+[functions]
+  directory = "netlify/functions"
+
+# ak používaš moduly, ktoré nechceš bundlovať (napr. playwright):
+[functions.node_version]
+  version = "18"
+  external_node_modules = ["playwright", "axe-core"]
