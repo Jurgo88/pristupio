@@ -1,11 +1,16 @@
 [build]
   base = "app"
-  command = "npm install && npm run build"
+  command = "npm run build"
   publish = "dist"
 
 [functions]
-  directory = "../netlify/functions"
+  directory = "netlify/functions"
+  # Sem už nepíš node_bundle = true, definujeme to priamo nižšie
 
-[functions.node_version]
-  version = "18"
-  external_node_modules = ["playwright", "axe-core"]
+  [functions.node_bundle]
+    external_node_modules = ["playwright-core", "chromium-bidi", "axe-core"]
+
+[dev]
+  command = "npm run dev --prefix app"
+  port = 8888
+  targetPort = 5173
