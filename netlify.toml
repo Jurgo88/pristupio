@@ -6,8 +6,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # Presunul som timeout sem, mal by byť braný ako číslo
-  timeout = 90
 
 [functions.node_bundle]
   external_node_modules = ["playwright-core", "@sparticuz/chromium-min", "axe-core", "chromium-bidi"]
