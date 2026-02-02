@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth.store'
 
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap'
+import './styles/index.css'
 
 async function bootstrap() {
     const app = createApp(App)
