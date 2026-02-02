@@ -13,7 +13,7 @@ It provides automated WCAG checks, weekly monitoring, and clear issue severity r
 
 ## Project structure
 app/ - frontend application
-netlify/ - Netlify Functions (backend)
+app/netlify/ - Netlify Functions (backend)
 docs/ - product and technical documentation
 
 
