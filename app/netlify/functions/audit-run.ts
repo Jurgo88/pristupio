@@ -1,62 +1,46 @@
-import { Handler } from '@netlify/functions'
+import { Handler } from '@netlify/functions';
 
 export const handler: Handler = async (event) => {
-  // Dynamické načítanie modulov až pri spustení funkcie
-  // Toto rieši chybu "Cannot find module ../../../package.json"
-  const { chromium } = require('playwright-core')
-  const axe = require('axe-core')
+  // Dynamické importy pre kompatibilitu
+  const chromium = require('@sparticuz/chromium-min');
+  const { chromium: playwright } = require('playwright-core');
+  const axe = require('axe-core');
 
   try {
-    const { url } = JSON.parse(event.body || '{}')
+    const { url } = JSON.parse(event.body || '{}');
+    if (!url) return { statusCode: 400, body: JSON.stringify({ error: 'Missing URL' }) };
 
-    if (!url) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Missing url' }),
-      }
-    }
-
-    // Spustenie Chromium (Optimalizované pre serverless/Windows)
-    const browser = await chromium.launch({
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      headless: true,
-    })
-
-    const page = await browser.newPage()
+    // Konfigurácia pre Netlify vs Localhost
+    const isLocal = process.env.NETLIFY_DEV === 'true' || !process.env.LAMBDA_TASK_ROOT;
     
-    // Načítanie stránky
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 })
+    const browser = await playwright.launch({
+      args: isLocal ? [] : chromium.args,
+      executablePath: isLocal ? undefined : await chromium.executablePath(),
+      headless: isLocal ? true : chromium.headless,
+    });
 
-    // Injektovanie axe-core zdroja priamo do stránky
-    await page.addScriptTag({ content: axe.source })
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
 
-    // Spustenie samotného auditu v kontexte prehliadača
+    // Audit
+    await page.addScriptTag({ content: axe.source });
     const results = await page.evaluate(async () => {
-      // @ts-ignore (axe je teraz dostupný v okne prehliadača)
-      return await window.axe.run()
-    })
+      // @ts-ignore
+      return await window.axe.run();
+    });
 
-    await browser.close()
-
-    // Mapovanie výsledkov
-    const violations = results.violations.map((v: any) => ({
-      id: v.id,
-      impact: v.impact,
-      description: v.description,
-      help: v.help,
-      nodes: v.nodes.length,
-    }))
+    await browser.close();
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, violations }),
-    }
+      body: JSON.stringify({ violations: results.violations }),
+    };
   } catch (error: any) {
-    console.error('Audit Error:', error.message)
+    console.error('Audit failed:', error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: error.message }),
-    }
+    };
   }
-}
+};
