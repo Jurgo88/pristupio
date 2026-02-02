@@ -1,12 +1,15 @@
 import { Handler } from '@netlify/functions';
-// Použijeme klasické importy
 import chromium from '@sparticuz/chromium-min';
 import { chromium as playwright } from 'playwright-core';
 import axe from 'axe-core';
 
-export const handler: Handler = async (event) => {
-  console.log("Log: Funkcia audit-run štartuje...");
+// TENTO RIADOK JE KĽÚČOVÝ: 
+// Oklameme Playwright, aby si nemyslel, že potrebuje hľadať package.json
+process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1';
 
+export const handler: Handler = async (event) => {
+  console.log("Log: Štartujem s fixom pre package.json");
+  
   try {
     const body = JSON.parse(event.body || '{}');
     const url = body.url;
