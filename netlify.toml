@@ -4,11 +4,14 @@
   publish = "dist"
 
 [functions]
-  # Keďže base je "app", cesta k funkciám je teraz priamo v ňom
+  # Cesta je relatívna k 'base', takže 'app/netlify/functions'
   directory = "netlify/functions"
+  node_bundler = "esbuild"
+  timeout = 90
 
 [functions.node_bundle]
-  external_node_modules = ["playwright-core", "chromium-bidi", "axe-core"]
+  # Zoznam všetkých modulov, ktoré majú zostať nedotknuté
+  external_node_modules = ["playwright-core", "@sparticuz/chromium-min", "axe-core", "chromium-bidi"]
   on_error = "continue"
 
 [dev]
