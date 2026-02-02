@@ -8,8 +8,10 @@
   node_bundler = "esbuild"
 
 [functions.node_bundle]
-  external_node_modules = ["playwright-core", "@sparticuz/chromium-min", "axe-core", "chromium-bidi"]
-  on_error = "continue"
+  # Týmto povieme esbuildu, aby Playwright nebol externý, 
+  # ale aby ho vbalil PRIAMO do jedného súboru s tvojou funkciou.
+  # Tým zmiznú tie nešťastné require cesty.
+  external_node_modules = ["@sparticuz/chromium-min"]
 
 [dev]
   command = "npm run dev"
