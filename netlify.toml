@@ -1,16 +1,20 @@
 [build]
-  base = ""
-  command = "npm install && npm run build --prefix app"
-  publish = "app/dist"
+  # Toto povie Netlify: "Všetko dôležité je v priečinku app"
+  base = "app"
+  # Keďže sme v 'app', stačí spustiť build (install robí Netlify automaticky)
+  command = "npm run build"
+  # Cesta k výsledku je tiež relatívna k 'app'
+  publish = "dist"
 
 [functions]
-  directory = "netlify/functions"
-  # Sem už nepíš node_bundle = true, definujeme to priamo nižšie
+  # Ak máš funkcie stále v koreni (mimo app), musíš ísť o úroveň vyššie
+  directory = "../netlify/functions"
 
   [functions.node_bundle]
     external_node_modules = ["playwright-core", "chromium-bidi", "axe-core"]
 
 [dev]
-  command = "npm run dev --prefix app"
+  # Pre lokálny vývoj (v rámci netlify dev)
+  command = "npm run dev"
   port = 8888
   targetPort = 5173
