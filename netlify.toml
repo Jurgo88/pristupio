@@ -6,12 +6,10 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  external_node_modules = ["@sparticuz/chromium-min", "playwright-core", "axe-core"]
 
-[functions.node_bundle]
-  # Týmto povieme esbuildu, aby Playwright nebol externý, 
-  # ale aby ho vbalil PRIAMO do jedného súboru s tvojou funkciou.
-  # Tým zmiznú tie nešťastné require cesty.
-  external_node_modules = ["@sparticuz/chromium-min"]
+#[functions.node_bundle]
+  # (nepouzivame) Netlify berie external_node_modules priamo z [functions]
 
 [dev]
   command = "npm run dev"
