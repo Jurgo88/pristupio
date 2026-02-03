@@ -32,7 +32,18 @@ export const handler: Handler = async (event) => {
     console.log("Log: Prehliadač úspešne spustený.");
 
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    page.setDefaultNavigationTimeout(45000);
+
+    // Znížime náročnosť stránky (menej pamäte) – blokujeme médiá, fonty, obrázky
+    await page.route('**/*', (route) => {
+      const type = route.request().resourceType();
+      if (type === 'image' || type === 'media' || type === 'font') {
+        return route.abort();
+      }
+      return route.continue();
+    });
+
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
     // Vloženie a spustenie axe
     await page.addScriptTag({ content: axe.source });
