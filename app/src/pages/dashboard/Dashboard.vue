@@ -1,4 +1,4 @@
-<template>
+ï»¿<template>
   <div class="container py-4 audit-page">
     <div class="card mb-5 shadow-sm">
       <div class="card-body">
@@ -70,24 +70,31 @@
         </div>
       </div>
       <div class="list-group list-group-flush">
-        <div v-for="(violation, index) in filteredIssues" :key="index" class="list-group-item p-3">
-          <div class="d-flex w-100 justify-content-between align-items-center">
-            <h6 class="mb-1 fw-bold text-danger">{{ violation.title }}</h6>
-            <div class="d-flex gap-2 align-items-center">
-              <span :class="getBadgeClass(violation.impact)">{{ violation.impact }}</span>
-              <button class="btn btn-sm btn-outline-secondary" @click="toggleDetails(violationKey(violation, index))">
-                {{ isOpen(violationKey(violation, index)) ? 'Skryt detail' : 'Zobrazit detail' }}
-              </button>
+        <div
+          v-for="(violation, index) in filteredIssues"
+          :key="index"
+          class="list-group-item p-3"
+          :class="impactClass(violation.impact)"
+        >
+          <div class="issue-row">
+            <div class="impact-pill">{{ violation.impact }}</div>
+            <div class="issue-main">
+              <div class="d-flex w-100 justify-content-between align-items-center">
+                <h6 class="mb-1 fw-bold text-danger">{{ violation.title }}</h6>
+                <button class="btn btn-sm btn-outline-secondary" @click="toggleDetails(violationKey(violation, index))">
+                  {{ isOpen(violationKey(violation, index)) ? 'Skryt detail' : 'Zobrazit detail' }}
+                </button>
+              </div>
+              <p class="mb-1 small text-muted">{{ violation.description }}</p>
+              <div class="small text-secondary">
+                <strong>WCAG:</strong> {{ violation.wcag || 'Neurcene' }} â€¢ <strong>Uroven:</strong> {{ violation.wcagLevel || 'Neurcene' }} â€¢ <strong>Princip:</strong> {{ violation.principle || 'Neurcene' }}
+              </div>
+              <div class="small text-secondary">
+                <strong>Odporucanie:</strong> {{ violation.recommendation || 'Skontrolujte problem manualne a upravte HTML tak, aby splnalo WCAG.' }}
+              </div>
+              <small class="text-secondary">Zasiahnutych elementov: {{ violation.nodesCount }}</small>
             </div>
           </div>
-          <p class="mb-1 small text-muted">{{ violation.description }}</p>
-          <div class="small text-secondary">
-            <strong>WCAG:</strong> {{ violation.wcag || 'Neurcene' }} • <strong>Uroven:</strong> {{ violation.wcagLevel || 'Neurcene' }} • <strong>Princip:</strong> {{ violation.principle || 'Neurcene' }}
-          </div>
-          <div class="small text-secondary">
-            <strong>Odporucanie:</strong> {{ violation.recommendation || 'Skontrolujte problem manualne a upravte HTML tak, aby splnalo WCAG.' }}
-          </div>
-          <small class="text-secondary">Zasiahnutych elementov: {{ violation.nodesCount }}</small>
 
           <div v-if="isOpen(violationKey(violation, index))" class="mt-2 small text-secondary">
             <div v-if="violation.nodesCount === 0" class="text-muted">Nenasli sa konkretne prvky.</div>
@@ -153,6 +160,13 @@ const getBadgeClass = (impact: string) => {
   if (impact === 'critical' || impact === 'serious') return 'badge bg-danger';
   if (impact === 'moderate') return 'badge bg-warning text-dark';
   return 'badge bg-info text-dark';
+};
+
+const impactClass = (impact: string) => {
+  if (impact === 'critical') return 'impact-critical';
+  if (impact === 'serious') return 'impact-serious';
+  if (impact === 'moderate') return 'impact-moderate';
+  return 'impact-minor';
 };
 
 const principleOptions = computed(() => {
@@ -271,10 +285,39 @@ const describeTarget = (target: string[]) => {
   background: var(--surface-2);
 }
 
-.audit-page .badge {
+.issue-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.impact-pill {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  padding: 0.35rem 0.55rem;
   border-radius: 999px;
-  padding: 0.35rem 0.6rem;
-  font-weight: 600;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  border: 1px solid var(--border);
+}
+
+.list-group-item.impact-critical {
+  border-left: 4px solid #ef4444;
+}
+
+.list-group-item.impact-serious {
+  border-left: 4px solid #f97316;
+}
+
+.list-group-item.impact-moderate {
+  border-left: 4px solid #f59e0b;
+}
+
+.list-group-item.impact-minor {
+  border-left: 4px solid #38bdf8;
 }
 
 .audit-page .btn-outline-secondary,
