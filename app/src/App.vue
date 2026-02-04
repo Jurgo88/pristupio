@@ -55,6 +55,42 @@ const handleLogout = async () => {
 
     <router-view v-else />
   </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <strong>Pristupio</strong>
+          <p>WCAG audit a monitoring, ktorý dáva zrozumiteľný výstup pre celý tím.</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-col">
+            <p class="footer-title">Rýchle odkazy</p>
+            <a href="#features">Čo získate</a>
+            <a href="#how">Ako to funguje</a>
+            <a href="#pricing">Cenník</a>
+            <a href="#about">O nás</a>
+          </div>
+          <div class="footer-col">
+            <p class="footer-title">Legislatíva</p>
+            <span>WCAG 2.1 AA</span>
+            <span>EN 301 549</span>
+            <span>EAA 2019/882</span>
+            <span>WAD 2016/2102</span>
+          </div>
+          <div class="footer-col">
+            <p class="footer-title">Kontakt</p>
+            <span>info@pristupio.sk</span>
+            <span>+421 900 000 000</span>
+            <span>IČO: 12345678</span>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 Pristupio. Všetky práva vyhradené · Created By <a href="https://jurgo.sk">Jurgo</a></span>
+      </div>
+    </div>
+  </footer>
 </template>
 
 <style scoped>
@@ -135,5 +171,87 @@ const handleLogout = async () => {
 
 .navbar {
   margin-bottom: 2rem;
+}
+
+.site-footer {
+  margin: 0;
+  padding: 2.2rem 0 1.2rem;
+  background: #0f172a;
+  color: #cbd5f5;
+  border-top: none;
+}
+
+.footer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.footer-brand strong {
+  color: #f8fafc;
+  font-size: 1.1rem;
+}
+
+.footer-brand p {
+  margin: 0.6rem 0 0;
+  color: #94a3b8;
+  max-width: 28rem;
+}
+
+.footer-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.footer-col {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.footer-title {
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 0.3rem;
+}
+
+.footer-col a,
+.footer-col span {
+  color: #cbd5f5;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.footer-col a:hover {
+  color: #38bdf8;
+}
+
+.footer-bottom {
+  margin-top: 0;
+  padding: 0.8rem 0 0;
+  border-top: none;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.footer-bottom a {
+  color: #cbd5f5;
+  text-decoration: none;
+}
+
+.footer-bottom a:hover {
+  color: #38bdf8;
+}
+
+@media (max-width: 980px) {
+  .footer-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-links {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
