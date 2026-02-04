@@ -1,6 +1,6 @@
-# Prístupio
+﻿# Pristupio
 
-Prístupio is a SaaS tool for continuous web accessibility monitoring.
+Pristupio is a SaaS tool for continuous web accessibility monitoring.
 It provides automated WCAG checks, weekly monitoring, and clear issue severity reporting.
 
 ## Tech stack
@@ -16,7 +16,6 @@ app/ - frontend application
 app/netlify/ - Netlify Functions (backend)
 docs/ - product and technical documentation
 
-
 ## MVP scope
 - One-time accessibility audit via axe-core
 - Issue severity: LOW / MEDIUM / HIGH
@@ -27,10 +26,11 @@ docs/ - product and technical documentation
 - Subscription-based access
 
 ## Not a full WCAG audit
-Prístupio performs automated accessibility checks and does not replace a full manual WCAG audit.
+Pristupio performs automated accessibility checks and does not replace a full manual WCAG audit.
 
 ## Development
 ```bash
 cd app
 npm install
 npm run dev
+```

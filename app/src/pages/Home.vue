@@ -1,0 +1,945 @@
+﻿<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth.store'
+
+const auth = useAuthStore()
+
+const startLink = computed(() => (auth.isLoggedIn ? '/dashboard' : '/login'))
+
+let observer: IntersectionObserver | null = null
+
+onMounted(() => {
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const revealEls = Array.from(document.querySelectorAll<HTMLElement>('.reveal'))
+
+  if (prefersReduced || revealEls.length === 0) {
+    revealEls.forEach((el) => el.classList.add('in-view'))
+    return
+  }
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view')
+          observer?.unobserve(entry.target)
+        }
+      })
+    },
+    { threshold: 0.15, rootMargin: '0px 0px -10% 0px' }
+  )
+
+  revealEls.forEach((el) => observer?.observe(el))
+})
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  observer = null
+})
+</script>
+
+<template>
+  <div class="home">
+    <section class="hero reveal">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <span class="eyebrow">Prístupnosť bez chaosu</span>
+          <h1>Pristupio: WCAG audit, ktorý je zrozumiteľný pre právnikov aj vývojárov.</h1>
+          <p>
+            Automatizovaný audit podľa WCAG 2.1 AA a EN 301 549, doplnený o manuálny checklist.
+            Získate jasné priority, odporúčania pre opravy a report pripravený na EAA aj WAD.
+          </p>
+          <div class="hero-actions">
+            <router-link :to="startLink" class="btn btn-primary">Spustiť audit zdarma</router-link>
+            <a href="#how" class="btn btn-outline-light btn-ghost">Ako to funguje</a>
+          </div>
+          <div class="hero-meta">
+            <span>WCAG 2.1 AA</span>
+            <span>EN 301 549</span>
+            <span>EAA 2019/882</span>
+            <span>WAD 2016/2102</span>
+          </div>
+          <div class="hero-proof">
+            <div class="proof-item">
+              <strong>Audit + checklist v jednom</strong>
+              <span>Automatické testy aj manuálne overenia povinností.</span>
+            </div>
+            <div class="proof-item">
+              <strong>Priorita podľa dopadu</strong>
+              <span>Najprv riešite bariéry, ktoré blokujú používateľov.</span>
+            </div>
+            <div class="proof-item">
+              <strong>Report pre stakeholderov</strong>
+              <span>Výstup zrozumiteľný pre compliance, produkt aj vývoj.</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <svg class="hero-orbits" viewBox="0 0 360 360" aria-hidden="true">
+            <circle cx="180" cy="180" r="140" />
+            <circle cx="180" cy="180" r="100" />
+            <circle cx="180" cy="180" r="60" />
+            <path d="M60 210c40-50 110-70 170-50 50 17 80 55 110 90" />
+          </svg>
+          <div class="mockup">
+            <div class="mockup-header">
+              <div class="mockup-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+              <div class="mockup-title">Audit report</div>
+              <div class="mockup-pill">WCAG 2.1 AA</div>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-score">
+                <div class="score-circle">82</div>
+                <div class="score-meta">
+                  <strong>Prístupnosť</strong>
+                  <span>Index pripravenosti</span>
+                </div>
+              </div>
+              <div class="mockup-bars">
+                <div class="bar">
+                  <span>Critical</span>
+                  <div class="bar-track"><div class="bar-fill critical"></div></div>
+                  <small>12 problémov</small>
+                </div>
+                <div class="bar">
+                  <span>Moderate</span>
+                  <div class="bar-track"><div class="bar-fill moderate"></div></div>
+                  <small>18 problémov</small>
+                </div>
+                <div class="bar">
+                  <span>Minor</span>
+                  <div class="bar-track"><div class="bar-fill minor"></div></div>
+                  <small>9 problémov</small>
+                </div>
+              </div>
+              <div class="mockup-list">
+                <div class="mockup-item">
+                  <span class="dot critical"></span>
+                  <div>
+                    <strong>Nedostatočný kontrast textu</strong>
+                    <span>WCAG 1.4.3</span>
+                  </div>
+                </div>
+                <div class="mockup-item">
+                  <span class="dot moderate"></span>
+                  <div>
+                    <strong>Chýbajúce aria-labels</strong>
+                    <span>WCAG 4.1.2</span>
+                  </div>
+                </div>
+                <div class="mockup-item">
+                  <span class="dot minor"></span>
+                  <div>
+                    <strong>Nesprávna hierarchia nadpisov</strong>
+                    <span>WCAG 1.3.1</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="floating-card">
+            <div class="floating-title">Pripravenosť na legislatívu</div>
+            <ul>
+              <li>WAD 2016/2102</li>
+              <li>EAA 2019/882</li>
+              <li>EN 301 549</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="benefits reveal">
+      <div class="section-head">
+        <p class="kicker">Prečo na tom záleží</p>
+        <h2>Prístupnosť chráni ľudí, znižuje riziko a chráni vašu značku.</h2>
+        <p class="lead">
+          Nedostupné rozhranie znamená stratených používateľov, právne riziko aj reputačný problém.
+          Pristupio pomáha získať kontrolu, prioritizovať opravy a komunikovať stav jasne.
+        </p>
+      </div>
+      <div class="benefits-grid">
+        <article class="benefit-card">
+          <div class="benefit-title">Čo tým získate</div>
+          <ul>
+            <li>Jasný plán opráv podľa dopadu na používateľov.</li>
+            <li>Zrozumiteľný report pre manažment aj vývoj.</li>
+            <li>Priebežný prehľad o stave prístupnosti.</li>
+          </ul>
+        </article>
+        <article class="benefit-card">
+          <div class="benefit-title">Pred čím vás to chráni</div>
+          <ul>
+            <li>Riziko sankcií pri EAA a WAD kontrolách.</li>
+            <li>Negatívne reakcie verejnosti a poškodenie značky.</li>
+            <li>Dodatočné náklady na chaotické opravy.</li>
+          </ul>
+        </article>
+        <article class="benefit-card">
+          <div class="benefit-title">Komu to pomáha</div>
+          <ul>
+            <li>Používateľom so zrakovým, sluchovým aj motorickým znevýhodnením.</li>
+            <li>Produktovým tímom, ktoré potrebujú jasné priority.</li>
+            <li>Compliance a právnym oddeleniam.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="features" class="value reveal">
+      <div class="section-head">
+        <p class="kicker">Čo získate</p>
+        <h2>Prehľadné výstupy pre compliance aj produkt.</h2>
+        <p class="lead">
+          Získajte jasný obraz o stave prístupnosti a plán opráv, ktorý je zrozumiteľný pre celý tím.
+        </p>
+      </div>
+      <div class="value-grid">
+        <article class="value-card">
+          <div class="value-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12h16" />
+              <path d="M4 7h10" />
+              <path d="M4 17h7" />
+              <path d="M17 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h3>Kritické chyby ako prvé</h3>
+          <p>Automaticky triedime podľa dopadu na používateľov aj rizika pre organizáciu.</p>
+        </article>
+        <article class="value-card">
+          <div class="value-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3l8 4v6c0 4-3 7-8 8-5-1-8-4-8-8V7l8-4z" />
+              <path d="M9 12l2 2 4-4" />
+            </svg>
+          </div>
+          <h3>Legislatívny kontext</h3>
+          <p>Každý nález je spojený s WCAG kritériom a relevantným rámcom EAA/WAD.</p>
+        </article>
+        <article class="value-card">
+          <div class="value-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4h16v12H7l-3 3V4z" />
+              <path d="M7 8h10" />
+              <path d="M7 12h6" />
+            </svg>
+          </div>
+          <h3>Akčné odporúčania</h3>
+          <p>Praktické kroky pre vývoj a obsah, nie len všeobecné rady.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="how" class="workflow reveal">
+      <div class="section-head">
+        <p class="kicker">Ako to funguje</p>
+        <h2>Tri kroky k auditom, ktoré obstáli aj pri kontrole.</h2>
+      </div>
+      <div class="workflow-steps">
+        <article class="step-card">
+          <span class="step-num">01</span>
+          <h3>Zadajte URL a vyberte profil</h3>
+          <p>WAD pre verejný sektor alebo EAA pre služby a produkty.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-num">02</span>
+          <h3>Spustite audit</h3>
+          <p>Automatický sken doplní manuálny checklist povinností.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-num">03</span>
+          <h3>Zdieľajte report</h3>
+          <p>Výstup pre stakeholderov s jasným plánom opráv.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="compliance reveal">
+      <div class="compliance-inner">
+        <div>
+          <p class="kicker">Pre koho je Pristupio</p>
+          <h2>Pre verejné inštitúcie aj komerčné služby.</h2>
+          <p class="lead">
+            Systém je navrhnutý pre tímy, ktoré potrebujú preukázateľnú zhodu a zrozumiteľný audit
+            od verejnej správy až po e-shopy a digitálne služby.
+          </p>
+        </div>
+        <div class="compliance-grid" aria-hidden="true">
+          <div class="compliance-card">Verejný sektor</div>
+          <div class="compliance-card">Banky a poisťovne</div>
+          <div class="compliance-card">E-shopy a retail</div>
+          <div class="compliance-card">Doprava a mobilita</div>
+          <div class="compliance-card">Vzdelávanie</div>
+          <div class="compliance-card">Digitálne služby</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta reveal">
+      <div class="cta-inner">
+        <div>
+          <h2>Pripravení na audit prístupnosti?</h2>
+          <p>Začnite bez záväzkov a získajte report, ktorý vie čítať celý tím.</p>
+        </div>
+        <router-link :to="startLink" class="btn btn-light">Spustiť audit</router-link>
+      </div>
+    </section>
+  </div>
+</template>
+
+<style scoped>
+.home {
+  padding: 1.5rem 0 4.5rem;
+  display: grid;
+  gap: 4rem;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+  will-change: opacity, transform;
+}
+
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hero {
+  position: relative;
+  background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+  color: #e5e7eb;
+  border: 1px solid #0b1220;
+  border-radius: var(--radius);
+  padding: 3rem;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+}
+
+.hero::before,
+.hero::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(0px);
+  opacity: 0.6;
+  z-index: 0;
+}
+
+.hero::before {
+  width: 420px;
+  height: 420px;
+  right: -140px;
+  top: -120px;
+  background: radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.45), transparent 70%);
+}
+
+.hero::after {
+  width: 320px;
+  height: 320px;
+  left: -140px;
+  bottom: -140px;
+  background: radial-gradient(circle at 70% 70%, rgba(14, 165, 233, 0.35), transparent 70%);
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 2.75rem;
+  align-items: center;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.7rem;
+}
+
+.hero-copy h1 {
+  font-size: clamp(2.2rem, 1.6rem + 2.2vw, 3.4rem);
+  line-height: 1.1;
+  margin-bottom: 1rem;
+}
+
+.hero-copy p {
+  font-size: 1.05rem;
+  color: #cbd5f5;
+  margin-bottom: 1.6rem;
+  max-width: 38rem;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.hero-actions .btn {
+  border-radius: var(--radius);
+  padding: 0.65rem 1.5rem;
+  font-weight: 600;
+}
+
+.hero-actions .btn-primary {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  border: none;
+  box-shadow: 0 12px 24px rgba(30, 64, 175, 0.35);
+}
+
+.btn-ghost {
+  border-color: rgba(226, 232, 240, 0.35);
+  color: #e2e8f0;
+}
+
+.btn-ghost:hover {
+  background: rgba(148, 163, 184, 0.18);
+  color: #f8fafc;
+}
+
+.hero-meta {
+  margin-top: 1.4rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.hero-meta span {
+  border: 1px solid #1f2937;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.hero-proof {
+  margin-top: 1.6rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.proof-item {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid #1f2937;
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.proof-item strong {
+  color: #f8fafc;
+  font-size: 0.95rem;
+}
+
+.proof-item span {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.hero-visual {
+  position: relative;
+}
+
+.hero-orbits {
+  position: absolute;
+  inset: -40px -40px auto auto;
+  width: 320px;
+  height: 320px;
+  stroke: rgba(148, 163, 184, 0.25);
+  stroke-width: 1.2;
+  fill: none;
+  opacity: 0.6;
+}
+
+.mockup {
+  background: #0b1220;
+  border-radius: var(--radius);
+  border: 1px solid #1f2937;
+  padding: 1.2rem 1.4rem 1.3rem;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.55);
+  animation: floatCard 9s ease-in-out infinite;
+}
+
+.mockup-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.mockup-dots {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.mockup-dots span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #334155;
+}
+
+.mockup-title {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+
+.mockup-pill {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius);
+  border: 1px solid #334155;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.mockup-score {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.8rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.score-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #0b1220;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.35);
+}
+
+.score-meta strong {
+  color: #e2e8f0;
+}
+
+.score-meta span {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.mockup-bars {
+  display: grid;
+  gap: 0.7rem;
+  margin-bottom: 1.1rem;
+}
+
+.bar {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.bar-track {
+  height: 8px;
+  background: #111827;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: var(--radius);
+}
+
+.bar-fill.critical {
+  width: 72%;
+  background: linear-gradient(90deg, #ef4444, #b91c1c);
+}
+
+.bar-fill.moderate {
+  width: 55%;
+  background: linear-gradient(90deg, #f59e0b, #b45309);
+}
+
+.bar-fill.minor {
+  width: 35%;
+  background: linear-gradient(90deg, #38bdf8, #0284c7);
+}
+
+.mockup-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mockup-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  align-items: start;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid #1f2937;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.7rem;
+}
+
+.mockup-item strong {
+  color: #e2e8f0;
+  font-size: 0.82rem;
+}
+
+.mockup-item span {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius);
+  margin-top: 0.35rem;
+}
+
+.dot.critical {
+  background: #ef4444;
+}
+
+.dot.moderate {
+  background: #f59e0b;
+}
+
+.dot.minor {
+  background: #38bdf8;
+}
+
+.floating-card {
+  position: absolute;
+  right: -12px;
+  bottom: -24px;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  width: 220px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+  animation: floatCard 8s ease-in-out infinite 0.8s;
+}
+
+.floating-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.floating-card ul {
+  margin: 0;
+  padding-left: 1rem;
+  color: #475569;
+  font-size: 0.8rem;
+}
+
+.section-head {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 720px;
+}
+
+.benefits {
+  display: grid;
+  gap: 2rem;
+}
+
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.benefit-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.benefit-title {
+  font-weight: 700;
+  margin-bottom: 0.8rem;
+  color: #0f172a;
+}
+
+.benefit-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-muted);
+  display: grid;
+  gap: 0.5rem;
+}
+
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.section-head h2 {
+  font-size: clamp(1.7rem, 1.2rem + 1.4vw, 2.4rem);
+  margin: 0;
+}
+
+.lead {
+  color: #64748b;
+  font-size: 1.02rem;
+}
+
+.value {
+  display: grid;
+  gap: 2rem;
+}
+
+.value-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.value-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 0.75rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.value-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+}
+
+.value-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.value-card p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.value-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: rgba(29, 78, 216, 0.1);
+  display: grid;
+  place-items: center;
+}
+
+.value-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: #1d4ed8;
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.workflow {
+  display: grid;
+  gap: 2rem;
+}
+
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.step-card {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: var(--radius);
+  padding: 1.6rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
+  transition: transform 0.3s ease;
+}
+
+.step-card:hover {
+  transform: translateY(-6px);
+}
+
+.step-card p {
+  color: #94a3b8;
+}
+
+.step-num {
+  display: inline-block;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.18em;
+  margin-bottom: 0.6rem;
+}
+
+.compliance {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.compliance-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 2rem;
+  align-items: center;
+}
+
+.compliance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.compliance-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #475569;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.compliance-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
+.cta {
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
+  border-radius: var(--radius);
+  padding: 2.5rem 2.8rem;
+  color: #f8fafc;
+  box-shadow: 0 20px 40px rgba(14, 116, 144, 0.3);
+}
+
+.cta-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.cta h2 {
+  margin: 0 0 0.6rem;
+}
+
+.cta p {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.85);
+}
+
+.cta .btn-light {
+  border-radius: var(--radius);
+  padding: 0.7rem 1.6rem;
+  font-weight: 700;
+}
+
+@keyframes floatCard {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .mockup,
+  .floating-card,
+  .value-card,
+  .step-card,
+  .compliance-card {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .hero-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    padding: 2.2rem;
+  }
+
+  .floating-card {
+    position: static;
+    margin-top: 1.5rem;
+    width: 100%;
+  }
+
+  .hero-orbits {
+    right: -60px;
+    top: -40px;
+  }
+}
+
+@media (max-width: 980px) {
+  .benefits-grid,
+  .value-grid,
+  .workflow-steps,
+  .compliance-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .compliance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 1.6rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cta {
+    padding: 2rem 1.6rem;
+  }
+}
+</style>
+
+

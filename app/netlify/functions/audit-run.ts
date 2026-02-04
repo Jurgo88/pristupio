@@ -3,16 +3,21 @@ import chromium from '@sparticuz/chromium-min';
 import { chromium as playwright } from 'playwright-core';
 import axe from 'axe-core';
 
-// TENTO RIADOK JE KĽÚČOVÝ: 
-// Oklameme Playwright, aby si nemyslel, že potrebuje hľadať package.json
 process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1';
 
 export const handler: Handler = async (event) => {
-  console.log("Log: Štartujem s fixom pre package.json");
+  console.log("Log: Audit starting...");
   
   try {
     const body = JSON.parse(event.body || '{}');
-    const url = body.url;
+    let url = body.url;
+
+    // Validácia vstupu
+    //ak je url bez http alebo https tak to tam doplníme
+
+    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'http://' + url;
+    }
 
     if (!url) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Chýba URL' }) };
@@ -45,11 +50,17 @@ export const handler: Handler = async (event) => {
 
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
-    // Vloženie a spustenie axe
+    // Vloženie a spustenie axe s WCAG 2.1 AA tagmi (max. automatizovateľný rozsah)
     await page.addScriptTag({ content: axe.source });
     const results = await page.evaluate(async () => {
       // @ts-ignore
-      return await window.axe.run();
+      return await window.axe.run(document, {
+        runOnly: {
+          type: 'tag',
+          values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
+        },
+        resultTypes: ['violations', 'incomplete', 'passes', 'inapplicable']
+      });
     });
 
     await browser.close();
@@ -58,7 +69,14 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ results }),
+      body: JSON.stringify({ 
+        results,
+        meta: {
+          standard: 'EN 301 549 (WCAG 2.1 AA)',
+          tags: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'],
+          note: 'Automatizované testy nepokrývajú všetky kritériá; časť vyžaduje manuálnu kontrolu.'
+        }
+      }),
     };
 
   } catch (error: any) {

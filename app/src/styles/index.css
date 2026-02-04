@@ -4,16 +4,17 @@
   font-weight: 400;
 
   color: #0f172a;
-  background-color: #f6f7fb;
+  background-color: #f1f5f9;
   --surface: #ffffff;
-  --surface-2: #f3f5f9;
-  --border: #e2e8f0;
-  --text-muted: #5b6474;
-  --brand: #2563eb;
-  --brand-2: #22c55e;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --info: #0ea5e9;
+  --surface-2: #eef2f7;
+  --border: #dce3ee;
+  --text-muted: #6b7280;
+  --brand: #1d4ed8;
+  --brand-2: #0ea5e9;
+  --danger: #b91c1c;
+  --warning: #b45309;
+  --info: #0284c7;
+  --radius: 5px;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -28,17 +29,17 @@ body {
   background:
     radial-gradient(900px 400px at 80% -10%, #dbeafe 0%, rgba(219, 234, 254, 0) 70%),
     radial-gradient(700px 380px at 10% -10%, #e0f2fe 0%, rgba(224, 242, 254, 0) 70%),
-    #f6f7fb;
+    #f1f5f9;
   color: #0f172a;
 }
 
 a {
   font-weight: 600;
-  color: #2563eb;
+  color: #1d4ed8;
   text-decoration: none;
 }
 a:hover {
-  color: #1d4ed8;
+  color: #1e40af;
 }
 
 h1 {
