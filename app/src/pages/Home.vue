@@ -54,7 +54,7 @@ onBeforeUnmount(() => {
             <a href="#pricing" class="btn btn-outline-light btn-ghost">Pozrieť ceny</a>
           </div>
           <p class="hero-note">
-            Free audit ukáže len skóre a počet chýb. Plné reporty získate v platených balíkoch.
+            Free audit ukáže skóre, počty a top 3 nálezy. Plné reporty získate v platených balíkoch.
           </p>
           <div class="hero-meta">
             <span>WCAG 2.1 AA</span>
@@ -267,7 +267,8 @@ onBeforeUnmount(() => {
         <p class="kicker">Cenník</p>
         <h2>Vyberte si úroveň detailu podľa vašej potreby.</h2>
         <p class="lead">
-          Začnite free auditom a prejdite na detailné reporty, keď potrebujete preukázateľnú zhodu.
+          Začnite free auditom, pokračujte základným auditom a monitoringom podľa potreby.
+          Pri ročnom predplatnom monitoringu je základný audit zdarma.
         </p>
       </div>
       <div class="pricing-grid">
@@ -280,23 +281,9 @@ onBeforeUnmount(() => {
           <ul class="pricing-list">
             <li>Skóre prístupnosti</li>
             <li>Počet chýb spolu</li>
+            <li>Rýchly prehľad problémov</li>
           </ul>
           <router-link :to="startLink" class="btn btn-outline-dark">Spustiť free audit</router-link>
-        </article>
-
-        <article class="pricing-card featured">
-          <div class="pricing-badge">Najobľúbenejšie</div>
-          <div class="pricing-header">
-            <p class="pricing-title">Monitoring + report</p>
-            <p class="pricing-price">29 € / mesiac</p>
-            <p class="pricing-subtitle">2x mesačne</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Automatický monitoring</li>
-            <li>Report 2× mesačne</li>
-            <li>Trend skóre a zmeny</li>
-          </ul>
-          <router-link :to="startLink" class="btn btn-primary">Spustiť monitoring</router-link>
         </article>
 
         <article class="pricing-card">
@@ -311,6 +298,21 @@ onBeforeUnmount(() => {
             <li>Legislatívne mapovanie</li>
           </ul>
           <router-link :to="startLink" class="btn btn-outline-dark">Objednať audit</router-link>
+        </article>
+
+        <article class="pricing-card featured">
+          <div class="pricing-badge">Najobľúbenejšie</div>
+          <div class="pricing-header">
+            <p class="pricing-title">Monitoring + report</p>
+            <p class="pricing-price">29 € / mesiac</p>
+            <p class="pricing-subtitle">Len po základnom audite</p>
+          </div>
+          <ul class="pricing-list">
+            <li>Monitoring 2× mesačne</li>
+            <li>Upozornenia + priebežné reporty</li>
+          </ul>
+          <p class="pricing-note">Pri ročnom predplatnom je základný audit zdarma.</p>
+          <router-link :to="startLink" class="btn btn-primary">Spustiť monitoring</router-link>
         </article>
 
         <article class="pricing-card">
@@ -331,71 +333,71 @@ onBeforeUnmount(() => {
         <div class="compare-row compare-head">
           <div class="compare-cell">Funkcia</div>
           <div class="compare-cell">Free</div>
-          <div class="compare-cell compare-col-featured">Monitoring</div>
           <div class="compare-cell">Základný</div>
+          <div class="compare-cell compare-col-featured">Monitoring</div>
           <div class="compare-cell">Hlbkový</div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Skóre prístupnosti</div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Počet chýb</div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Detailný report</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Prioritizácia chýb</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Odporúčania opráv</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Legislatívne mapovanie</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
-          <div class="compare-cell">Monitoring 2x mesačne</div>
+          <div class="compare-cell">Monitoring 2× mesačne</div>
+          <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Manuálny audit</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
         <div class="compare-row">
           <div class="compare-cell">Konzultácia s expertom</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
       </div>
@@ -408,21 +410,7 @@ onBeforeUnmount(() => {
           <ul class="compare-plan-list">
             <li>Skóre prístupnosti</li>
             <li>Počet chýb</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card featured">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Monitoring</p>
-            <p class="compare-plan-price">29 € / mesiac</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>Skóre prístupnosti</li>
-            <li>Počet chýb</li>
-            <li>Detailný report</li>
-            <li>Prioritizácia chýb</li>
-            <li>Odporúčania opráv</li>
-            <li>Legislatívne mapovanie</li>
-            <li>Monitoring 2× mesačne</li>
+            <li>Rýchly prehľad problémov</li>
           </ul>
         </article>
         <article class="compare-plan-card">
@@ -431,12 +419,20 @@ onBeforeUnmount(() => {
             <p class="compare-plan-price">99 €</p>
           </div>
           <ul class="compare-plan-list">
-            <li>Skóre prístupnosti</li>
-            <li>Počet chýb</li>
-            <li>Detailný report</li>
-            <li>Prioritizácia chýb</li>
-            <li>Odporúčania opráv</li>
-            <li>Legislatívne mapovanie</li>
+            <li>Automatický WCAG 2.1 AA audit</li>
+            <li>LOW / MED / HIGH chyby + skóre pripravenosti</li>
+            <li>PDF report + mapovanie na EN 301 549 / EAA</li>
+          </ul>
+        </article>
+        <article class="compare-plan-card featured">
+          <div class="compare-plan-head">
+            <p class="compare-plan-name">Monitoring</p>
+            <p class="compare-plan-price">29 € / mesiac</p>
+          </div>
+          <ul class="compare-plan-list">
+            <li>Všetko zo základného auditu</li>
+            <li>Monitoring 2× mesačne</li>
+            <li>Upozornenia + priebežné reporty</li>
           </ul>
         </article>
         <article class="compare-plan-card">
@@ -445,13 +441,8 @@ onBeforeUnmount(() => {
             <p class="compare-plan-price">od 499 €</p>
           </div>
           <ul class="compare-plan-list">
-            <li>Skóre prístupnosti</li>
-            <li>Počet chýb</li>
-            <li>Detailný report</li>
-            <li>Prioritizácia chýb</li>
-            <li>Odporúčania opráv</li>
-            <li>Legislatívne mapovanie</li>
-            <li>Manuálny audit</li>
+            <li>Detailný manuálny audit</li>
+            <li>Checklist povinností</li>
             <li>Konzultácia s expertom</li>
           </ul>
         </article>
@@ -1119,7 +1110,6 @@ onBeforeUnmount(() => {
 .pricing-card.featured {
   border-color: rgba(29, 78, 216, 0.6);
   box-shadow: 0 20px 44px rgba(29, 78, 216, 0.18);
-  transform: translateY(-6px);
 }
 
 .pricing-badge {

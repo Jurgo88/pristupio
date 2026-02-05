@@ -1,8 +1,16 @@
 import { Handler } from '@netlify/functions'
 import chromium from '@sparticuz/chromium-min'
 import { chromium as playwright } from 'playwright-core'
+import { createClient } from '@supabase/supabase-js'
 
 process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
+
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabase =
+  supabaseUrl && supabaseServiceKey
+    ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
+    : null
 
 type Impact = 'critical' | 'serious' | 'moderate' | 'minor'
 
@@ -145,6 +153,31 @@ const buildIssuesHtml = (issues: ReportIssue[]) => {
 
 export const handler: Handler = async (event) => {
   try {
+    if (!supabase) {
+      return { statusCode: 500, body: JSON.stringify({ error: 'Supabase config missing.' }) }
+    }
+
+    const authHeader = event.headers.authorization || event.headers.Authorization
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Chyba autorizacia.' }) }
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim()
+    const { data: userData, error: userError } = await supabase.auth.getUser(token)
+    if (userError || !userData?.user) {
+      return { statusCode: 401, body: JSON.stringify({ error: 'Neplatne prihlasenie.' }) }
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('plan, role')
+      .eq('id', userData.user.id)
+      .single()
+
+    if (profileError || !profile || (profile.plan !== 'paid' && profile.role !== 'admin')) {
+      return { statusCode: 403, body: JSON.stringify({ error: 'Export je dostupny len pre plateny audit.' }) }
+    }
+
     const body = JSON.parse(event.body || '{}') as ExportPayload
     const report = body.report
     const issues = Array.isArray(report?.issues) ? report!.issues! : []

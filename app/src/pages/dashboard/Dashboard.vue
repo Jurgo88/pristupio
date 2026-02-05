@@ -26,6 +26,15 @@
       </div>
     </section>
 
+    <section v-if="auditStore.report && isPreview" class="panel preview-banner">
+      <p class="kicker">Free audit preview</p>
+      <h2>Vidis len rychly prehlad problemov</h2>
+      <p class="lead">
+        Free audit ukazuje skore, pocty a top 3 nalezy. Detailne odporucania a plny report su
+        dostupne v zakladnom audite.
+      </p>
+    </section>
+
     <section class="panel audit-form">
       <div class="panel-head">
         <div>
@@ -152,7 +161,7 @@
         </div>
         <button
           class="btn btn-sm btn-export"
-          :disabled="!auditStore.report || exporting"
+          :disabled="!auditStore.report || exporting || isPreview"
           @click="exportPdf"
         >
           <span v-if="exporting" class="spinner-border spinner-border-sm"></span>
@@ -163,14 +172,14 @@
       <div class="filters">
         <div class="field">
           <label class="field-label">Princíp</label>
-          <select v-model="selectedPrinciple" class="field-control" :disabled="!auditStore.report">
+          <select v-model="selectedPrinciple" class="field-control" :disabled="!auditStore.report || isPreview">
             <option value="">Všetky</option>
             <option v-for="p in principleOptions" :key="p" :value="p">{{ p }}</option>
           </select>
         </div>
         <div class="field">
           <label class="field-label">Závažnosť</label>
-          <select v-model="selectedImpact" class="field-control" :disabled="!auditStore.report">
+          <select v-model="selectedImpact" class="field-control" :disabled="!auditStore.report || isPreview">
             <option value="">Všetky</option>
             <option value="critical">Critical</option>
             <option value="serious">Serious</option>
@@ -185,14 +194,14 @@
             class="field-control"
             type="text"
             placeholder="Napr. kontrast, tlačidlo, aria"
-            :disabled="!auditStore.report"
+            :disabled="!auditStore.report || isPreview"
           />
         </div>
         <div class="field field--actions">
           <button
             class="btn btn-sm btn-filter-clear"
             @click="clearFilters"
-            :disabled="!auditStore.report"
+            :disabled="!auditStore.report || isPreview"
           >
             Zrušiť filtre
           </button>
@@ -226,6 +235,7 @@
             </div>
             <h6 class="issue-title">{{ violation.title }}</h6>
             <button
+              v-if="!isPreview"
               class="btn btn-outline btn-sm"
               @click="toggleDetails(violationKey(violation, index))"
             >
@@ -238,18 +248,18 @@
             <strong>Úroveň:</strong> {{ violation.wcagLevel || 'Neurčené' }} |
             <strong>Princíp:</strong> {{ violation.principle || 'Neurčené' }}
           </div>
-          <div class="issue-meta">
+          <div v-if="!isPreview" class="issue-meta">
             <strong>Odporúčanie:</strong>
             {{
               violation.recommendation ||
               'Skontrolujte problém manuálne a upravte HTML tak, aby spĺňalo WCAG.'
             }}
           </div>
-          <small class="issue-count">Zasiahnutých elementov: {{ violation.nodesCount }}</small>
+          <small class="issue-count">Zasiahnutých elementov: {{ violation.nodesCount ?? 0 }}</small>
 
-          <div v-if="isOpen(violationKey(violation, index))" class="issue-details">
+          <div v-if="!isPreview && isOpen(violationKey(violation, index))" class="issue-details">
             <div v-if="violation.nodesCount === 0" class="empty-inline">Nenašli sa konkrétne prvky.</div>
-            <div v-for="(node, nIndex) in violation.nodes.slice(0, 3)" :key="nIndex" class="node-detail">
+            <div v-for="(node, nIndex) in violation.nodes?.slice(0, 3) || []" :key="nIndex" class="node-detail">
               <div>{{ describeTarget(node.target) }}</div>
               <div class="node-code">
                 <code>{{ formatTarget(node.target) }}</code>
@@ -277,6 +287,7 @@
 import { ref, computed } from 'vue'
 import { useAuditStore } from '@/stores/audit.store'
 import ManualChecklist from '@/components/ManualChecklist.vue'
+import { supabase } from '@/services/supabase'
 
 const targetUrl = ref('')
 const selectedProfile = ref<'wad' | 'eaa'>('wad')
@@ -287,6 +298,7 @@ const openDetails = ref<Record<string, boolean>>({})
 const exporting = ref(false)
 const exportError = ref('')
 const auditStore = useAuditStore()
+const isPreview = computed(() => auditStore.accessLevel === 'free')
 
 const profileOptions = [
   {
@@ -388,7 +400,7 @@ const filteredIssues = computed(() => {
   const filtered = issues.filter((i: any) => {
     const principleOk = !selectedPrinciple.value || i.principle === selectedPrinciple.value
     const impactOk = !selectedImpact.value || i.impact === selectedImpact.value
-    const text = `${i.title} ${i.description} ${i.recommendation} ${i.wcag} ${i.principle}`.toLowerCase()
+    const text = `${i.title || ''} ${i.description || ''} ${i.recommendation || ''} ${i.wcag || ''} ${i.principle || ''}`.toLowerCase()
     const searchOk = !term || text.includes(term)
     return principleOk && impactOk && searchOk
   })
@@ -460,6 +472,12 @@ const exportPdf = async () => {
   exportError.value = ''
 
   try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) {
+      throw new Error('Prihlaste sa, aby ste mohli exportovat report.')
+    }
+
     const issues = filteredIssues.value
     const slimIssues = issues.map((issue: any) => ({
       id: issue.id,
@@ -490,7 +508,10 @@ const exportPdf = async () => {
 
     const response = await fetch('/.netlify/functions/audit-export-pdf', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
       body: JSON.stringify(payload)
     })
 
@@ -813,6 +834,15 @@ const describeTarget = (target: string[]) => {
   border-radius: var(--radius);
   padding: 1.8rem;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.preview-banner {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.1), rgba(14, 165, 233, 0.08));
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.preview-banner h2 {
+  margin: 0.2rem 0 0.6rem;
 }
 
 .panel-head {

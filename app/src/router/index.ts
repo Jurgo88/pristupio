@@ -11,44 +11,47 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      component: Home,
+      component: Home
     },
     {
       path: '/login',
-      component: Login,
+      component: Login
     },
     {
       path: '/register',
-      component: () => import('@/pages/auth/Register.vue'),
+      component: () => import('@/pages/auth/Register.vue')
     },
     {
       path: '/dashboard',
       component: Dashboard,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/admin',
+      component: () => import('@/pages/admin/AdminAudits.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
       path: '/project/:id',
       component: ProjectDetail,
-      meta: { requiresAuth: true },
-    },
-  ],
+      meta: { requiresAuth: true }
+    }
+  ]
 })
 
-/* =========================
-   AUTH GUARD
-========================= */
 router.beforeEach((to) => {
   const auth = useAuthStore()
 
-  // auth ešte nie je pripravený → pusti ďalej
   if (auth.loadingSession) return true
 
-  // neprihlásený user ide na chránenú stránku
   if (to.meta.requiresAuth && !auth.user) {
     return '/login'
   }
 
-  // prihlásený user ide na login
+  if (to.meta.requiresAdmin && !auth.isAdmin) {
+    return '/dashboard'
+  }
+
   if (to.path === '/login' && auth.user) {
     return '/dashboard'
   }
