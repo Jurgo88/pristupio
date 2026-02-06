@@ -73,11 +73,69 @@
       <h2 v-if="auth.paidAuditCompleted">Základný audit už bol použitý.</h2>
       <h2 v-else>Máte aktivovaný základný audit.</h2>
       <p class="lead" v-if="auth.paidAuditCompleted">
-        Ak potrebujete ďalší audit alebo nový web, ozvite sa nám a pripravíme ďalší balík.
+        Môžete si objednať ďalší audit a spraviť nový report.
       </p>
       <p class="lead" v-else>
         Môžete spustiť jeden audit a získať plný report, odporúčania a export PDF.
       </p>
+      <div class="upgrade-actions">
+        <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-outline">
+          Objednať ďalší audit
+        </a>
+      </div>
+    </section>
+
+    <section class="panel audit-history">
+      <div class="panel-head panel-head--tight">
+        <div>
+          <p class="kicker">História</p>
+          <h2>História auditov</h2>
+        </div>
+        <div class="history-actions">
+          <button
+            class="btn btn-sm btn-filter-clear"
+            @click="openLatestAudit"
+            :disabled="historyLoading || !latestAudit"
+          >
+            Zobraziť posledný audit
+          </button>
+          <button class="btn btn-sm btn-filter-clear" @click="loadAuditHistory" :disabled="historyLoading">
+            {{ historyLoading ? 'Načítavam...' : 'Obnoviť' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="historyError" class="form-error">{{ historyError }}</div>
+
+      <div v-if="historyLoading" class="empty-state">Načítavam históriu...</div>
+
+      <div v-else-if="auditHistory.length === 0" class="empty-state">
+        Zatiaľ nemáte žiadne audity.
+      </div>
+
+      <div v-else class="history-list">
+        <article
+          v-for="audit in auditHistory"
+          :key="audit.id"
+          class="history-card"
+          :class="{ 'is-active': selectedAuditId === audit.id }"
+        >
+          <div class="history-meta">
+            <strong>{{ audit.url }}</strong>
+            <div class="history-sub">
+              <span>{{ formatDate(audit.created_at) }}</span>
+              <span class="pill">{{ audit.audit_kind === 'paid' ? 'Základný audit' : 'Free audit' }}</span>
+            </div>
+            <div class="history-stats">
+              <span>Spolu: {{ issueTotal(audit.summary) }}</span>
+              <span>Kritické: {{ issueHigh(audit.summary) }}</span>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline" @click="selectAudit(audit.id)">
+            Zobraziť audit
+          </button>
+        </article>
+      </div>
     </section>
 
     <section class="panel audit-form">
@@ -386,6 +444,11 @@ const showUpgrade = computed(
   () => auth.isLoggedIn && !auth.isPaid && (auth.freeAuditUsed || isPreview.value)
 )
 const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
+const auditHistory = computed(() => auditStore.history || [])
+const historyLoading = ref(false)
+const historyError = ref('')
+const selectedAuditId = ref<string | null>(null)
+const latestAudit = computed(() => auditHistory.value[0] || null)
 
 const refreshPlan = async () => {
   refreshPlanLoading.value = true
@@ -396,11 +459,26 @@ const refreshPlan = async () => {
   }
 }
 
+const loadAuditHistory = async () => {
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    await auditStore.fetchAuditHistory()
+  } catch (_error) {
+    historyError.value = 'Históriu auditov sa nepodarilo načítať.'
+  } finally {
+    historyLoading.value = false
+  }
+}
+
 const loadLatestAudit = async () => {
   if (!auth.isLoggedIn || auditStore.report) return
   const latest = await auditStore.fetchLatestAudit()
   if (latest?.url && !targetUrl.value.trim()) {
     targetUrl.value = latest.url
+  }
+  if (latest?.auditId) {
+    selectedAuditId.value = latest.auditId
   }
 }
 
@@ -410,6 +488,7 @@ onMounted(() => {
     void refreshPlan()
   }
   void loadLatestAudit()
+  void loadAuditHistory()
 })
 
 const profileOptions = [
@@ -436,7 +515,39 @@ const handleStartAudit = async () => {
   const url = targetUrl.value.trim()
   if (!url) return
   await auditStore.runManualAudit(url)
+  if (auditStore.currentAudit?.auditId) {
+    selectedAuditId.value = auditStore.currentAudit.auditId
+  }
+  void loadAuditHistory()
 }
+
+const formatDate = (value?: string) => {
+  if (!value) return ''
+  try {
+    return new Date(value).toLocaleDateString('sk-SK')
+  } catch (_error) {
+    return value
+  }
+}
+
+const selectAudit = async (auditId: string) => {
+  const data = await auditStore.loadAuditById(auditId)
+  if (data?.url) {
+    targetUrl.value = data.url
+  }
+  if (data?.auditId) {
+    selectedAuditId.value = data.auditId
+  }
+}
+
+const openLatestAudit = () => {
+  if (!latestAudit.value) return
+  void selectAudit(latestAudit.value.id)
+}
+
+const issueTotal = (summary: any) => summary?.total ?? 0
+const issueHigh = (summary: any) =>
+  (summary?.byImpact?.critical || 0) + (summary?.byImpact?.serious || 0)
 
 const highCount = computed(() => {
   const byImpact = auditStore.report?.summary.byImpact
@@ -981,6 +1092,71 @@ const describeTarget = (target: string[]) => {
   align-items: center;
 }
 
+.audit-history .btn-filter-clear {
+  height: auto;
+}
+
+.history-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.history-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.history-card.is-active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background: #ffffff;
+}
+
+.history-meta strong {
+  display: block;
+  color: #0f172a;
+}
+
+.history-sub {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.history-sub .pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.history-stats {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -1437,6 +1613,11 @@ const describeTarget = (target: string[]) => {
   .issue-header {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .history-card {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

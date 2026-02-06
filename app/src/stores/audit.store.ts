@@ -34,7 +34,14 @@ export const useAuditStore = defineStore('audit', {
     currentAudit: null as any,
     accessLevel: null as null | 'free' | 'paid',
     report: null as null | AuditReport,
-    error: null as string | null
+    error: null as string | null,
+    history: [] as Array<{
+      id: string
+      url: string
+      audit_kind: 'free' | 'paid'
+      summary: AuditReport['summary']
+      created_at: string
+    }>
   }),
 
   actions: {
@@ -110,6 +117,56 @@ export const useAuditStore = defineStore('audit', {
 
         if (!response.ok) return null
 
+        const data = await response.json()
+        if (!data?.auditId || !data?.report) return null
+
+        this.currentAudit = data
+        this.report = data.report
+        this.accessLevel = data.accessLevel || 'paid'
+        return data
+      } catch (_error) {
+        return null
+      }
+    },
+
+    async fetchAuditHistory() {
+      const auth = useAuthStore()
+      if (!auth.isLoggedIn) return []
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
+        if (!accessToken) return []
+
+        const response = await fetch('/.netlify/functions/audit-history', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
+
+        if (!response.ok) return []
+        const data = await response.json()
+        this.history = Array.isArray(data?.audits) ? data.audits : []
+        return this.history
+      } catch (_error) {
+        return []
+      }
+    },
+
+    async loadAuditById(auditId: string) {
+      const auth = useAuthStore()
+      if (!auth.isLoggedIn || !auditId) return null
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
+        if (!accessToken) return null
+
+        const response = await fetch(`/.netlify/functions/audit-detail?id=${auditId}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
+
+        if (!response.ok) return null
         const data = await response.json()
         if (!data?.auditId || !data?.report) return null
 

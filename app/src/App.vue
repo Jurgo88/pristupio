@@ -36,6 +36,10 @@ const handleLogout = async () => {
               <span v-if="auth.isAdmin" class="badge bg-danger ms-1">Admin</span>
             </span>
 
+            <router-link to="/dashboard" class="btn btn-sm btn-outline-light me-2">
+              Dashboard
+            </router-link>
+
             <router-link
               v-if="auth.isAdmin"
               to="/admin"
