@@ -68,6 +68,18 @@
       </div>
     </section>
 
+    <section v-if="showPaidStatus" class="panel paid-banner">
+      <p class="kicker">Základný audit</p>
+      <h2 v-if="auth.paidAuditCompleted">Základný audit už bol použitý.</h2>
+      <h2 v-else>Máte aktivovaný základný audit.</h2>
+      <p class="lead" v-if="auth.paidAuditCompleted">
+        Ak potrebujete ďalší audit alebo nový web, ozvite sa nám a pripravíme ďalší balík.
+      </p>
+      <p class="lead" v-else>
+        Môžete spustiť jeden audit a získať plný report, odporúčania a export PDF.
+      </p>
+    </section>
+
     <section class="panel audit-form">
       <div class="panel-head">
         <div>
@@ -89,6 +101,7 @@
               type="url"
               class="field-control"
               placeholder="https://priklad.sk"
+              :disabled="auditLocked"
               @keyup.enter="handleStartAudit"
             />
             <button class="btn btn-primary" @click="handleStartAudit" :disabled="!canRunAudit">
@@ -108,7 +121,13 @@
               class="profile-option"
               :class="{ 'is-selected': selectedProfile === option.value }"
             >
-              <input type="radio" name="profile" :value="option.value" v-model="selectedProfile" />
+              <input
+                type="radio"
+                name="profile"
+                :value="option.value"
+                v-model="selectedProfile"
+                :disabled="auditLocked"
+              />
               <span>
                 <strong>{{ option.title }}</strong>
                 <span class="sub">{{ option.subtitle }}</span>
@@ -118,6 +137,7 @@
         </div>
 
         <div v-if="auditStore.error" class="form-error">{{ auditStore.error }}</div>
+        <div v-if="auditLockedMessage" class="form-error">{{ auditLockedMessage }}</div>
       </div>
     </section>
 
@@ -348,7 +368,24 @@ const auditCheckoutUrl = computed(() => {
   })
 })
 const isPreview = computed(() => auditStore.accessLevel === 'free')
-const showUpgrade = computed(() => auth.isLoggedIn && !auth.isPaid)
+const freeLimitReached = computed(() => auth.isLoggedIn && !auth.isPaid && auth.freeAuditUsed)
+const paidLimitReached = computed(
+  () => auth.isLoggedIn && auth.isPaid && auth.paidAuditCompleted && !auth.isAdmin
+)
+const auditLocked = computed(() => freeLimitReached.value || paidLimitReached.value)
+const auditLockedMessage = computed(() => {
+  if (paidLimitReached.value) {
+    return 'Zakladny audit uz bol pouzity. Ak potrebujete dalsi audit, kontaktujte nas.'
+  }
+  if (freeLimitReached.value) {
+    return 'Free audit uz bol pouzity. Pre plny report si objednajte zakladny audit.'
+  }
+  return ''
+})
+const showUpgrade = computed(
+  () => auth.isLoggedIn && !auth.isPaid && (auth.freeAuditUsed || isPreview.value)
+)
+const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
 
 const refreshPlan = async () => {
   refreshPlanLoading.value = true
@@ -359,11 +396,20 @@ const refreshPlan = async () => {
   }
 }
 
+const loadLatestAudit = async () => {
+  if (!auth.isLoggedIn || auditStore.report) return
+  const latest = await auditStore.fetchLatestAudit()
+  if (latest?.url && !targetUrl.value.trim()) {
+    targetUrl.value = latest.url
+  }
+}
+
 onMounted(() => {
   if (route.query.paid === '1') {
     paymentNotice.value = true
     void refreshPlan()
   }
+  void loadLatestAudit()
 })
 
 const profileOptions = [
@@ -379,7 +425,9 @@ const profileOptions = [
   }
 ] as const
 
-const canRunAudit = computed(() => targetUrl.value.trim().length > 0 && !auditStore.loading)
+const canRunAudit = computed(
+  () => targetUrl.value.trim().length > 0 && !auditStore.loading && !auditLocked.value
+)
 const profileLabel = computed(
   () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
 )
@@ -914,6 +962,11 @@ const describeTarget = (target: string[]) => {
 .payment-banner {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(34, 197, 94, 0.08));
   border-color: rgba(16, 185, 129, 0.4);
+}
+
+.paid-banner {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(14, 116, 144, 0.08));
+  border-color: rgba(14, 116, 144, 0.35);
 }
 
 .upgrade-panel {

@@ -143,8 +143,17 @@ export const handler: Handler = async (event) => {
 
     const isAdmin = profile.role === 'admin'
     const isPaid = profile.plan === 'paid' || isAdmin
+    const hasFreeAudit = !!profile.free_audit_used
+    const hasPaidAudit = !!profile.paid_audit_completed
 
-    if (!isPaid && profile.free_audit_used) {
+    if (!isAdmin && isPaid && hasPaidAudit) {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: 'Zakladny audit uz bol pouzity. Ak potrebujete dalsi, kontaktujte nas.' })
+      }
+    }
+
+    if (!isPaid && hasFreeAudit) {
       return {
         statusCode: 403,
         body: JSON.stringify({ error: 'Free audit uz bol pouzity.' })

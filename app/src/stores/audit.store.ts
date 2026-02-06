@@ -80,11 +80,45 @@ export const useAuditStore = defineStore('audit', {
         this.currentAudit = data
         this.report = data.report
         this.accessLevel = data.accessLevel || 'paid'
+        if (this.accessLevel === 'free') {
+          auth.freeAuditUsed = true
+        } else if (this.accessLevel === 'paid' && !auth.isAdmin) {
+          auth.paidAuditCompleted = true
+        }
       } catch (err: any) {
         this.error = err.message
         this.accessLevel = null
       } finally {
         this.loading = false
+      }
+    },
+
+    async fetchLatestAudit() {
+      const auth = useAuthStore()
+      if (!auth.isLoggedIn) return null
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
+        if (!accessToken) return null
+
+        const response = await fetch('/.netlify/functions/audit-latest', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
+
+        if (!response.ok) return null
+
+        const data = await response.json()
+        if (!data?.auditId || !data?.report) return null
+
+        this.currentAudit = data
+        this.report = data.report
+        this.accessLevel = data.accessLevel || 'paid'
+        return data
+      } catch (_error) {
+        return null
       }
     }
   }
