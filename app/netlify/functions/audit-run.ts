@@ -113,7 +113,7 @@ export const handler: Handler = async (event) => {
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('plan, free_audit_used, paid_audit_completed, role')
+      .select('plan, free_audit_used, paid_audit_completed, paid_audit_credits, role')
       .eq('id', userData.user.id)
       .single()
 
@@ -127,9 +127,10 @@ export const handler: Handler = async (event) => {
           plan: 'free',
           free_audit_used: false,
           paid_audit_completed: false,
-          consent_marketing: false
+          consent_marketing: false,
+          paid_audit_credits: 0
         })
-        .select('plan, free_audit_used, paid_audit_completed')
+        .select('plan, free_audit_used, paid_audit_completed, paid_audit_credits')
         .single()
 
       profile =
@@ -137,19 +138,20 @@ export const handler: Handler = async (event) => {
         ({
           plan: 'free',
           free_audit_used: false,
-          paid_audit_completed: false
+          paid_audit_completed: false,
+          paid_audit_credits: 0
         } as any)
     }
 
     const isAdmin = profile.role === 'admin'
     const isPaid = profile.plan === 'paid' || isAdmin
     const hasFreeAudit = !!profile.free_audit_used
-    const hasPaidAudit = !!profile.paid_audit_completed
+    const paidCredits = Number(profile.paid_audit_credits || 0)
 
-    if (!isAdmin && isPaid && hasPaidAudit) {
+    if (!isAdmin && isPaid && paidCredits <= 0) {
       return {
         statusCode: 403,
-        body: JSON.stringify({ error: 'Zakladny audit uz bol pouzity. Ak potrebujete dalsi, kontaktujte nas.' })
+        body: JSON.stringify({ error: 'Nemate kredit na zakladny audit. Objednajte dalsi audit.' })
       }
     }
 
@@ -238,9 +240,10 @@ export const handler: Handler = async (event) => {
     }
 
     if (isPaid && !isAdmin) {
+      const nextCredits = Math.max(0, paidCredits - 1)
       await supabase
         .from('profiles')
-        .update({ paid_audit_completed: true })
+        .update({ paid_audit_completed: true, paid_audit_credits: nextCredits })
         .eq('id', userData.user.id)
     } else if (!isPaid) {
       await supabase

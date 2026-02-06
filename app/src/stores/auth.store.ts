@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', {
     userPlan: 'free' as UserPlan,
     freeAuditUsed: false,
     paidAuditCompleted: false,
+    paidAuditCredits: 0,
     consentMarketing: false,
     _listenerInitialized: false
   }),
@@ -47,6 +48,7 @@ export const useAuthStore = defineStore('auth', {
           this.userPlan = 'free'
           this.freeAuditUsed = false
           this.paidAuditCompleted = false
+          this.paidAuditCredits = 0
           this.consentMarketing = false
         } else {
           await this.fetchUserProfile()
@@ -97,6 +99,7 @@ export const useAuthStore = defineStore('auth', {
       this.userPlan = 'free'
       this.freeAuditUsed = false
       this.paidAuditCompleted = false
+      this.paidAuditCredits = 0
       this.consentMarketing = false
     },
 
@@ -105,7 +108,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('role, plan, free_audit_used, paid_audit_completed, consent_marketing')
+          .select('role, plan, free_audit_used, paid_audit_completed, paid_audit_credits, consent_marketing')
           .eq('id', this.user.id)
           .single()
 
@@ -114,6 +117,7 @@ export const useAuthStore = defineStore('auth', {
           this.userPlan = 'free'
           this.freeAuditUsed = false
           this.paidAuditCompleted = false
+          this.paidAuditCredits = 0
           this.consentMarketing = false
           return
         }
@@ -122,12 +126,14 @@ export const useAuthStore = defineStore('auth', {
         this.userPlan = (data.plan as UserPlan) || 'free'
         this.freeAuditUsed = !!data.free_audit_used
         this.paidAuditCompleted = !!data.paid_audit_completed
+        this.paidAuditCredits = Number(data.paid_audit_credits || 0)
         this.consentMarketing = !!data.consent_marketing
       } catch (_error) {
         this.userRole = 'user'
         this.userPlan = 'free'
         this.freeAuditUsed = false
         this.paidAuditCompleted = false
+        this.paidAuditCredits = 0
         this.consentMarketing = false
       }
     }

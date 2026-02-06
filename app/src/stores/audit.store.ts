@@ -91,6 +91,7 @@ export const useAuditStore = defineStore('audit', {
           auth.freeAuditUsed = true
         } else if (this.accessLevel === 'paid' && !auth.isAdmin) {
           auth.paidAuditCompleted = true
+          auth.paidAuditCredits = Math.max(0, (auth.paidAuditCredits || 0) - 1)
         }
       } catch (err: any) {
         this.error = err.message

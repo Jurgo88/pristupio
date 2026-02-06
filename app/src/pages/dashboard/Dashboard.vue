@@ -70,14 +70,17 @@
 
     <section v-if="showPaidStatus" class="panel paid-banner">
       <p class="kicker">Základný audit</p>
-      <h2 v-if="auth.paidAuditCompleted">Základný audit už bol použitý.</h2>
-      <h2 v-else>Máte aktivovaný základný audit.</h2>
-      <p class="lead" v-if="auth.paidAuditCompleted">
-        Môžete si objednať ďalší audit a spraviť nový report.
+      <h2 v-if="paidCredits <= 0">Nemáte dostupný kredit.</h2>
+      <h2 v-else>Máte dostupný kredit na audit.</h2>
+      <p class="lead" v-if="paidCredits <= 0">
+        Objednajte ďalší audit a spravte nový report.
       </p>
       <p class="lead" v-else>
-        Môžete spustiť jeden audit a získať plný report, odporúčania a export PDF.
+        Môžete spustiť audit a získať plný report, odporúčania a export PDF.
       </p>
+      <div class="history-stats">
+        <span>Kredity: {{ paidCredits }}</span>
+      </div>
       <div class="upgrade-actions">
         <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-outline">
           Objednať ďalší audit
@@ -428,12 +431,12 @@ const auditCheckoutUrl = computed(() => {
 const isPreview = computed(() => auditStore.accessLevel === 'free')
 const freeLimitReached = computed(() => auth.isLoggedIn && !auth.isPaid && auth.freeAuditUsed)
 const paidLimitReached = computed(
-  () => auth.isLoggedIn && auth.isPaid && auth.paidAuditCompleted && !auth.isAdmin
+  () => auth.isLoggedIn && auth.isPaid && (auth.paidAuditCredits || 0) <= 0 && !auth.isAdmin
 )
 const auditLocked = computed(() => freeLimitReached.value || paidLimitReached.value)
 const auditLockedMessage = computed(() => {
   if (paidLimitReached.value) {
-    return 'Zakladny audit uz bol pouzity. Ak potrebujete dalsi audit, kontaktujte nas.'
+    return 'Nemate kredit na zakladny audit. Objednajte dalsi audit.'
   }
   if (freeLimitReached.value) {
     return 'Free audit uz bol pouzity. Pre plny report si objednajte zakladny audit.'
@@ -444,6 +447,7 @@ const showUpgrade = computed(
   () => auth.isLoggedIn && !auth.isPaid && (auth.freeAuditUsed || isPreview.value)
 )
 const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
+const paidCredits = computed(() => auth.paidAuditCredits || 0)
 const auditHistory = computed(() => auditStore.history || [])
 const historyLoading = ref(false)
 const historyError = ref('')

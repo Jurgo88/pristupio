@@ -61,12 +61,51 @@ export const handler: Handler = async (event) => {
       return { statusCode: 200, body: 'No user mapping provided.' }
     }
 
-    const planValue = eventName === 'order_refunded' ? 'free' : 'paid'
-    const query = supabase.from('profiles').update({ plan: planValue })
+    if (eventName === 'order_refunded') {
+      const query = supabase.from('profiles').update({ plan: 'free', paid_audit_credits: 0 })
+      const updateResult = userId
+        ? await query.eq('id', userId)
+        : await query.eq('email', userEmail)
 
-    const updateResult = userId
-      ? await query.eq('id', userId)
-      : await query.eq('email', userEmail)
+      if (updateResult.error) {
+        console.error('Lemon webhook update error:', updateResult.error)
+        return { statusCode: 500, body: 'Profile update failed.' }
+      }
+
+      return { statusCode: 200, body: 'OK' }
+    }
+
+    const profileQuery = supabase.from('profiles').select('id, paid_audit_credits')
+    const profileResult = userId
+      ? await profileQuery.eq('id', userId).single()
+      : await profileQuery.eq('email', userEmail).single()
+
+    if (!profileResult.data?.id) {
+      const insertResult = await supabase.from('profiles').insert({
+        id: userId,
+        email: userEmail || null,
+        plan: 'paid',
+        free_audit_used: false,
+        paid_audit_completed: false,
+        consent_marketing: false,
+        paid_audit_credits: 1
+      })
+
+      if (insertResult.error) {
+        console.error('Lemon webhook insert error:', insertResult.error)
+        return { statusCode: 500, body: 'Profile insert failed.' }
+      }
+
+      return { statusCode: 200, body: 'OK' }
+    }
+
+    const currentCredits = Number(profileResult.data?.paid_audit_credits || 0)
+    const nextCredits = currentCredits + 1
+
+    const updateResult = await supabase
+      .from('profiles')
+      .update({ plan: 'paid', paid_audit_credits: nextCredits })
+      .eq('id', profileResult.data.id)
 
     if (updateResult.error) {
       console.error('Lemon webhook update error:', updateResult.error)
