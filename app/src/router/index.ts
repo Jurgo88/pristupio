@@ -5,6 +5,9 @@ import Home from '@/pages/Home.vue'
 import Login from '@/pages/auth/Login.vue'
 import Dashboard from '@/pages/dashboard/Dashboard.vue'
 import ProjectDetail from '@/pages/dashboard/ProjectDetail.vue'
+import Terms from '@/pages/legal/Terms.vue'
+import Privacy from '@/pages/legal/Privacy.vue'
+import Refunds from '@/pages/legal/Refunds.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -35,6 +38,18 @@ const router = createRouter({
       path: '/project/:id',
       component: ProjectDetail,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/terms',
+      component: Terms
+    },
+    {
+      path: '/privacy',
+      component: Privacy
+    },
+    {
+      path: '/refunds',
+      component: Refunds
     }
   ]
 })

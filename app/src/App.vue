@@ -88,10 +88,17 @@ const handleLogout = async () => {
               <span>WAD 2016/2102</span>
             </div>
             <div class="footer-col">
+              <p class="footer-title">Právne</p>
+              <router-link to="/terms">Podmienky používania</router-link>
+              <router-link to="/privacy">Ochrana súkromia</router-link>
+              <router-link to="/refunds">Refundácie</router-link>
+            </div>
+            <div class="footer-col">
               <p class="footer-title">Kontakt</p>
-              <span>info@pristupio.sk</span>
-              <span>+421 900 000 000</span>
-              <span>IČO: 12345678</span>
+              <span>support@pristupio.sk</span>
+              <span>AJRONIK s.r.o.</span>
+              <span>IČO: 55304052</span>
+              <span>DIČ: 2121943153</span>
             </div>
           </div>
         </div>
@@ -222,7 +229,7 @@ const handleLogout = async () => {
 
 .footer-links {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1.5rem;
 }
 

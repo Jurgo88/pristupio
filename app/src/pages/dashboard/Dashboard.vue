@@ -35,6 +35,39 @@
       </p>
     </section>
 
+    <section v-if="paymentNotice" class="panel payment-banner">
+      <p class="kicker">Platba</p>
+      <h2>Ďakujeme, platba prebehla.</h2>
+      <p class="lead">
+        Ak sa prístup ešte neodomkol, kliknite na “Už som zaplatil” a obnovíme stav z Lemon
+        Squeezy.
+      </p>
+      <div class="upgrade-actions">
+        <button class="btn btn-outline" @click="refreshPlan" :disabled="refreshPlanLoading">
+          {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
+        </button>
+      </div>
+    </section>
+
+    <section v-if="showUpgrade" class="panel upgrade-panel">
+      <div>
+        <p class="kicker">Základný audit</p>
+        <h2>Odomknite celý report a odporúčania.</h2>
+        <p class="lead">
+          Po platbe sa vám odomkne plný výstup a export PDF. Po zaplatení stačí spustiť audit ešte
+          raz.
+        </p>
+      </div>
+      <div class="upgrade-actions">
+        <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-primary">
+          Objednať audit (99 €)
+        </a>
+        <button class="btn btn-outline" @click="refreshPlan" :disabled="refreshPlanLoading">
+          {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
+        </button>
+      </div>
+    </section>
+
     <section class="panel audit-form">
       <div class="panel-head">
         <div>
@@ -284,10 +317,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
+import { useAuthStore } from '@/stores/auth.store'
 import ManualChecklist from '@/components/ManualChecklist.vue'
 import { supabase } from '@/services/supabase'
+import { buildLemonCheckoutUrl } from '@/utils/lemon'
 
 const targetUrl = ref('')
 const selectedProfile = ref<'wad' | 'eaa'>('wad')
@@ -298,7 +334,37 @@ const openDetails = ref<Record<string, boolean>>({})
 const exporting = ref(false)
 const exportError = ref('')
 const auditStore = useAuditStore()
+const auth = useAuthStore()
+const route = useRoute()
+const refreshPlanLoading = ref(false)
+const paymentNotice = ref(false)
+const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
+const auditCheckoutUrl = computed(() => {
+  if (!auth.user || !auditCheckoutBase) return ''
+  return buildLemonCheckoutUrl({
+    baseUrl: auditCheckoutBase,
+    userId: auth.user.id,
+    email: auth.user.email
+  })
+})
 const isPreview = computed(() => auditStore.accessLevel === 'free')
+const showUpgrade = computed(() => auth.isLoggedIn && !auth.isPaid)
+
+const refreshPlan = async () => {
+  refreshPlanLoading.value = true
+  try {
+    await auth.fetchUserProfile()
+  } finally {
+    refreshPlanLoading.value = false
+  }
+}
+
+onMounted(() => {
+  if (route.query.paid === '1') {
+    paymentNotice.value = true
+    void refreshPlan()
+  }
+})
 
 const profileOptions = [
   {
@@ -843,6 +909,23 @@ const describeTarget = (target: string[]) => {
 
 .preview-banner h2 {
   margin: 0.2rem 0 0.6rem;
+}
+
+.payment-banner {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(34, 197, 94, 0.08));
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.upgrade-panel {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.upgrade-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
 }
 
 .panel-head {

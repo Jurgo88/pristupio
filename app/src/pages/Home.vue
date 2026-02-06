@@ -1,10 +1,20 @@
 ﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
+import { buildLemonCheckoutUrl } from '@/utils/lemon'
 
 const auth = useAuthStore()
 
 const startLink = computed(() => (auth.isLoggedIn ? '/dashboard' : '/login'))
+const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
+const auditCheckoutUrl = computed(() => {
+  if (!auth.user || !auditCheckoutBase) return ''
+  return buildLemonCheckoutUrl({
+    baseUrl: auditCheckoutBase,
+    userId: auth.user.id,
+    email: auth.user.email
+  })
+})
 
 let observer: IntersectionObserver | null = null
 
@@ -297,7 +307,14 @@ onBeforeUnmount(() => {
             <li>Odporúčania pre opravy</li>
             <li>Legislatívne mapovanie</li>
           </ul>
-          <router-link :to="startLink" class="btn btn-outline-dark">Objednať audit</router-link>
+          <a
+            v-if="auth.isLoggedIn && auditCheckoutUrl"
+            :href="auditCheckoutUrl"
+            class="btn btn-outline-dark"
+          >
+            Objednať audit
+          </a>
+          <router-link v-else :to="startLink" class="btn btn-outline-dark">Objednať audit</router-link>
         </article>
 
         <article class="pricing-card featured">
