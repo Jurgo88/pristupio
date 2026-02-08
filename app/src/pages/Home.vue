@@ -487,6 +487,84 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
+    <section id="faq" class="faq reveal">
+      <div class="section-head">
+        <p class="kicker">FAQ</p>
+        <h2>Najčastejšie otázky o audite a monitoringu.</h2>
+        <p class="lead">
+          Rýchle odpovede na to, čo riešia tímy pred nákupom a počas prvého auditu.
+        </p>
+      </div>
+      <div class="faq-grid">
+        <details class="faq-item">
+          <summary>Čo je prístupnosť webu a prečo na nej záleží?</summary>
+          <p>
+            Prístupnosť znamená, že web sa dá používať aj s asistenčnými technológiami (napr. čítačky
+            obrazovky) a bez myši, len klávesnicou. V praxi to rieši kontrasty, čitateľnosť, jasnú
+            hierarchiu nadpisov, formuláre aj navigáciu. Výsledkom je web, ktorý funguje pre ľudí so
+            znevýhodnením, seniorov aj používateľov v horších podmienkach (mobil, slabé svetlo,
+            dočasné obmedzenie).
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Čo dostanem vo free audite?</summary>
+          <p>
+            Skóre prístupnosti, počet nálezov a stručný prehľad top problémov. Je to rýchly screening,
+            ktorý vám dá jasnú predstavu o rozsahu, riziku a pomôže určiť priority pred detailným
+            auditom. Hodí sa na prvú diagnostiku a internú diskusiu v tíme.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Aký je rozdiel medzi základným auditom a monitoringom?</summary>
+          <p>
+            Základný audit je jednorazový detailný report s odporúčaniami. Monitoring opakuje sken
+            2× mesačne, sleduje zmeny, porovnáva trend a upozorňuje na nové chyby po úpravách webu
+            alebo nasadení nových funkcií. Vďaka tomu máte prehľad, či sa dostupnosť zlepšuje alebo
+            zhoršuje, a nemusíte robiť audit od nuly po každej zmene.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Aký zákon to vyžaduje na Slovensku?</summary>
+          <p>
+            Pre verejný sektor platí smernica (EÚ) 2016/2102 a jej transpozícia v SR cez zákon
+            č. 95/2019 Z. z. o IT vo verejnej správe. Pre komerčné služby a produkty platí zákon
+            č. 351/2022 Z. z. o prístupnosti výrobkov a služieb, ktorý vychádza z EAA 2019/882.
+            Výnimky a presný rozsah povinností závisia od typu služby a subjektu.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Dokedy musia byť weby prístupné?</summary>
+          <p>
+            Verejný sektor: nové weby od 23. 9. 2019, všetky ostatné weby od 23. 9. 2020 a mobilné
+            aplikácie od 23. 6. 2021. EAA požiadavky sa v EÚ uplatňujú od 28. 6. 2025 a zákon
+            351/2022 Z. z. je účinný od 28. 6. 2025.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Čo potrebujem na spustenie auditu?</summary>
+          <p>
+            Stačí URL a výber profilu (WAD alebo EAA). Sken je automatický a nevyžaduje integráciu do kódu.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Pomôže mi audit aj pre vývoj?</summary>
+          <p>
+            Áno. Každý nález obsahuje prioritu, popis problému a akčné odporúčanie, takže vývoj vie
+            rýchlo určiť ďalší krok.
+          </p>
+        </details>
+        <details class="faq-item">
+          <summary>Kde nájdem znenie smerníc a zákonov?</summary>
+          <p>
+            SR zákon 351/2022 Z. z.: <a href="https://www.slov-lex.sk/static/pdf/2022/351/ZZ_2022_351_20250628.pdf">Slov-Lex</a>.
+            SR zákon 95/2019 Z. z.: <a href="https://static.slov-lex.sk/pdf/SK/ZZ/2019/95/ZZ_2019_95_20250628.pdf">Slov-Lex</a>.
+            Smernica (EÚ) 2016/2102: <a href="https://eur-lex.europa.eu/EN/legal-content/summary/accessibility-of-public-sector-websites-and-mobile-apps.html">EUR-Lex</a>.
+            EAA 2019/882: <a href="https://eur-lex.europa.eu/eli/dir/2019/882/oj">EUR-Lex</a>.
+          </p>
+        </details>
+      </div>
+    </section>
+
     <section class="cta reveal">
       <div class="cta-inner">
         <div>
@@ -1257,6 +1335,61 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
 }
 
+.faq {
+  display: grid;
+  gap: 2rem;
+}
+
+.faq-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.faq-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.faq-item summary {
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.faq-item summary::after {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  display: inline-block;
+  background:
+    linear-gradient(#1d4ed8, #1d4ed8) center/12px 2px no-repeat,
+    linear-gradient(#1d4ed8, #1d4ed8) center/2px 12px no-repeat;
+  transition: transform 0.2s ease;
+}
+
+.faq-item[open] summary::after {
+  background:
+    linear-gradient(#1d4ed8, #1d4ed8) center/12px 2px no-repeat;
+  transform: rotate(180deg);
+}
+
+.faq-item p {
+  margin: 0.8rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 .cta {
   background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
   border-radius: var(--radius);
@@ -1342,7 +1475,8 @@ onBeforeUnmount(() => {
   .value-grid,
   .workflow-steps,
   .pricing-grid,
-  .compliance-inner {
+  .compliance-inner,
+  .faq-grid {
     grid-template-columns: 1fr;
   }
 
