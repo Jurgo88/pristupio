@@ -70,7 +70,15 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async signUp(email: string, password: string, consentMarketing: boolean) {
+    async signUp({
+      email,
+      password,
+      metadata
+    }: {
+      email: string
+      password: string
+      metadata: Record<string, any>
+    }) {
       this.loading = true
       this.authError = null
       try {
@@ -78,9 +86,7 @@ export const useAuthStore = defineStore('auth', {
           email,
           password,
           options: {
-            data: {
-              consent_marketing: consentMarketing
-            }
+            data: metadata
           }
         })
         if (error) throw error

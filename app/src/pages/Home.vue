@@ -943,7 +943,6 @@ onBeforeUnmount(() => {
 .section-head {
   display: grid;
   gap: 0.5rem;
-  max-width: 720px;
 }
 
 .benefits {
