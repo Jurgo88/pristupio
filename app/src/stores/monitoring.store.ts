@@ -49,13 +49,22 @@ export type MonitoringTarget = {
   latest_run: MonitoringRun | null
 }
 
+export type MonitoringTrendPoint = {
+  score: number | null
+  total: number
+  created_at: string
+  completed_at: string | null
+}
+
 export const useMonitoringStore = defineStore('monitoring', {
   state: () => ({
     loading: false,
+    trendsLoading: false,
     saving: false,
     error: null as string | null,
     canManage: false,
-    targets: [] as MonitoringTarget[]
+    targets: [] as MonitoringTarget[],
+    trendsByTarget: {} as Record<string, MonitoringTrendPoint[]>
   }),
 
   actions: {
@@ -63,6 +72,7 @@ export const useMonitoringStore = defineStore('monitoring', {
       const auth = useAuthStore()
       if (!auth.isLoggedIn) {
         this.targets = []
+        this.trendsByTarget = {}
         this.canManage = false
         return []
       }
@@ -75,6 +85,7 @@ export const useMonitoringStore = defineStore('monitoring', {
         const accessToken = sessionData.session?.access_token
         if (!accessToken) {
           this.targets = []
+          this.trendsByTarget = {}
           this.canManage = false
           return []
         }
@@ -96,10 +107,44 @@ export const useMonitoringStore = defineStore('monitoring', {
       } catch (error: any) {
         this.error = error?.message || 'Monitoring sa nepodarilo nacitat.'
         this.targets = []
+        this.trendsByTarget = {}
         this.canManage = false
         return []
       } finally {
         this.loading = false
+      }
+    },
+
+    async fetchTrends(limit = 12) {
+      this.trendsLoading = true
+      this.error = null
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
+        if (!accessToken) {
+          this.trendsByTarget = {}
+          return {}
+        }
+
+        const response = await fetch(`/.netlify/functions/monitoring-trends?limit=${limit}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        })
+
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          throw new Error(data?.error || 'Trendy sa nepodarilo nacitat.')
+        }
+
+        this.trendsByTarget = (data?.trends || {}) as Record<string, MonitoringTrendPoint[]>
+        return this.trendsByTarget
+      } catch (error: any) {
+        this.error = error?.message || 'Trendy sa nepodarilo nacitat.'
+        this.trendsByTarget = {}
+        return {}
+      } finally {
+        this.trendsLoading = false
       }
     },
 

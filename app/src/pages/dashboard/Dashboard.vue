@@ -44,12 +44,14 @@
     <DashboardMonitoringSection
       :can-manage="canManageMonitoring"
       :monitoring-loading="monitoringLoading"
+      :monitoring-trends-loading="monitoringTrendsLoading"
       :monitoring-saving="monitoringSaving"
       :monitoring-error="monitoringError"
       :monitoring-url="monitoringUrl"
       :monitoring-frequency="monitoringFrequency"
       :can-save-monitoring="canSaveMonitoring"
       :monitoring-targets="monitoringTargets"
+      :monitoring-trends="monitoringTrends"
       :format-date="formatDate"
       @update:monitoring-url="monitoringUrl = $event"
       @update:monitoring-frequency="monitoringFrequency = $event"
@@ -129,8 +131,10 @@ const {
   canManageMonitoring,
   monitoringTargets,
   monitoringLoading,
+  monitoringTrendsLoading,
   monitoringSaving,
   monitoringError,
+  monitoringTrends,
   canSaveMonitoring,
   auditHistory,
   historyLoading,

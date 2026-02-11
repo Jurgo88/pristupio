@@ -67,8 +67,10 @@ export const useDashboardLogic = () => {
   )
   const monitoringTargets = computed(() => monitoringStore.targets || [])
   const monitoringLoading = computed(() => monitoringStore.loading)
+  const monitoringTrendsLoading = computed(() => monitoringStore.trendsLoading)
   const monitoringSaving = computed(() => monitoringStore.saving)
   const monitoringError = computed(() => monitoringStore.error || '')
+  const monitoringTrends = computed(() => monitoringStore.trendsByTarget || {})
   const canSaveMonitoring = computed(
     () => monitoringUrl.value.trim().length > 0 && !monitoringStore.saving && monitoringStore.canManage
   )
@@ -102,6 +104,7 @@ export const useDashboardLogic = () => {
   const loadMonitoringTargets = async () => {
     if (!auth.isLoggedIn) return
     await monitoringStore.fetchTargets()
+    await monitoringStore.fetchTrends(12)
   }
 
   const saveMonitoringTarget = async () => {
@@ -489,8 +492,10 @@ export const useDashboardLogic = () => {
     canManageMonitoring,
     monitoringTargets,
     monitoringLoading,
+    monitoringTrendsLoading,
     monitoringSaving,
     monitoringError,
+    monitoringTrends,
     canSaveMonitoring,
     auditHistory,
     historyLoading,

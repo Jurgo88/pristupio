@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { MonitoringTarget } from '@/stores/monitoring.store'
+import type { MonitoringTarget, MonitoringTrendPoint } from '@/stores/monitoring.store'
 
 const props = defineProps<{
   canManage: boolean
   monitoringLoading: boolean
+  monitoringTrendsLoading: boolean
   monitoringSaving: boolean
   monitoringError: string
   monitoringUrl: string
   monitoringFrequency: number
   canSaveMonitoring: boolean
   monitoringTargets: MonitoringTarget[]
+  monitoringTrends: Record<string, MonitoringTrendPoint[]>
   formatDate: (value?: string | null) => string
 }>()
 
@@ -49,6 +51,40 @@ const totalLabel = (target: MonitoringTarget) => {
   const total = target.latest_run?.summary?.total
   if (typeof total !== 'number') return 'Nalezy: -'
   return `Nalezy: ${total}`
+}
+
+const trendPoints = (targetId: string) => props.monitoringTrends?.[targetId] || []
+
+const scoreTrendLabel = (targetId: string) => {
+  const points = trendPoints(targetId)
+  if (points.length < 2) return 'Trend skore: n/a'
+  const first = points[0]?.score
+  const last = points[points.length - 1]?.score
+  if (typeof first !== 'number' || typeof last !== 'number') return 'Trend skore: n/a'
+  const diff = last - first
+  if (diff > 0) return `Trend skore: +${diff}`
+  if (diff < 0) return `Trend skore: ${diff}`
+  return 'Trend skore: bez zmeny'
+}
+
+const sparklinePath = (targetId: string) => {
+  const width = 180
+  const height = 54
+  const points = trendPoints(targetId)
+    .map((item) => item?.score)
+    .filter((score): score is number => typeof score === 'number')
+
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M 0 ${height - (points[0] / 100) * height} L ${width} ${height - (points[0] / 100) * height}`
+
+  const step = width / (points.length - 1)
+  return points
+    .map((score, index) => {
+      const x = Number((index * step).toFixed(2))
+      const y = Number((height - (score / 100) * height).toFixed(2))
+      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`
+    })
+    .join(' ')
 }
 </script>
 
@@ -98,7 +134,7 @@ const totalLabel = (target: MonitoringTarget) => {
 
       <div v-if="monitoringError" class="form-error">{{ monitoringError }}</div>
 
-      <div v-if="monitoringLoading" class="empty-state">Nacitavam monitoring...</div>
+      <div v-if="monitoringLoading || monitoringTrendsLoading" class="empty-state">Nacitavam monitoring...</div>
       <div v-else-if="monitoringTargets.length === 0" class="empty-state">
         Zatial nemate nastavene ziadne URL pre monitoring.
       </div>
@@ -115,6 +151,15 @@ const totalLabel = (target: MonitoringTarget) => {
             <div class="target-sub">
               <span>Frekvencia: {{ target.frequency_days }} dni</span>
               <span>Dalsi beh: {{ formatDate(target.next_run_at || undefined) || '-' }}</span>
+            </div>
+            <div class="target-sub target-sub--trend">
+              <span>{{ scoreTrendLabel(target.id) }}</span>
+            </div>
+            <div class="sparkline-wrap" v-if="trendPoints(target.id).length > 0">
+              <svg viewBox="0 0 180 54" preserveAspectRatio="none" role="img" aria-label="Trend skore">
+                <path class="sparkline-track" d="M 0 53 L 180 53" />
+                <path class="sparkline-line" :d="sparklinePath(target.id)" />
+              </svg>
             </div>
             <div v-if="target.last_error" class="target-error">{{ target.last_error }}</div>
           </div>
@@ -257,10 +302,44 @@ const totalLabel = (target: MonitoringTarget) => {
   margin-top: 0.35rem;
 }
 
+.target-sub--trend {
+  margin-top: 0.45rem;
+}
+
 .target-error {
   margin-top: 0.35rem;
   font-size: 0.83rem;
   color: #991b1b;
+}
+
+.sparkline-wrap {
+  margin-top: 0.45rem;
+  width: 180px;
+  height: 54px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  padding: 4px;
+}
+
+.sparkline-wrap svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sparkline-track {
+  fill: none;
+  stroke: #dbe3ef;
+  stroke-width: 1;
+}
+
+.sparkline-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .btn {

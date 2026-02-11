@@ -27,14 +27,52 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    isAbortError(error: unknown) {
+      if (!error) return false
+      const maybe = error as { name?: string; message?: string }
+      return maybe.name === 'AbortError' || String(maybe.message || '').toLowerCase().includes('aborted')
+    },
+
     async init() {
-      const { data } = await supabase.auth.getSession()
-      this.user = data.session?.user ?? null
-
-      if (this.user) await this.fetchUserProfile()
-
-      this.loadingSession = false
       this.initAuthListener()
+
+      try {
+        let sessionData: Awaited<ReturnType<typeof supabase.auth.getSession>>['data'] | null = null
+        let sessionError: unknown = null
+
+        try {
+          const result = await supabase.auth.getSession()
+          sessionData = result.data
+          sessionError = result.error
+        } catch (error) {
+          sessionError = error
+        }
+
+        if (this.isAbortError(sessionError)) {
+          // Short retry helps after redirects where the first auth request may be aborted by the browser.
+          await new Promise((resolve) => setTimeout(resolve, 150))
+          const retryResult = await supabase.auth.getSession()
+          sessionData = retryResult.data
+          sessionError = retryResult.error
+        }
+
+        if (sessionError && !this.isAbortError(sessionError)) {
+          throw sessionError
+        }
+
+        this.user = sessionData?.session?.user ?? null
+        if (this.user) await this.fetchUserProfile()
+      } catch (_error) {
+        this.user = null
+        this.userRole = 'guest'
+        this.userPlan = 'free'
+        this.freeAuditUsed = false
+        this.paidAuditCompleted = false
+        this.paidAuditCredits = 0
+        this.consentMarketing = false
+      } finally {
+        this.loadingSession = false
+      }
     },
 
     initAuthListener() {
