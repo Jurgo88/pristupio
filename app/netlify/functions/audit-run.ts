@@ -44,7 +44,10 @@ const impactOrder: Record<Impact, number> = {
 }
 
 const RATE_LIMIT_WINDOW_MINUTES = 15
-const RATE_LIMIT_MAX_AUDITS = Number(process.env.AUDIT_RATE_LIMIT_COUNT || 5)
+const parsedRateLimitMaxAudits = Number.parseInt(process.env.AUDIT_RATE_LIMIT_COUNT || '5', 10)
+const RATE_LIMIT_MAX_AUDITS = Number.isFinite(parsedRateLimitMaxAudits)
+  ? Math.max(1, parsedRateLimitMaxAudits)
+  : 5
 
 const blockedHostnames = new Set(['localhost', 'localhost.localdomain'])
 
@@ -52,7 +55,7 @@ const normalizeRawUrl = (rawUrl: unknown) => {
   const value = String(rawUrl || '').trim()
   if (!value) return null
   if (value.length > 2048) return null
-  if (value.startsWith('http://') || value.startsWith('https://')) return value
+  if (/^https?:\/\//i.test(value)) return value
   return `http://${value}`
 }
 
@@ -221,7 +224,14 @@ export const handler: Handler = async (event) => {
       .eq('user_id', userData.user.id)
       .gte('created_at', rateLimitFrom)
 
-    if (!rateLimitError && (recentAuditCount || 0) >= RATE_LIMIT_MAX_AUDITS) {
+    if (rateLimitError) {
+      return {
+        statusCode: 503,
+        body: JSON.stringify({ error: 'Nepodarilo sa overit limit auditov. Skuste to znova.' })
+      }
+    }
+
+    if ((recentAuditCount || 0) >= RATE_LIMIT_MAX_AUDITS) {
       return {
         statusCode: 429,
         body: JSON.stringify({
