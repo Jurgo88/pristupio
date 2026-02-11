@@ -6,6 +6,22 @@ import type { User } from '@supabase/supabase-js'
 type UserRole = 'guest' | 'user' | 'admin'
 type UserPlan = 'free' | 'paid'
 
+
+const INIT_SESSION_TIMEOUT_MS = 8000
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Session init timeout')), timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as User | null,
@@ -32,7 +48,7 @@ export const useAuthStore = defineStore('auth', {
       this.initAuthListener()
 
       try {
-        const session = await getSessionSafe()
+        const session = await withTimeout(getSessionSafe(), INIT_SESSION_TIMEOUT_MS)
         setKnownSession(session)
         this.user = session?.user ?? null
         if (this.user) await this.fetchUserProfile()

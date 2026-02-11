@@ -25,9 +25,18 @@ const loadSessionWithRetry = async (): Promise<Session | null> => {
       return data.session ?? null
     } catch (error) {
       lastError = error
-      if (!isAbortError(error) || attempt >= RETRY_DELAYS_MS.length) {
+      const abortError = isAbortError(error)
+      const finalAttempt = attempt >= RETRY_DELAYS_MS.length
+
+      if (!abortError) {
         throw error
       }
+
+      if (finalAttempt) {
+        if (lastKnownSession) return lastKnownSession
+        throw error
+      }
+
       await sleep(RETRY_DELAYS_MS[attempt])
     }
   }
