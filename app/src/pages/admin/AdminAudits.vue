@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { supabase } from '@/services/supabase'
+import { getAccessTokenSafe } from '@/services/auth-session'
 
 type Impact = 'critical' | 'serious' | 'moderate' | 'minor'
 
@@ -67,8 +67,7 @@ const fetchAudits = async () => {
   loading.value = true
   error.value = ''
   try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData.session?.access_token
+    const accessToken = await getAccessTokenSafe()
     if (!accessToken) throw new Error('Chyba prihlasenie.')
 
     const response = await fetch('/.netlify/functions/admin-audits', {
@@ -94,8 +93,7 @@ const fetchDetail = async (auditId: string) => {
   detailError.value = ''
   selectedAudit.value = null
   try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData.session?.access_token
+    const accessToken = await getAccessTokenSafe()
     if (!accessToken) throw new Error('Chyba prihlasenie.')
 
     const response = await fetch(`/.netlify/functions/admin-audit-detail?id=${auditId}`, {

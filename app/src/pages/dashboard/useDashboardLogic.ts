@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMonitoringStore } from '@/stores/monitoring.store'
-import { supabase } from '@/services/supabase'
+import { getAccessTokenSafe } from '@/services/auth-session'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 
 type ProfileOption = {
@@ -359,8 +359,7 @@ export const useDashboardLogic = () => {
     exportError.value = ''
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const accessToken = sessionData.session?.access_token
+      const accessToken = await getAccessTokenSafe()
       if (!accessToken) {
         throw new Error('Prihlaste sa, aby ste mohli exportovat report.')
       }

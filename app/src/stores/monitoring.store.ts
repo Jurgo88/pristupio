@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/services/supabase'
+import { getAccessTokenSafe, isAbortError } from '@/services/auth-session'
 import { useAuthStore } from './auth.store'
 
 export type MonitoringRun = {
@@ -81,8 +82,7 @@ export const useMonitoringStore = defineStore('monitoring', {
       this.error = null
 
       try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const accessToken = sessionData.session?.access_token
+        const accessToken = await getAccessTokenSafe()
         if (!accessToken) {
           this.targets = []
           this.trendsByTarget = {}
@@ -105,7 +105,9 @@ export const useMonitoringStore = defineStore('monitoring', {
         this.canManage = !!data?.canManage
         return this.targets
       } catch (error: any) {
-        this.error = error?.message || 'Monitoring sa nepodarilo nacitat.'
+        this.error = isAbortError(error)
+          ? 'Overenie relacie zlyhalo. Obnovte stranku a skuste to znova.'
+          : error?.message || 'Monitoring sa nepodarilo nacitat.'
         this.targets = []
         this.trendsByTarget = {}
         this.canManage = false
@@ -119,8 +121,7 @@ export const useMonitoringStore = defineStore('monitoring', {
       this.trendsLoading = true
       this.error = null
       try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const accessToken = sessionData.session?.access_token
+        const accessToken = await getAccessTokenSafe()
         if (!accessToken) {
           this.trendsByTarget = {}
           return {}
@@ -140,7 +141,9 @@ export const useMonitoringStore = defineStore('monitoring', {
         this.trendsByTarget = (data?.trends || {}) as Record<string, MonitoringTrendPoint[]>
         return this.trendsByTarget
       } catch (error: any) {
-        this.error = error?.message || 'Trendy sa nepodarilo nacitat.'
+        this.error = isAbortError(error)
+          ? 'Overenie relacie zlyhalo. Obnovte stranku a skuste to znova.'
+          : error?.message || 'Trendy sa nepodarilo nacitat.'
         this.trendsByTarget = {}
         return {}
       } finally {
@@ -152,8 +155,7 @@ export const useMonitoringStore = defineStore('monitoring', {
       this.saving = true
       this.error = null
       try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const accessToken = sessionData.session?.access_token
+        const accessToken = await getAccessTokenSafe()
         if (!accessToken) {
           throw new Error('Prihlaste sa, aby ste mohli zapnut monitoring.')
         }
@@ -180,7 +182,9 @@ export const useMonitoringStore = defineStore('monitoring', {
 
         return target || null
       } catch (error: any) {
-        this.error = error?.message || 'Monitoring sa nepodarilo ulozit.'
+        this.error = isAbortError(error)
+          ? 'Overenie relacie zlyhalo. Obnovte stranku a skuste to znova.'
+          : error?.message || 'Monitoring sa nepodarilo ulozit.'
         return null
       } finally {
         this.saving = false
@@ -191,8 +195,7 @@ export const useMonitoringStore = defineStore('monitoring', {
       this.saving = true
       this.error = null
       try {
-        const { data: sessionData } = await supabase.auth.getSession()
-        const accessToken = sessionData.session?.access_token
+        const accessToken = await getAccessTokenSafe()
         if (!accessToken) {
           throw new Error('Prihlaste sa, aby ste mohli upravit monitoring.')
         }
@@ -221,7 +224,9 @@ export const useMonitoringStore = defineStore('monitoring', {
 
         return target || null
       } catch (error: any) {
-        this.error = error?.message || 'Monitoring sa nepodarilo upravit.'
+        this.error = isAbortError(error)
+          ? 'Overenie relacie zlyhalo. Obnovte stranku a skuste to znova.'
+          : error?.message || 'Monitoring sa nepodarilo upravit.'
         return null
       } finally {
         this.saving = false

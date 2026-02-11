@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/services/supabase'
+import { getSessionSafe, setKnownSession } from '@/services/auth-session'
 import type { User } from '@supabase/supabase-js'
 
 type UserRole = 'guest' | 'user' | 'admin'
@@ -27,40 +28,13 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
-    isAbortError(error: unknown) {
-      if (!error) return false
-      const maybe = error as { name?: string; message?: string }
-      return maybe.name === 'AbortError' || String(maybe.message || '').toLowerCase().includes('aborted')
-    },
-
     async init() {
       this.initAuthListener()
 
       try {
-        let sessionData: Awaited<ReturnType<typeof supabase.auth.getSession>>['data'] | null = null
-        let sessionError: unknown = null
-
-        try {
-          const result = await supabase.auth.getSession()
-          sessionData = result.data
-          sessionError = result.error
-        } catch (error) {
-          sessionError = error
-        }
-
-        if (this.isAbortError(sessionError)) {
-          // Short retry helps after redirects where the first auth request may be aborted by the browser.
-          await new Promise((resolve) => setTimeout(resolve, 150))
-          const retryResult = await supabase.auth.getSession()
-          sessionData = retryResult.data
-          sessionError = retryResult.error
-        }
-
-        if (sessionError && !this.isAbortError(sessionError)) {
-          throw sessionError
-        }
-
-        this.user = sessionData?.session?.user ?? null
+        const session = await getSessionSafe()
+        setKnownSession(session)
+        this.user = session?.user ?? null
         if (this.user) await this.fetchUserProfile()
       } catch (_error) {
         this.user = null
@@ -80,6 +54,7 @@ export const useAuthStore = defineStore('auth', {
       this._listenerInitialized = true
 
       supabase.auth.onAuthStateChange(async (_event, session) => {
+        setKnownSession(session)
         this.user = session?.user ?? null
         if (!this.user) {
           this.userRole = 'guest'
@@ -157,12 +132,14 @@ export const useAuthStore = defineStore('auth', {
           .single()
 
         if (error || !data) {
-          this.userRole = 'user'
-          this.userPlan = 'free'
-          this.freeAuditUsed = false
-          this.paidAuditCompleted = false
-          this.paidAuditCredits = 0
-          this.consentMarketing = false
+          if (this.userRole === 'guest') {
+            this.userRole = 'user'
+            this.userPlan = 'free'
+            this.freeAuditUsed = false
+            this.paidAuditCompleted = false
+            this.paidAuditCredits = 0
+            this.consentMarketing = false
+          }
           return
         }
 
@@ -173,12 +150,7 @@ export const useAuthStore = defineStore('auth', {
         this.paidAuditCredits = Number(data.paid_audit_credits || 0)
         this.consentMarketing = !!data.consent_marketing
       } catch (_error) {
-        this.userRole = 'user'
-        this.userPlan = 'free'
-        this.freeAuditUsed = false
-        this.paidAuditCompleted = false
-        this.paidAuditCredits = 0
-        this.consentMarketing = false
+        // Keep current profile values on transient failures instead of downgrading the user state.
       }
     }
   }
