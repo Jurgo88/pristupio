@@ -41,6 +41,23 @@
       @start-audit="handleStartAudit"
     />
 
+    <DashboardMonitoringSection
+      :can-manage="canManageMonitoring"
+      :monitoring-loading="monitoringLoading"
+      :monitoring-saving="monitoringSaving"
+      :monitoring-error="monitoringError"
+      :monitoring-url="monitoringUrl"
+      :monitoring-frequency="monitoringFrequency"
+      :can-save-monitoring="canSaveMonitoring"
+      :monitoring-targets="monitoringTargets"
+      :format-date="formatDate"
+      @update:monitoring-url="monitoringUrl = $event"
+      @update:monitoring-frequency="monitoringFrequency = $event"
+      @save-target="saveMonitoringTarget"
+      @reload-targets="loadMonitoringTargets"
+      @toggle-target="toggleMonitoringTarget"
+    />
+
     <DashboardReportSummarySection
       :has-report="!!auditStore.report"
       :high-count="highCount"
@@ -84,6 +101,7 @@ import DashboardHeroSection from './components/DashboardHeroSection.vue'
 import DashboardBanners from './components/DashboardBanners.vue'
 import DashboardHistorySection from './components/DashboardHistorySection.vue'
 import DashboardAuditFormSection from './components/DashboardAuditFormSection.vue'
+import DashboardMonitoringSection from './components/DashboardMonitoringSection.vue'
 import DashboardReportSummarySection from './components/DashboardReportSummarySection.vue'
 import DashboardIssuesSection from './components/DashboardIssuesSection.vue'
 import { useDashboardLogic } from './useDashboardLogic'
@@ -106,6 +124,14 @@ const {
   showUpgrade,
   showPaidStatus,
   paidCredits,
+  monitoringUrl,
+  monitoringFrequency,
+  canManageMonitoring,
+  monitoringTargets,
+  monitoringLoading,
+  monitoringSaving,
+  monitoringError,
+  canSaveMonitoring,
   auditHistory,
   historyLoading,
   historyError,
@@ -119,6 +145,9 @@ const {
   formatDate,
   selectAudit,
   openLatestAudit,
+  loadMonitoringTargets,
+  saveMonitoringTarget,
+  toggleMonitoringTarget,
   issueTotal,
   issueHigh,
   highCount,

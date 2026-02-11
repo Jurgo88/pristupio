@@ -2,6 +2,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useMonitoringStore } from '@/stores/monitoring.store'
 import { supabase } from '@/services/supabase'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 
@@ -21,11 +22,14 @@ export const useDashboardLogic = () => {
   const exporting = ref(false)
   const exportError = ref('')
   const auditStore = useAuditStore()
+  const monitoringStore = useMonitoringStore()
   const auth = useAuthStore()
   const route = useRoute()
   const refreshPlanLoading = ref(false)
   const paymentNotice = ref(false)
   const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
+  const monitoringUrl = ref('')
+  const monitoringFrequency = ref(14)
 
   const auditCheckoutUrl = computed(() => {
     if (!auth.user || !auditCheckoutBase) return ''
@@ -58,6 +62,16 @@ export const useDashboardLogic = () => {
   )
   const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
   const paidCredits = computed(() => auth.paidAuditCredits || 0)
+  const canManageMonitoring = computed(
+    () => auth.isLoggedIn && (auth.isPaid || auth.isAdmin) && monitoringStore.canManage
+  )
+  const monitoringTargets = computed(() => monitoringStore.targets || [])
+  const monitoringLoading = computed(() => monitoringStore.loading)
+  const monitoringSaving = computed(() => monitoringStore.saving)
+  const monitoringError = computed(() => monitoringStore.error || '')
+  const canSaveMonitoring = computed(
+    () => monitoringUrl.value.trim().length > 0 && !monitoringStore.saving && monitoringStore.canManage
+  )
   const auditHistory = computed(() => auditStore.history || [])
   const historyLoading = ref(false)
   const historyError = ref('')
@@ -85,6 +99,32 @@ export const useDashboardLogic = () => {
     }
   }
 
+  const loadMonitoringTargets = async () => {
+    if (!auth.isLoggedIn) return
+    await monitoringStore.fetchTargets()
+  }
+
+  const saveMonitoringTarget = async () => {
+    const url = monitoringUrl.value.trim() || targetUrl.value.trim()
+    if (!url) return
+    const profile = selectedProfile.value === 'eaa' ? 'eaa' : 'wad'
+    const inserted = await monitoringStore.upsertTarget({
+      url,
+      profile,
+      frequencyDays: monitoringFrequency.value
+    })
+    if (inserted) {
+      monitoringUrl.value = ''
+    }
+    await loadMonitoringTargets()
+  }
+
+  const toggleMonitoringTarget = async (targetId: string, active: boolean) => {
+    if (!targetId) return
+    await monitoringStore.toggleTarget(targetId, active)
+    await loadMonitoringTargets()
+  }
+
   const loadLatestAudit = async () => {
     if (!auth.isLoggedIn || auditStore.report) return
     const latest = await auditStore.fetchLatestAudit()
@@ -103,6 +143,7 @@ export const useDashboardLogic = () => {
     }
     void loadLatestAudit()
     void loadAuditHistory()
+    void loadMonitoringTargets()
   })
 
   const profileOptions: ProfileOption[] = [
@@ -129,13 +170,16 @@ export const useDashboardLogic = () => {
     const url = targetUrl.value.trim()
     if (!url) return
     await auditStore.runManualAudit(url)
+    if (!monitoringUrl.value.trim()) {
+      monitoringUrl.value = url
+    }
     if (auditStore.currentAudit?.auditId) {
       selectedAuditId.value = auditStore.currentAudit.auditId
     }
     void loadAuditHistory()
   }
 
-  const formatDate = (value?: string) => {
+  const formatDate = (value?: string | null) => {
     if (!value) return ''
     try {
       return new Date(value).toLocaleDateString('sk-SK')
@@ -429,6 +473,7 @@ export const useDashboardLogic = () => {
     exporting,
     exportError,
     auditStore,
+    monitoringStore,
     auth,
     refreshPlanLoading,
     paymentNotice,
@@ -439,6 +484,14 @@ export const useDashboardLogic = () => {
     showUpgrade,
     showPaidStatus,
     paidCredits,
+    monitoringUrl,
+    monitoringFrequency,
+    canManageMonitoring,
+    monitoringTargets,
+    monitoringLoading,
+    monitoringSaving,
+    monitoringError,
+    canSaveMonitoring,
     auditHistory,
     historyLoading,
     historyError,
@@ -452,6 +505,9 @@ export const useDashboardLogic = () => {
     formatDate,
     selectAudit,
     openLatestAudit,
+    loadMonitoringTargets,
+    saveMonitoringTarget,
+    toggleMonitoringTarget,
     issueTotal,
     issueHigh,
     highCount,
