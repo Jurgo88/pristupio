@@ -3,6 +3,8 @@ import chromium from '@sparticuz/chromium-min'
 import { chromium as playwright } from 'playwright-core'
 import axe from 'axe-core'
 import { createClient } from '@supabase/supabase-js'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 
 process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 
@@ -39,6 +41,105 @@ const impactOrder: Record<Impact, number> = {
   serious: 1,
   moderate: 2,
   minor: 3
+}
+
+const RATE_LIMIT_WINDOW_MINUTES = 15
+const RATE_LIMIT_MAX_AUDITS = Number(process.env.AUDIT_RATE_LIMIT_COUNT || 5)
+
+const blockedHostnames = new Set(['localhost', 'localhost.localdomain'])
+
+const normalizeRawUrl = (rawUrl: unknown) => {
+  const value = String(rawUrl || '').trim()
+  if (!value) return null
+  if (value.length > 2048) return null
+  if (value.startsWith('http://') || value.startsWith('https://')) return value
+  return `http://${value}`
+}
+
+const isPrivateIpv4 = (address: string) => {
+  const parts = address.split('.').map((part) => Number(part))
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return true
+  }
+
+  const [a, b] = parts
+  if (a === 10) return true
+  if (a === 127) return true
+  if (a === 169 && b === 254) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 192 && b === 168) return true
+  if (a === 100 && b >= 64 && b <= 127) return true
+  if (a === 198 && (b === 18 || b === 19)) return true
+  if (a === 0) return true
+  return false
+}
+
+const isPrivateIpAddress = (address: string) => {
+  const version = isIP(address)
+  if (version === 4) return isPrivateIpv4(address)
+  if (version !== 6) return true
+
+  const normalized = address.toLowerCase()
+  if (normalized === '::1' || normalized === '::') return true
+  if (normalized.startsWith('fe80:')) return true
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true
+
+  const mappedPrefix = '::ffff:'
+  if (normalized.startsWith(mappedPrefix)) {
+    const mappedIpv4 = normalized.slice(mappedPrefix.length)
+    if (isIP(mappedIpv4) === 4) return isPrivateIpv4(mappedIpv4)
+  }
+
+  return false
+}
+
+const validateTargetUrl = async (rawUrl: unknown): Promise<{ safeUrl: string } | { error: string }> => {
+  const candidate = normalizeRawUrl(rawUrl)
+  if (!candidate) {
+    return { error: 'Chyba URL.' }
+  }
+
+  let parsed: URL
+  try {
+    parsed = new URL(candidate)
+  } catch (_error) {
+    return { error: 'Neplatna URL adresa.' }
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { error: 'Povolene su iba http/https URL.' }
+  }
+
+  if (parsed.username || parsed.password) {
+    return { error: 'URL s menom alebo heslom nie je povolena.' }
+  }
+
+  const hostname = parsed.hostname.toLowerCase()
+  if (blockedHostnames.has(hostname) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    return { error: 'Tato URL nie je z bezpecnostnych dovodov povolena.' }
+  }
+
+  const directIpVersion = isIP(hostname)
+  if (directIpVersion && isPrivateIpAddress(hostname)) {
+    return { error: 'Sukromne alebo lokalne IP adresy nie su povolene.' }
+  }
+
+  if (!directIpVersion) {
+    try {
+      const resolved = await lookup(hostname, { all: true, verbatim: true })
+      if (!resolved.length) {
+        return { error: 'Hostitel sa nepodarilo prelozit cez DNS.' }
+      }
+      const hasPrivateAddress = resolved.some((record) => isPrivateIpAddress(record.address))
+      if (hasPrivateAddress) {
+        return { error: 'Cielova adresa smeruje do internej siete a nie je povolena.' }
+      }
+    } catch (_error) {
+      return { error: 'Hostitel sa nepodarilo prelozit cez DNS.' }
+    }
+  }
+
+  return { safeUrl: parsed.toString() }
 }
 
 const normalizeImpact = (value?: string): Impact => {
@@ -100,15 +201,33 @@ export const handler: Handler = async (event) => {
       return { statusCode: 401, body: JSON.stringify({ error: 'Neplatne prihlasenie.' }) }
     }
 
-    const body = JSON.parse(event.body || '{}')
-    let url = body.url
-
-    if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `http://${url}`
+    let body: Record<string, unknown> = {}
+    try {
+      body = JSON.parse(event.body || '{}')
+    } catch (_error) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Neplatny request payload.' }) }
     }
 
-    if (!url) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Chyba URL.' }) }
+    const urlValidation = await validateTargetUrl(body.url)
+    if ('error' in urlValidation) {
+      return { statusCode: 400, body: JSON.stringify({ error: urlValidation.error }) }
+    }
+    const url = urlValidation.safeUrl
+
+    const rateLimitFrom = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000).toISOString()
+    const { count: recentAuditCount, error: rateLimitError } = await supabase
+      .from('audits')
+      .select('id', { head: true, count: 'exact' })
+      .eq('user_id', userData.user.id)
+      .gte('created_at', rateLimitFrom)
+
+    if (!rateLimitError && (recentAuditCount || 0) >= RATE_LIMIT_MAX_AUDITS) {
+      return {
+        statusCode: 429,
+        body: JSON.stringify({
+          error: `Prilis vela auditov za kratky cas. Skuste to znova o ${RATE_LIMIT_WINDOW_MINUTES} minut.`
+        })
+      }
     }
 
     const { data: profileData, error: profileError } = await supabase
@@ -163,43 +282,49 @@ export const handler: Handler = async (event) => {
     }
 
     const isLocal = process.env.NETLIFY_DEV === 'true'
+    let results: any
+    let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
 
-    const browser = await playwright.launch({
-      args: chromium.args,
-      executablePath: isLocal
-        ? undefined
-        : await chromium.executablePath(
-            'https://github.com/sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar'
-          ),
-      headless: chromium.headless
-    })
-
-    const page = await browser.newPage()
-    page.setDefaultNavigationTimeout(45000)
-
-    await page.route('**/*', (route) => {
-      const type = route.request().resourceType()
-      if (type === 'image' || type === 'media' || type === 'font') {
-        return route.abort()
-      }
-      return route.continue()
-    })
-
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
-
-    await page.addScriptTag({ content: axe.source })
-    const results = await page.evaluate(async () => {
-      // @ts-ignore
-      return await window.axe.run(document, {
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
-        },
-        resultTypes: ['violations', 'incomplete', 'passes', 'inapplicable']
+    try {
+      browser = await playwright.launch({
+        args: chromium.args,
+        executablePath: isLocal
+          ? undefined
+          : await chromium.executablePath(
+              'https://github.com/sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar'
+            ),
+        headless: chromium.headless
       })
-    })
 
-    await browser.close()
+      const page = await browser.newPage()
+      page.setDefaultNavigationTimeout(45000)
+
+      await page.route('**/*', (route) => {
+        const type = route.request().resourceType()
+        if (type === 'image' || type === 'media' || type === 'font') {
+          return route.abort()
+        }
+        return route.continue()
+      })
+
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
+
+      await page.addScriptTag({ content: axe.source })
+      results = await page.evaluate(async () => {
+        // @ts-ignore
+        return await window.axe.run(document, {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
+          },
+          resultTypes: ['violations', 'incomplete', 'passes', 'inapplicable']
+        })
+      })
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => undefined)
+      }
+    }
 
     const issues = normalizeAuditResults(results)
     const summary = buildSummary(issues)

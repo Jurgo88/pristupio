@@ -166,7 +166,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="benefits reveal">
+    <section id="about" class="benefits reveal">
       <div class="section-head">
         <p class="kicker">Prečo na tom záleží</p>
         <h2>Prístupnosť chráni ľudí, znižuje riziko a posilňuje vašu značku.</h2>
