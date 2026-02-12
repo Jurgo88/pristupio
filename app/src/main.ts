@@ -23,9 +23,7 @@ async function bootstrap() {
     try {
         await authStore.init()
     } catch (error) {
-        if ((error as any)?.name !== 'AbortError') {
-            console.error('Auth initialization failed', error)
-        }
+        console.error('Auth initialization failed', error)
     }
 
     // 3. Až keď vieme, či je user prihlásený, namontujeme appku

@@ -1,177 +1,812 @@
 ﻿<template>
   <div class="audit-page">
-    <DashboardHeroSection />
+    <section class="page-hero">
+      <div class="page-hero__content">
+        <span class="kicker">Dashboard</span>
+        <h1>WCAG audit prehľad</h1>
+        <p class="lead">
+          Spustite audit, filtrujte nálezy a zdieľajte report v jednom konzistentnom prehľade.
+        </p>
+        <div class="hero-tags">
+          <span>WCAG 2.1 AA</span>
+          <span>EN 301 549</span>
+          <span>EAA / WAD</span>
+        </div>
+      </div>
+      <div class="page-hero__aside">
+        <div class="page-hero__card">
+          <div class="hero-card-title">Rýchly postup</div>
+          <ul>
+            <li>Zadajte URL a vyberte profil</li>
+            <li>Spustite audit a sledujte nálezy</li>
+            <li>Exportujte report pre tím</li>
+          </ul>
+          <div class="hero-card-meta">Automatický audit + manuálny checklist</div>
+        </div>
+      </div>
+    </section>
 
-    <DashboardBanners
-      :show-preview="!!auditStore.report && isPreview"
-      :payment-notice="paymentNotice"
-      :show-upgrade="showUpgrade"
-      :show-paid-status="showPaidStatus"
-      :paid-credits="paidCredits"
-      :audit-checkout-url="auditCheckoutUrl"
-      :refresh-plan-loading="refreshPlanLoading"
-      @refresh-plan="refreshPlan"
-    />
+    <section v-if="auditStore.report && isPreview" class="panel preview-banner">
+      <p class="kicker">Free audit preview</p>
+      <h2>Vidis len rychly prehlad problemov</h2>
+      <p class="lead">
+        Free audit ukazuje skore, pocty a top 3 nalezy. Detailne odporucania a plny report su
+        dostupne v zakladnom audite.
+      </p>
+    </section>
 
-    <DashboardHistorySection
-      :history-loading="historyLoading"
-      :history-error="historyError"
-      :audit-history="auditHistory"
-      :selected-audit-id="selectedAuditId"
-      :latest-audit="latestAudit"
-      :format-date="formatDate"
-      :issue-total="issueTotal"
-      :issue-high="issueHigh"
-      @open-latest-audit="openLatestAudit"
-      @reload-history="loadAuditHistory"
-      @select-audit="selectAudit"
-    />
+    <section v-if="paymentNotice" class="panel payment-banner">
+      <p class="kicker">Platba</p>
+      <h2>Ďakujeme, platba prebehla.</h2>
+      <p class="lead">
+        Ak sa prístup ešte neodomkol, kliknite na “Už som zaplatil” a obnovíme stav z Lemon
+        Squeezy.
+      </p>
+      <div class="upgrade-actions">
+        <button class="btn btn-outline" @click="refreshPlan" :disabled="refreshPlanLoading">
+          {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
+        </button>
+      </div>
+    </section>
 
-    <DashboardAuditFormSection
-      :target-url="targetUrl"
-      :selected-profile="selectedProfile"
-      :profile-options="profileOptions"
-      :audit-locked="auditLocked"
-      :can-run-audit="canRunAudit"
-      :audit-loading="auditStore.loading"
-      :audit-error="auditStore.error"
-      :audit-locked-message="auditLockedMessage"
-      @update:target-url="targetUrl = $event"
-      @update:selected-profile="selectedProfile = $event"
-      @start-audit="handleStartAudit"
-    />
+    <section v-if="showUpgrade" class="panel upgrade-panel">
+      <div>
+        <p class="kicker">Základný audit</p>
+        <h2>Odomknite celý report a odporúčania.</h2>
+        <p class="lead">
+          Po platbe sa vám odomkne plný výstup a export PDF. Po zaplatení stačí spustiť audit ešte
+          raz.
+        </p>
+      </div>
+      <div class="upgrade-actions">
+        <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-primary">
+          Objednať audit (99 €)
+        </a>
+        <button class="btn btn-outline" @click="refreshPlan" :disabled="refreshPlanLoading">
+          {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
+        </button>
+      </div>
+    </section>
 
-    <DashboardMonitoringSection
-      :can-manage="canManageMonitoring"
-      :monitoring-loading="monitoringLoading"
-      :monitoring-trends-loading="monitoringTrendsLoading"
-      :monitoring-saving="monitoringSaving"
-      :monitoring-error="monitoringError"
-      :monitoring-url="monitoringUrl"
-      :monitoring-frequency="monitoringFrequency"
-      :can-save-monitoring="canSaveMonitoring"
-      :monitoring-targets="monitoringTargets"
-      :monitoring-trends="monitoringTrends"
-      :format-date="formatDate"
-      @update:monitoring-url="monitoringUrl = $event"
-      @update:monitoring-frequency="monitoringFrequency = $event"
-      @save-target="saveMonitoringTarget"
-      @reload-targets="loadMonitoringTargets"
-      @toggle-target="toggleMonitoringTarget"
-    />
+    <section v-if="showPaidStatus" class="panel paid-banner">
+      <p class="kicker">Základný audit</p>
+      <h2 v-if="paidCredits <= 0">Nemáte dostupný kredit.</h2>
+      <h2 v-else>Máte dostupný kredit na audit.</h2>
+      <p class="lead" v-if="paidCredits <= 0">
+        Objednajte ďalší audit a spravte nový report.
+      </p>
+      <p class="lead" v-else>
+        Môžete spustiť audit a získať plný report, odporúčania a export PDF.
+      </p>
+      <div class="history-stats">
+        <span>Kredity: {{ paidCredits }}</span>
+      </div>
+      <div class="upgrade-actions">
+        <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-outline">
+          Objednať ďalší audit
+        </a>
+      </div>
+    </section>
 
-    <DashboardReportSummarySection
-      :has-report="!!auditStore.report"
-      :high-count="highCount"
-      :med-count="medCount"
-      :low-count="lowCount"
-      :audit-score="auditScore"
-      :critical-percent="criticalPercent"
-      :moderate-percent="moderatePercent"
-      :minor-percent="minorPercent"
-    />
+    <section class="panel audit-history">
+      <div class="panel-head panel-head--tight">
+        <div>
+          <p class="kicker">História</p>
+          <h2>História auditov</h2>
+        </div>
+        <div class="history-actions">
+          <button
+            class="btn btn-sm btn-filter-clear"
+            @click="openLatestAudit"
+            :disabled="historyLoading || !latestAudit"
+          >
+            Zobraziť posledný audit
+          </button>
+          <button class="btn btn-sm btn-filter-clear" @click="loadAuditHistory" :disabled="historyLoading">
+            {{ historyLoading ? 'Načítavam...' : 'Obnoviť' }}
+          </button>
+        </div>
+      </div>
 
-    <DashboardIssuesSection
-      :has-report="!!auditStore.report"
-      :is-preview="isPreview"
-      :exporting="exporting"
-      :export-error="exportError"
-      :selected-principle="selectedPrinciple"
-      :selected-impact="selectedImpact"
-      :search-text="searchText"
-      :principle-options="principleOptions"
-      :filtered-issues="filteredIssues"
-      :impact-class="impactClass"
-      :violation-key="violationKey"
-      :is-open="isOpen"
-      :format-target="formatTarget"
-      :describe-target="describeTarget"
-      @update:selected-principle="selectedPrinciple = $event"
-      @update:selected-impact="selectedImpact = $event"
-      @update:search-text="searchText = $event"
-      @clear-filters="clearFilters"
-      @export-pdf="exportPdf"
-      @toggle-details="toggleDetails"
-    />
+      <div v-if="historyError" class="form-error">{{ historyError }}</div>
+
+      <div v-if="historyLoading" class="empty-state">Načítavam históriu...</div>
+
+      <div v-else-if="auditHistory.length === 0" class="empty-state">
+        Zatiaľ nemáte žiadne audity.
+      </div>
+
+      <div v-else class="history-list">
+        <article
+          v-for="audit in auditHistory"
+          :key="audit.id"
+          class="history-card"
+          :class="{ 'is-active': selectedAuditId === audit.id }"
+        >
+          <div class="history-meta">
+            <strong>{{ audit.url }}</strong>
+            <div class="history-sub">
+              <span>{{ formatDate(audit.created_at) }}</span>
+              <span class="pill">{{ audit.audit_kind === 'paid' ? 'Základný audit' : 'Free audit' }}</span>
+            </div>
+            <div class="history-stats">
+              <span>Spolu: {{ issueTotal(audit.summary) }}</span>
+              <span>Kritické: {{ issueHigh(audit.summary) }}</span>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline" @click="selectAudit(audit.id)">
+            Zobraziť audit
+          </button>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel audit-form">
+      <div class="panel-head">
+        <div>
+          <p class="kicker">Spustenie auditu</p>
+          <h2>Spustiť nový WCAG audit</h2>
+          <p class="lead">
+            Vyhodnotíme váš web podľa WCAG 2.1 AA a pripravíme prioritizovaný zoznam problémov.
+          </p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label class="field-label" for="audit-url">Webstránka na analýzu</label>
+          <div class="input-row">
+            <input
+              id="audit-url"
+              v-model="targetUrl"
+              type="url"
+              class="field-control"
+              placeholder="https://priklad.sk"
+              :disabled="auditLocked"
+              @keyup.enter="handleStartAudit"
+            />
+            <button class="btn btn-primary" @click="handleStartAudit" :disabled="!canRunAudit">
+              <span v-if="auditStore.loading" class="spinner-border spinner-border-sm"></span>
+              {{ auditStore.loading ? 'Auditujem...' : 'Analyzovať web' }}
+            </button>
+          </div>
+          <p class="field-hint">Vhodné pre weby, aplikácie a digitálne služby.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Profil legislatívy</label>
+          <div class="profile-toggle">
+            <label
+              v-for="option in profileOptions"
+              :key="option.value"
+              class="profile-option"
+              :class="{ 'is-selected': selectedProfile === option.value }"
+            >
+              <input
+                type="radio"
+                name="profile"
+                :value="option.value"
+                v-model="selectedProfile"
+                :disabled="auditLocked"
+              />
+              <span>
+                <strong>{{ option.title }}</strong>
+                <span class="sub">{{ option.subtitle }}</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div v-if="auditStore.error" class="form-error">{{ auditStore.error }}</div>
+        <div v-if="auditLockedMessage" class="form-error">{{ auditLockedMessage }}</div>
+      </div>
+    </section>
+
+    <section v-if="auditStore.report" class="stats-grid">
+      <article class="stat-card stat-critical">
+        <div class="stat-label">Critical & Serious</div>
+        <div class="stat-value">{{ highCount }}</div>
+        <div class="stat-meta">Najvyššia priorita</div>
+      </article>
+      <article class="stat-card stat-moderate">
+        <div class="stat-label">Moderate</div>
+        <div class="stat-value">{{ medCount }}</div>
+        <div class="stat-meta">Vyžaduje plán opráv</div>
+      </article>
+      <article class="stat-card stat-minor">
+        <div class="stat-label">Minor</div>
+        <div class="stat-value">{{ lowCount }}</div>
+        <div class="stat-meta">Nižší dopad</div>
+      </article>
+    </section>
+
+    <section v-if="auditStore.report" class="report-preview">
+      <div class="report-preview__copy">
+        <p class="kicker">Prehľad reportu</p>
+        <h2>Index pripravenosti</h2>
+        <p class="lead">
+          Skóre vychádza z pomeru závažností problémov. Čím menej kritických nálezov, tým vyššia
+          pripravenosť.
+        </p>
+      </div>
+      <div class="hero-mockup">
+        <div class="mockup-header">
+          <div class="mockup-title">Audit report</div>
+          <div class="mockup-pill">WCAG 2.1 AA</div>
+        </div>
+        <div class="mockup-score">
+          <div class="score-circle">{{ auditScore }}</div>
+          <div class="score-meta">
+            <strong>Prístupnosť</strong>
+            <span>Index pripravenosti</span>
+          </div>
+        </div>
+        <div class="mockup-bars">
+          <div class="bar">
+            <span>Critical & Serious</span>
+            <div class="bar-track">
+              <div class="bar-fill critical" :style="{ width: criticalPercent + '%' }"></div>
+            </div>
+            <small>{{ highCount }} problémov</small>
+          </div>
+          <div class="bar">
+            <span>Moderate</span>
+            <div class="bar-track">
+              <div class="bar-fill moderate" :style="{ width: moderatePercent + '%' }"></div>
+            </div>
+            <small>{{ medCount }} problémov</small>
+          </div>
+          <div class="bar">
+            <span>Minor</span>
+            <div class="bar-track">
+              <div class="bar-fill minor" :style="{ width: minorPercent + '%' }"></div>
+            </div>
+            <small>{{ lowCount }} problémov</small>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel issues-panel">
+      <div class="panel-head panel-head--tight">
+        <div>
+          <p class="kicker">Nálezy</p>
+          <h2>Nájdené problémy (WCAG 2.1)</h2>
+        </div>
+        <button
+          class="btn btn-sm btn-export"
+          :disabled="!auditStore.report || exporting || isPreview"
+          @click="exportPdf"
+        >
+          <span v-if="exporting" class="spinner-border spinner-border-sm"></span>
+          {{ exporting ? 'Exportujem...' : 'Export PDF' }}
+        </button>
+      </div>
+
+      <div class="filters">
+        <div class="field">
+          <label class="field-label">Princíp</label>
+          <select v-model="selectedPrinciple" class="field-control" :disabled="!auditStore.report || isPreview">
+            <option value="">Všetky</option>
+            <option v-for="p in principleOptions" :key="p" :value="p">{{ p }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Závažnosť</label>
+          <select v-model="selectedImpact" class="field-control" :disabled="!auditStore.report || isPreview">
+            <option value="">Všetky</option>
+            <option value="critical">Critical</option>
+            <option value="serious">Serious</option>
+            <option value="moderate">Moderate</option>
+            <option value="minor">Minor</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Hľadať</label>
+          <input
+            v-model="searchText"
+            class="field-control"
+            type="text"
+            placeholder="Napr. kontrast, tlačidlo, aria"
+            :disabled="!auditStore.report || isPreview"
+          />
+        </div>
+        <div class="field field--actions">
+          <button
+            class="btn btn-sm btn-filter-clear"
+            @click="clearFilters"
+            :disabled="!auditStore.report || isPreview"
+          >
+            Zrušiť filtre
+          </button>
+        </div>
+      </div>
+
+      <div v-if="exportError" class="form-error">{{ exportError }}</div>
+
+      <div v-if="!auditStore.report" class="empty-state empty-state--hint">
+        Spustite audit, aby sa zobrazili nálezy a detailné odporúčania.
+      </div>
+
+      <div v-else-if="auditStore.report.issues.length === 0" class="empty-state">
+        Nenašli sa žiadne prístupnostné chyby.
+      </div>
+
+      <div v-else-if="filteredIssues.length === 0" class="empty-state">
+        Žiadne chyby pre vybrané filtre.
+      </div>
+
+      <div v-else class="issue-list">
+        <article
+          v-for="(violation, index) in filteredIssues"
+          :key="index"
+          class="issue-card"
+          :class="impactClass(violation.impact)"
+        >
+          <div class="issue-header">
+            <div class="impact-pill" :class="impactClass(violation.impact)">
+              {{ violation.impact }}
+            </div>
+            <h6 class="issue-title">{{ violation.title }}</h6>
+            <button
+              v-if="!isPreview"
+              class="btn btn-outline btn-sm"
+              @click="toggleDetails(violationKey(violation, index))"
+            >
+              {{ isOpen(violationKey(violation, index)) ? 'Skryť detail' : 'Zobraziť detail' }}
+            </button>
+          </div>
+          <p class="issue-desc">{{ violation.description }}</p>
+          <div class="issue-meta">
+            <strong>WCAG:</strong> {{ violation.wcag || 'Neurčené' }} |
+            <strong>Úroveň:</strong> {{ violation.wcagLevel || 'Neurčené' }} |
+            <strong>Princíp:</strong> {{ violation.principle || 'Neurčené' }}
+          </div>
+          <div v-if="!isPreview" class="issue-meta">
+            <strong>Odporúčanie:</strong>
+            {{
+              violation.recommendation ||
+              'Skontrolujte problém manuálne a upravte HTML tak, aby spĺňalo WCAG.'
+            }}
+          </div>
+          <small class="issue-count">Zasiahnutých elementov: {{ violation.nodesCount ?? 0 }}</small>
+
+          <div v-if="!isPreview && isOpen(violationKey(violation, index))" class="issue-details">
+            <div v-if="violation.nodesCount === 0" class="empty-inline">Nenašli sa konkrétne prvky.</div>
+            <div v-for="(node, nIndex) in violation.nodes?.slice(0, 3) || []" :key="nIndex" class="node-detail">
+              <div>{{ describeTarget(node.target) }}</div>
+              <div class="node-code">
+                <code>{{ formatTarget(node.target) }}</code>
+              </div>
+              <div v-if="node.failureSummary" class="node-note">
+                {{ node.failureSummary }}
+              </div>
+              <div v-if="node.html" class="node-note">
+                HTML: <code>{{ node.html }}</code>
+              </div>
+            </div>
+            <div v-if="violation.nodesCount > 3" class="node-more">
+              + ďalšie {{ violation.nodesCount - 3 }} elementy
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
 
     <!-- <ManualChecklist :profile="selectedProfile" /> -->
   </div>
 </template>
 
 <script setup lang="ts">
-import DashboardHeroSection from './components/DashboardHeroSection.vue'
-import DashboardBanners from './components/DashboardBanners.vue'
-import DashboardHistorySection from './components/DashboardHistorySection.vue'
-import DashboardAuditFormSection from './components/DashboardAuditFormSection.vue'
-import DashboardMonitoringSection from './components/DashboardMonitoringSection.vue'
-import DashboardReportSummarySection from './components/DashboardReportSummarySection.vue'
-import DashboardIssuesSection from './components/DashboardIssuesSection.vue'
-import { useDashboardLogic } from './useDashboardLogic'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { useAuditStore } from '@/stores/audit.store'
+import { useAuthStore } from '@/stores/auth.store'
+import ManualChecklist from '@/components/ManualChecklist.vue'
+import { supabase } from '@/services/supabase'
+import { buildLemonCheckoutUrl } from '@/utils/lemon'
 
-const {
-  targetUrl,
-  selectedProfile,
-  selectedPrinciple,
-  selectedImpact,
-  searchText,
-  exporting,
-  exportError,
-  auditStore,
-  refreshPlanLoading,
-  paymentNotice,
-  auditCheckoutUrl,
-  isPreview,
-  auditLocked,
-  auditLockedMessage,
-  showUpgrade,
-  showPaidStatus,
-  paidCredits,
-  monitoringUrl,
-  monitoringFrequency,
-  canManageMonitoring,
-  monitoringTargets,
-  monitoringLoading,
-  monitoringTrendsLoading,
-  monitoringSaving,
-  monitoringError,
-  monitoringTrends,
-  canSaveMonitoring,
-  auditHistory,
-  historyLoading,
-  historyError,
-  selectedAuditId,
-  latestAudit,
-  refreshPlan,
-  loadAuditHistory,
-  profileOptions,
-  canRunAudit,
-  handleStartAudit,
-  formatDate,
-  selectAudit,
-  openLatestAudit,
-  loadMonitoringTargets,
-  saveMonitoringTarget,
-  toggleMonitoringTarget,
-  issueTotal,
-  issueHigh,
-  highCount,
-  medCount,
-  lowCount,
-  auditScore,
-  criticalPercent,
-  moderatePercent,
-  minorPercent,
-  impactClass,
-  principleOptions,
-  filteredIssues,
-  clearFilters,
-  violationKey,
-  toggleDetails,
-  isOpen,
-  exportPdf,
-  formatTarget,
-  describeTarget
-} = useDashboardLogic()
+const targetUrl = ref('')
+const selectedProfile = ref<'wad' | 'eaa'>('wad')
+const selectedPrinciple = ref('')
+const selectedImpact = ref('')
+const searchText = ref('')
+const openDetails = ref<Record<string, boolean>>({})
+const exporting = ref(false)
+const exportError = ref('')
+const auditStore = useAuditStore()
+const auth = useAuthStore()
+const route = useRoute()
+const refreshPlanLoading = ref(false)
+const paymentNotice = ref(false)
+const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
+const auditCheckoutUrl = computed(() => {
+  if (!auth.user || !auditCheckoutBase) return ''
+  return buildLemonCheckoutUrl({
+    baseUrl: auditCheckoutBase,
+    userId: auth.user.id,
+    email: auth.user.email
+  })
+})
+const isPreview = computed(() => auditStore.accessLevel === 'free')
+const freeLimitReached = computed(() => auth.isLoggedIn && !auth.isPaid && auth.freeAuditUsed)
+const paidLimitReached = computed(
+  () => auth.isLoggedIn && auth.isPaid && (auth.paidAuditCredits || 0) <= 0 && !auth.isAdmin
+)
+const auditLocked = computed(() => freeLimitReached.value || paidLimitReached.value)
+const auditLockedMessage = computed(() => {
+  if (paidLimitReached.value) {
+    return 'Nemate kredit na zakladny audit. Objednajte dalsi audit.'
+  }
+  if (freeLimitReached.value) {
+    return 'Free audit uz bol pouzity. Pre plny report si objednajte zakladny audit.'
+  }
+  return ''
+})
+const showUpgrade = computed(
+  () => auth.isLoggedIn && !auth.isPaid && (auth.freeAuditUsed || isPreview.value)
+)
+const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
+const paidCredits = computed(() => auth.paidAuditCredits || 0)
+const auditHistory = computed(() => auditStore.history || [])
+const historyLoading = ref(false)
+const historyError = ref('')
+const selectedAuditId = ref<string | null>(null)
+const latestAudit = computed(() => auditHistory.value[0] || null)
+
+const refreshPlan = async () => {
+  refreshPlanLoading.value = true
+  try {
+    await auth.fetchUserProfile()
+  } finally {
+    refreshPlanLoading.value = false
+  }
+}
+
+const loadAuditHistory = async () => {
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    await auditStore.fetchAuditHistory()
+  } catch (_error) {
+    historyError.value = 'Históriu auditov sa nepodarilo načítať.'
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const loadLatestAudit = async () => {
+  if (!auth.isLoggedIn || auditStore.report) return
+  const latest = await auditStore.fetchLatestAudit()
+  if (latest?.url && !targetUrl.value.trim()) {
+    targetUrl.value = latest.url
+  }
+  if (latest?.auditId) {
+    selectedAuditId.value = latest.auditId
+  }
+}
+
+onMounted(() => {
+  if (route.query.paid === '1') {
+    paymentNotice.value = true
+    void refreshPlan()
+  }
+  void loadLatestAudit()
+  void loadAuditHistory()
+})
+
+const profileOptions = [
+  {
+    value: 'wad',
+    title: 'Verejný sektor (WAD 2016/2102)',
+    subtitle: 'Weby a aplikácie verejných inštitúcií'
+  },
+  {
+    value: 'eaa',
+    title: 'Produkty a služby (EAA 2019/882)',
+    subtitle: 'E-shopy, banky, doprava, digitálne služby'
+  }
+] as const
+
+const canRunAudit = computed(
+  () => targetUrl.value.trim().length > 0 && !auditStore.loading && !auditLocked.value
+)
+const profileLabel = computed(
+  () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
+)
+
+const handleStartAudit = async () => {
+  const url = targetUrl.value.trim()
+  if (!url) return
+  await auditStore.runManualAudit(url)
+  if (auditStore.currentAudit?.auditId) {
+    selectedAuditId.value = auditStore.currentAudit.auditId
+  }
+  void loadAuditHistory()
+}
+
+const formatDate = (value?: string) => {
+  if (!value) return ''
+  try {
+    return new Date(value).toLocaleDateString('sk-SK')
+  } catch (_error) {
+    return value
+  }
+}
+
+const selectAudit = async (auditId: string) => {
+  const data = await auditStore.loadAuditById(auditId)
+  if (data?.url) {
+    targetUrl.value = data.url
+  }
+  if (data?.auditId) {
+    selectedAuditId.value = data.auditId
+  }
+}
+
+const openLatestAudit = () => {
+  if (!latestAudit.value) return
+  void selectAudit(latestAudit.value.id)
+}
+
+const issueTotal = (summary: any) => summary?.total ?? 0
+const issueHigh = (summary: any) =>
+  (summary?.byImpact?.critical || 0) + (summary?.byImpact?.serious || 0)
+
+const highCount = computed(() => {
+  const byImpact = auditStore.report?.summary.byImpact
+  return (byImpact?.critical || 0) + (byImpact?.serious || 0)
+})
+
+const totalIssues = computed(() => {
+  const byImpact = auditStore.report?.summary.byImpact
+  return (
+    (byImpact?.critical || 0) +
+    (byImpact?.serious || 0) +
+    (byImpact?.moderate || 0) +
+    (byImpact?.minor || 0)
+  )
+})
+
+const medCount = computed(() => {
+  return auditStore.report?.summary.byImpact.moderate || 0
+})
+
+const lowCount = computed(() => {
+  return auditStore.report?.summary.byImpact.minor || 0
+})
+
+const auditScore = computed(() => {
+  const byImpact = auditStore.report?.summary.byImpact
+  if (!byImpact) return 0
+  const total = totalIssues.value
+  if (total === 0) return 100
+  const penalty =
+    (byImpact.critical || 0) * 18 +
+    (byImpact.serious || 0) * 10 +
+    (byImpact.moderate || 0) * 5 +
+    (byImpact.minor || 0) * 2
+
+  const score = 100 / (1 + penalty / 60)
+  return Math.max(0, Math.round(score))
+})
+
+const criticalPercent = computed(() => {
+  const total = totalIssues.value
+  if (total === 0) return 0
+  return Math.round((highCount.value / total) * 100)
+})
+
+const moderatePercent = computed(() => {
+  const total = totalIssues.value
+  if (total === 0) return 0
+  return Math.round((medCount.value / total) * 100)
+})
+
+const minorPercent = computed(() => {
+  const total = totalIssues.value
+  if (total === 0) return 0
+  return Math.round((lowCount.value / total) * 100)
+})
+
+const impactClass = (impact: string) => {
+  if (impact === 'critical') return 'impact-critical'
+  if (impact === 'serious') return 'impact-serious'
+  if (impact === 'moderate') return 'impact-moderate'
+  return 'impact-minor'
+}
+
+const principleOptions = computed(() => {
+  const issues = auditStore.report?.issues || []
+  const unique = new Set(issues.map((i: any) => i.principle).filter(Boolean))
+  return Array.from(unique)
+})
+
+const filteredIssues = computed(() => {
+  const issues = auditStore.report?.issues || []
+  const term = searchText.value.trim().toLowerCase()
+
+  const filtered = issues.filter((i: any) => {
+    const principleOk = !selectedPrinciple.value || i.principle === selectedPrinciple.value
+    const impactOk = !selectedImpact.value || i.impact === selectedImpact.value
+    const text = `${i.title || ''} ${i.description || ''} ${i.recommendation || ''} ${i.wcag || ''} ${i.principle || ''}`.toLowerCase()
+    const searchOk = !term || text.includes(term)
+    return principleOk && impactOk && searchOk
+  })
+  const order: Record<string, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 }
+  return filtered.sort((a: any, b: any) => {
+    const aOrder = order[a.impact] ?? 99
+    const bOrder = order[b.impact] ?? 99
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return (b.nodesCount || 0) - (a.nodesCount || 0)
+  })
+})
+
+const clearFilters = () => {
+  selectedPrinciple.value = ''
+  selectedImpact.value = ''
+  searchText.value = ''
+}
+
+const violationKey = (violation: any, index: number) => `${violation.id}-${index}`
+
+const toggleDetails = (key: string) => {
+  openDetails.value = { ...openDetails.value, [key]: !openDetails.value[key] }
+}
+
+const isOpen = (key: string) => !!openDetails.value[key]
+
+const buildSummary = (issues: any[]) => {
+  const summary = {
+    total: issues.length,
+    byImpact: {
+      critical: 0,
+      serious: 0,
+      moderate: 0,
+      minor: 0
+    }
+  }
+
+  issues.forEach((issue) => {
+    const impact = issue?.impact
+    if (impact && summary.byImpact[impact as keyof typeof summary.byImpact] !== undefined) {
+      summary.byImpact[impact as keyof typeof summary.byImpact] += 1
+    }
+  })
+
+  return summary
+}
+
+const buildFileName = () => {
+  const date = new Date().toISOString().slice(0, 10)
+  const rawUrl = targetUrl.value.trim()
+  let host = 'web'
+
+  if (rawUrl) {
+    try {
+      const withProtocol = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
+      host = new URL(withProtocol).hostname
+    } catch (error) {
+      host = rawUrl
+    }
+  }
+
+  host = host.replace(/[^a-zA-Z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+  return `wcag-report-${host || 'web'}-${date}.pdf`
+}
+
+const exportPdf = async () => {
+  if (!auditStore.report || exporting.value) return
+  exporting.value = true
+  exportError.value = ''
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) {
+      throw new Error('Prihlaste sa, aby ste mohli exportovat report.')
+    }
+
+    const issues = filteredIssues.value
+    const slimIssues = issues.map((issue: any) => ({
+      id: issue.id,
+      title: issue.title,
+      impact: issue.impact,
+      description: issue.description,
+      recommendation: issue.recommendation,
+      wcag: issue.wcag,
+      wcagLevel: issue.wcagLevel,
+      principle: issue.principle,
+      helpUrl: issue.helpUrl,
+      nodesCount: issue.nodesCount
+    }))
+    const payload = {
+      url: targetUrl.value.trim(),
+      profile: selectedProfile.value,
+      profileLabel: profileLabel.value,
+      filters: {
+        principle: selectedPrinciple.value || null,
+        impact: selectedImpact.value || null,
+        search: searchText.value.trim() || null
+      },
+      report: {
+        summary: buildSummary(slimIssues),
+        issues: slimIssues
+      }
+    }
+
+    const response = await fetch('/.netlify/functions/audit-export-pdf', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      let message = 'Export zlyhal.'
+      try {
+        const data = await response.json()
+        if (data?.error) message = data.error
+      } catch (error) {
+        // ignore json parsing errors
+      }
+      throw new Error(message)
+    }
+
+    const blob = await response.blob()
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = buildFileName()
+    link.click()
+    URL.revokeObjectURL(link.href)
+  } catch (error: any) {
+    exportError.value = error?.message || 'Export sa nepodaril.'
+  } finally {
+    exporting.value = false
+  }
+}
+
+const formatTarget = (target: string[]) => {
+  if (!Array.isArray(target)) return ''
+  return target.join(', ')
+}
+
+const describeTarget = (target: string[]) => {
+  if (!Array.isArray(target) || target.length === 0) return 'Prvok na stránke'
+  const selector = target[0]
+
+  if (selector === 'html') return 'Dokument (html)'
+  if (selector === 'body') return 'Telo stránky (body)'
+  if (selector.includes('header')) return 'Hlavička stránky'
+  if (selector.includes('nav')) return 'Navigácia'
+  if (selector.includes('main')) return 'Hlavný obsah'
+  if (selector.includes('footer')) return 'Pätička'
+  if (selector.includes('section')) return 'Sekcia'
+  if (selector.includes('form')) return 'Formulár'
+  if (selector.includes('table')) return 'Tabuľka'
+  if (selector.includes('thead') || selector.includes('th')) return 'Hlavička tabuľky'
+  if (selector.includes('tbody') || selector.includes('td')) return 'Bunka tabuľky'
+  if (selector.includes('ul') || selector.includes('ol')) return 'Zoznam'
+  if (selector.includes('li')) return 'Položka zoznamu'
+  if (selector.includes('iframe')) return 'Vložený obsah (iframe)'
+  if (selector.includes('button')) return 'Tlačidlo'
+  if (selector.includes('input')) return 'Formulárové pole'
+  if (selector.includes('textarea')) return 'Textové pole'
+  if (selector.includes('select')) return 'Výberové pole'
+  if (selector.includes('a')) return 'Odkaz'
+  if (selector.includes('img')) return 'Obrázok'
+  if (selector.includes('h1')) return 'Nadpis úrovne 1'
+  if (selector.includes('h2')) return 'Nadpis úrovne 2'
+  if (selector.includes('h3')) return 'Nadpis úrovne 3'
+  if (selector.includes('h4')) return 'Nadpis úrovne 4'
+  if (selector.includes('h5')) return 'Nadpis úrovne 5'
+  if (selector.includes('h6')) return 'Nadpis úrovne 6'
+  if (selector.includes('.')) return 'Prvok s CSS triedou'
+  if (selector.includes('#')) return 'Prvok s konkrétnym ID'
+  return 'Prvok na stránke'
+}
 </script>
 
 <style scoped>
@@ -1004,4 +1639,3 @@ const {
   }
 }
 </style>
-

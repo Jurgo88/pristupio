@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/services/supabase'
-import { getSessionSafe, setKnownSession } from '@/services/auth-session'
 import type { User } from '@supabase/supabase-js'
 
 type UserRole = 'guest' | 'user' | 'admin'
@@ -29,24 +28,13 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     async init() {
-      this.initAuthListener()
+      const { data } = await supabase.auth.getSession()
+      this.user = data.session?.user ?? null
 
-      try {
-        const session = await getSessionSafe()
-        setKnownSession(session)
-        this.user = session?.user ?? null
-        if (this.user) await this.fetchUserProfile()
-      } catch (_error) {
-        this.user = null
-        this.userRole = 'guest'
-        this.userPlan = 'free'
-        this.freeAuditUsed = false
-        this.paidAuditCompleted = false
-        this.paidAuditCredits = 0
-        this.consentMarketing = false
-      } finally {
-        this.loadingSession = false
-      }
+      if (this.user) await this.fetchUserProfile()
+
+      this.loadingSession = false
+      this.initAuthListener()
     },
 
     initAuthListener() {
@@ -54,7 +42,6 @@ export const useAuthStore = defineStore('auth', {
       this._listenerInitialized = true
 
       supabase.auth.onAuthStateChange(async (_event, session) => {
-        setKnownSession(session)
         this.user = session?.user ?? null
         if (!this.user) {
           this.userRole = 'guest'
@@ -132,14 +119,12 @@ export const useAuthStore = defineStore('auth', {
           .single()
 
         if (error || !data) {
-          if (this.userRole === 'guest') {
-            this.userRole = 'user'
-            this.userPlan = 'free'
-            this.freeAuditUsed = false
-            this.paidAuditCompleted = false
-            this.paidAuditCredits = 0
-            this.consentMarketing = false
-          }
+          this.userRole = 'user'
+          this.userPlan = 'free'
+          this.freeAuditUsed = false
+          this.paidAuditCompleted = false
+          this.paidAuditCredits = 0
+          this.consentMarketing = false
           return
         }
 
@@ -150,7 +135,12 @@ export const useAuthStore = defineStore('auth', {
         this.paidAuditCredits = Number(data.paid_audit_credits || 0)
         this.consentMarketing = !!data.consent_marketing
       } catch (_error) {
-        // Keep current profile values on transient failures instead of downgrading the user state.
+        this.userRole = 'user'
+        this.userPlan = 'free'
+        this.freeAuditUsed = false
+        this.paidAuditCompleted = false
+        this.paidAuditCredits = 0
+        this.consentMarketing = false
       }
     }
   }

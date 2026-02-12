@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { supabase } from '@/services/supabase'
-import { getAccessTokenSafe, isAbortError } from '@/services/auth-session'
 import { useAuthStore } from './auth.store'
 
 type Impact = 'critical' | 'serious' | 'moderate' | 'minor'
@@ -58,7 +57,8 @@ export const useAuditStore = defineStore('audit', {
           throw new Error('Prihlaste sa, aby ste mohli spustit audit.')
         }
 
-        const accessToken = await getAccessTokenSafe()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
         if (!accessToken) {
           throw new Error('Prihlaste sa, aby ste mohli spustit audit.')
         }
@@ -94,9 +94,7 @@ export const useAuditStore = defineStore('audit', {
           auth.paidAuditCredits = Math.max(0, (auth.paidAuditCredits || 0) - 1)
         }
       } catch (err: any) {
-        this.error = isAbortError(err)
-          ? 'Overenie relacie zlyhalo. Obnovte stranku a skuste to znova.'
-          : err.message
+        this.error = err.message
         this.accessLevel = null
       } finally {
         this.loading = false
@@ -108,7 +106,8 @@ export const useAuditStore = defineStore('audit', {
       if (!auth.isLoggedIn) return null
 
       try {
-        const accessToken = await getAccessTokenSafe()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
         if (!accessToken) return null
 
         const response = await fetch('/.netlify/functions/audit-latest', {
@@ -135,7 +134,8 @@ export const useAuditStore = defineStore('audit', {
       const auth = useAuthStore()
       if (!auth.isLoggedIn) return []
       try {
-        const accessToken = await getAccessTokenSafe()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
         if (!accessToken) return []
 
         const response = await fetch('/.netlify/functions/audit-history', {
@@ -157,7 +157,8 @@ export const useAuditStore = defineStore('audit', {
       const auth = useAuthStore()
       if (!auth.isLoggedIn || !auditId) return null
       try {
-        const accessToken = await getAccessTokenSafe()
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData.session?.access_token
         if (!accessToken) return null
 
         const response = await fetch(`/.netlify/functions/audit-detail?id=${auditId}`, {

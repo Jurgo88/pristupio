@@ -144,10 +144,10 @@ const closeMobileMenu = () => {
           <div class="footer-links">
             <div class="footer-col">
               <p class="footer-title">Rýchle odkazy</p>
-              <router-link :to="{ path: '/', hash: '#features' }">Čo získate</router-link>
-              <router-link :to="{ path: '/', hash: '#how' }">Ako to funguje</router-link>
-              <router-link :to="{ path: '/', hash: '#pricing' }">Cenník</router-link>
-              <router-link :to="{ path: '/', hash: '#about' }">O nás</router-link>
+              <a href="#features">Čo získate</a>
+              <a href="#how">Ako to funguje</a>
+              <a href="#pricing">Cenník</a>
+              <a href="#about">O nás</a>
             </div>
             <div class="footer-col">
               <p class="footer-title">Legislatíva</p>
