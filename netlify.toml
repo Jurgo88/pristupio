@@ -8,11 +8,9 @@
   node_bundler = "esbuild"
   external_node_modules = ["@sparticuz/chromium-min", "playwright-core", "axe-core"]
 
-#[functions.node_bundle]
-  # (nepouzivame) Netlify berie external_node_modules priamo z [functions]
-
 [dev]
+  framework = "vite"
   command = "npm run dev"
-  port = 8888
   targetPort = 5173
-  publish = "dist"
+  port = 8888
+  autoLaunch = true
