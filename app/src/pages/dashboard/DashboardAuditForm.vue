@@ -127,63 +127,11 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
   gap: 1.5rem;
 }
 
-.field {
-  display: grid;
-  gap: 0.6rem;
-}
-
-.field-label {
-  font-size: 0.78rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #64748b;
-  font-weight: 700;
-}
-
-.field-control {
-  width: 100%;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  padding: 0.65rem 0.8rem;
-  font-size: 0.95rem;
-  background: #ffffff;
-  color: #0f172a;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.field-control:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
 .input-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: center;
-}
-
-.btn {
-  border-radius: var(--radius);
-  font-weight: 600;
-  padding: 0.65rem 1.5rem;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--brand), #1e40af);
-  border: none;
-  color: #ffffff;
-  box-shadow: 0 12px 24px rgba(29, 78, 216, 0.3);
-}
-
-.btn-primary:disabled {
-  box-shadow: none;
-  opacity: 0.6;
-}
-
-.btn .spinner-border {
-  margin-right: 0.5rem;
 }
 
 .field-hint {

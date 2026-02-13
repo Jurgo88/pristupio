@@ -202,6 +202,7 @@ import DashboardStats from './DashboardStats.vue'
 import { useDashboardIssues } from './useDashboardIssues'
 import { useDashboardExport } from './useDashboardExport'
 import { useDashboardCore } from './useDashboardCore'
+import './dashboard.shared.css'
 
 const {
   targetUrl,
@@ -271,6 +272,7 @@ const {
 </script>
 
 <style scoped>
+/* Page Layout */
 .audit-page {
   max-width: 1100px;
   margin: 0 auto;
@@ -279,6 +281,7 @@ const {
   padding: 0.5rem 0 4rem;
 }
 
+/* Hero */
 .page-hero {
   position: relative;
   background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
@@ -402,6 +405,7 @@ const {
   color: #64748b;
 }
 
+/* Panel Shell */
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -441,6 +445,7 @@ const {
   align-items: center;
 }
 
+/* History Section */
 .audit-history .btn-filter-clear {
   height: auto;
 }
@@ -476,52 +481,7 @@ const {
   color: var(--text-muted);
 }
 
-.form-error {
-  padding: 0.75rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid rgba(185, 28, 28, 0.25);
-  background: rgba(185, 28, 28, 0.08);
-  color: #7f1d1d;
-  font-size: 0.9rem;
-}
-
-.audit-page .btn {
-  border-radius: var(--radius);
-  font-weight: 600;
-  padding: 0.65rem 1.5rem;
-}
-
-.audit-page .btn-sm {
-  padding: 0.45rem 0.9rem;
-  font-size: 0.8rem;
-}
-
-.audit-page .btn-primary {
-  background: linear-gradient(135deg, var(--brand), #1e40af);
-  border: none;
-  color: #ffffff;
-  box-shadow: 0 12px 24px rgba(29, 78, 216, 0.3);
-}
-
-.audit-page .btn-primary:disabled {
-  box-shadow: none;
-  opacity: 0.6;
-}
-
-.audit-page .btn-outline {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: #0f172a;
-}
-
-.audit-page .btn-outline:hover {
-  background: var(--surface-2);
-}
-
-.audit-page .btn .spinner-border {
-  margin-right: 0.5rem;
-}
-
+/* Empty States (issues section) */
 .empty-state {
   padding: 2rem 0;
   text-align: center;
@@ -535,6 +495,7 @@ const {
   padding: 1.5rem;
 }
 
+/* Responsive */
 @media (max-width: 1100px) {
   .page-hero {
     grid-template-columns: 1fr;
@@ -543,7 +504,6 @@ const {
   .page-hero__card {
     width: 100%;
   }
-
 }
 
 @media (max-width: 640px) {

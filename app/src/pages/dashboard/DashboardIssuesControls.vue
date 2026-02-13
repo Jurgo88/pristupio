@@ -111,57 +111,12 @@ const onSearchInput = (event: Event) => {
   margin: 0 0 0.4rem;
 }
 
-.field {
-  display: grid;
-  gap: 0.6rem;
-}
-
 .field--actions {
   align-self: end;
 }
 
 .field--actions .btn {
   width: 100%;
-}
-
-.field-label {
-  font-size: 0.78rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #64748b;
-  font-weight: 700;
-}
-
-.field-control {
-  width: 100%;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  padding: 0.65rem 0.8rem;
-  font-size: 0.95rem;
-  background: #ffffff;
-  color: #0f172a;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.field-control:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-.btn {
-  border-radius: var(--radius);
-  font-weight: 600;
-  padding: 0.65rem 1.5rem;
-}
-
-.btn-sm {
-  padding: 0.45rem 0.9rem;
-  font-size: 0.8rem;
-}
-
-.btn .spinner-border {
-  margin-right: 0.5rem;
 }
 
 .filters {

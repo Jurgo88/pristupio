@@ -76,27 +76,6 @@ defineProps<{
 </script>
 
 <style scoped>
-.btn {
-  border-radius: var(--radius);
-  font-weight: 600;
-  padding: 0.65rem 1.5rem;
-}
-
-.btn-sm {
-  padding: 0.45rem 0.9rem;
-  font-size: 0.8rem;
-}
-
-.btn-outline {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: #0f172a;
-}
-
-.btn-outline:hover {
-  background: var(--surface-2);
-}
-
 .issue-list {
   display: grid;
   border-top: 1px solid var(--border);
