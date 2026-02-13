@@ -405,13 +405,10 @@ import { useAuthStore } from '@/stores/auth.store'
 import ManualChecklist from '@/components/ManualChecklist.vue'
 import { supabase } from '@/services/supabase'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
+import { useDashboardIssues } from './useDashboardIssues'
 
 const targetUrl = ref('')
 const selectedProfile = ref<'wad' | 'eaa'>('wad')
-const selectedPrinciple = ref('')
-const selectedImpact = ref('')
-const searchText = ref('')
-const openDetails = ref<Record<string, boolean>>({})
 const exporting = ref(false)
 const exportError = ref('')
 const auditStore = useAuditStore()
@@ -453,6 +450,27 @@ const historyLoading = ref(false)
 const historyError = ref('')
 const selectedAuditId = ref<string | null>(null)
 const latestAudit = computed(() => auditHistory.value[0] || null)
+const {
+  selectedPrinciple,
+  selectedImpact,
+  searchText,
+  issueTotal,
+  issueHigh,
+  highCount,
+  medCount,
+  lowCount,
+  auditScore,
+  criticalPercent,
+  moderatePercent,
+  minorPercent,
+  impactClass,
+  principleOptions,
+  filteredIssues,
+  clearFilters,
+  violationKey,
+  toggleDetails,
+  isOpen
+} = useDashboardIssues(computed(() => auditStore.report))
 
 const refreshPlan = async () => {
   refreshPlanLoading.value = true
@@ -548,113 +566,6 @@ const openLatestAudit = () => {
   if (!latestAudit.value) return
   void selectAudit(latestAudit.value.id)
 }
-
-const issueTotal = (summary: any) => summary?.total ?? 0
-const issueHigh = (summary: any) =>
-  (summary?.byImpact?.critical || 0) + (summary?.byImpact?.serious || 0)
-
-const highCount = computed(() => {
-  const byImpact = auditStore.report?.summary.byImpact
-  return (byImpact?.critical || 0) + (byImpact?.serious || 0)
-})
-
-const totalIssues = computed(() => {
-  const byImpact = auditStore.report?.summary.byImpact
-  return (
-    (byImpact?.critical || 0) +
-    (byImpact?.serious || 0) +
-    (byImpact?.moderate || 0) +
-    (byImpact?.minor || 0)
-  )
-})
-
-const medCount = computed(() => {
-  return auditStore.report?.summary.byImpact.moderate || 0
-})
-
-const lowCount = computed(() => {
-  return auditStore.report?.summary.byImpact.minor || 0
-})
-
-const auditScore = computed(() => {
-  const byImpact = auditStore.report?.summary.byImpact
-  if (!byImpact) return 0
-  const total = totalIssues.value
-  if (total === 0) return 100
-  const penalty =
-    (byImpact.critical || 0) * 18 +
-    (byImpact.serious || 0) * 10 +
-    (byImpact.moderate || 0) * 5 +
-    (byImpact.minor || 0) * 2
-
-  const score = 100 / (1 + penalty / 60)
-  return Math.max(0, Math.round(score))
-})
-
-const criticalPercent = computed(() => {
-  const total = totalIssues.value
-  if (total === 0) return 0
-  return Math.round((highCount.value / total) * 100)
-})
-
-const moderatePercent = computed(() => {
-  const total = totalIssues.value
-  if (total === 0) return 0
-  return Math.round((medCount.value / total) * 100)
-})
-
-const minorPercent = computed(() => {
-  const total = totalIssues.value
-  if (total === 0) return 0
-  return Math.round((lowCount.value / total) * 100)
-})
-
-const impactClass = (impact: string) => {
-  if (impact === 'critical') return 'impact-critical'
-  if (impact === 'serious') return 'impact-serious'
-  if (impact === 'moderate') return 'impact-moderate'
-  return 'impact-minor'
-}
-
-const principleOptions = computed(() => {
-  const issues = auditStore.report?.issues || []
-  const unique = new Set(issues.map((i: any) => i.principle).filter(Boolean))
-  return Array.from(unique)
-})
-
-const filteredIssues = computed(() => {
-  const issues = auditStore.report?.issues || []
-  const term = searchText.value.trim().toLowerCase()
-
-  const filtered = issues.filter((i: any) => {
-    const principleOk = !selectedPrinciple.value || i.principle === selectedPrinciple.value
-    const impactOk = !selectedImpact.value || i.impact === selectedImpact.value
-    const text = `${i.title || ''} ${i.description || ''} ${i.recommendation || ''} ${i.wcag || ''} ${i.principle || ''}`.toLowerCase()
-    const searchOk = !term || text.includes(term)
-    return principleOk && impactOk && searchOk
-  })
-  const order: Record<string, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 }
-  return filtered.sort((a: any, b: any) => {
-    const aOrder = order[a.impact] ?? 99
-    const bOrder = order[b.impact] ?? 99
-    if (aOrder !== bOrder) return aOrder - bOrder
-    return (b.nodesCount || 0) - (a.nodesCount || 0)
-  })
-})
-
-const clearFilters = () => {
-  selectedPrinciple.value = ''
-  selectedImpact.value = ''
-  searchText.value = ''
-}
-
-const violationKey = (violation: any, index: number) => `${violation.id}-${index}`
-
-const toggleDetails = (key: string) => {
-  openDetails.value = { ...openDetails.value, [key]: !openDetails.value[key] }
-}
-
-const isOpen = (key: string) => !!openDetails.value[key]
 
 const buildSummary = (issues: any[]) => {
   const summary = {
