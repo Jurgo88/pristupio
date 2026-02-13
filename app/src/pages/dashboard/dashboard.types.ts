@@ -37,3 +37,9 @@ export type AuditHistoryItem = {
   audit_kind?: 'paid' | 'free' | string
   summary?: DashboardReportSummary
 }
+
+export type ProfileOption = {
+  value: 'wad' | 'eaa'
+  title: string
+  subtitle: string
+}

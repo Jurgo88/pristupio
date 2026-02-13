@@ -3,12 +3,7 @@ import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
-
-type ProfileOption = {
-  value: 'wad' | 'eaa'
-  title: string
-  subtitle: string
-}
+import type { ProfileOption } from './dashboard.types'
 
 export const useDashboardCore = () => {
   const targetUrl = ref('')
