@@ -275,11 +275,11 @@
         </div>
         <button
           class="btn btn-sm btn-export"
-          :disabled="!auditStore.report || exporting || isPreview"
+          :disabled="!auditStore.report || isExporting || isPreview"
           @click="exportPdf"
         >
-          <span v-if="exporting" class="spinner-border spinner-border-sm"></span>
-          {{ exporting ? 'Exportujem...' : 'Export PDF' }}
+          <span v-if="isExporting" class="spinner-border spinner-border-sm"></span>
+          {{ isExporting ? 'Exportujem...' : 'Export PDF' }}
         </button>
       </div>
 
@@ -322,7 +322,7 @@
         </div>
       </div>
 
-      <div v-if="exportError" class="form-error">{{ exportError }}</div>
+      <div v-if="currentExportError" class="form-error">{{ currentExportError }}</div>
 
       <div v-if="!auditStore.report" class="empty-state empty-state--hint">
         Spustite audit, aby sa zobrazili nálezy a detailné odporúčania.
@@ -398,58 +398,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { useAuditStore } from '@/stores/audit.store'
-import { useAuthStore } from '@/stores/auth.store'
+import { computed } from 'vue'
 import ManualChecklist from '@/components/ManualChecklist.vue'
-import { supabase } from '@/services/supabase'
-import { buildLemonCheckoutUrl } from '@/utils/lemon'
 import { useDashboardIssues } from './useDashboardIssues'
+import { useDashboardExport } from './useDashboardExport'
+import { useDashboardCore } from './useDashboardCore'
 
-const targetUrl = ref('')
-const selectedProfile = ref<'wad' | 'eaa'>('wad')
-const exporting = ref(false)
-const exportError = ref('')
-const auditStore = useAuditStore()
-const auth = useAuthStore()
-const route = useRoute()
-const refreshPlanLoading = ref(false)
-const paymentNotice = ref(false)
-const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
-const auditCheckoutUrl = computed(() => {
-  if (!auth.user || !auditCheckoutBase) return ''
-  return buildLemonCheckoutUrl({
-    baseUrl: auditCheckoutBase,
-    userId: auth.user.id,
-    email: auth.user.email
-  })
-})
-const isPreview = computed(() => auditStore.accessLevel === 'free')
-const freeLimitReached = computed(() => auth.isLoggedIn && !auth.isPaid && auth.freeAuditUsed)
-const paidLimitReached = computed(
-  () => auth.isLoggedIn && auth.isPaid && (auth.paidAuditCredits || 0) <= 0 && !auth.isAdmin
-)
-const auditLocked = computed(() => freeLimitReached.value || paidLimitReached.value)
-const auditLockedMessage = computed(() => {
-  if (paidLimitReached.value) {
-    return 'Nemate kredit na zakladny audit. Objednajte dalsi audit.'
-  }
-  if (freeLimitReached.value) {
-    return 'Free audit uz bol pouzity. Pre plny report si objednajte zakladny audit.'
-  }
-  return ''
-})
-const showUpgrade = computed(
-  () => auth.isLoggedIn && !auth.isPaid && (auth.freeAuditUsed || isPreview.value)
-)
-const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
-const paidCredits = computed(() => auth.paidAuditCredits || 0)
-const auditHistory = computed(() => auditStore.history || [])
-const historyLoading = ref(false)
-const historyError = ref('')
-const selectedAuditId = ref<string | null>(null)
-const latestAudit = computed(() => auditHistory.value[0] || null)
+const {
+  targetUrl,
+  selectedProfile,
+  auditStore,
+  refreshPlanLoading,
+  paymentNotice,
+  auditCheckoutUrl,
+  isPreview,
+  auditLocked,
+  auditLockedMessage,
+  showUpgrade,
+  showPaidStatus,
+  paidCredits,
+  auditHistory,
+  historyLoading,
+  historyError,
+  selectedAuditId,
+  latestAudit,
+  refreshPlan,
+  loadAuditHistory,
+  profileOptions,
+  canRunAudit,
+  profileLabel,
+  handleStartAudit,
+  formatDate,
+  selectAudit,
+  openLatestAudit
+} = useDashboardCore()
+
 const {
   selectedPrinciple,
   selectedImpact,
@@ -472,212 +455,20 @@ const {
   isOpen
 } = useDashboardIssues(computed(() => auditStore.report))
 
-const refreshPlan = async () => {
-  refreshPlanLoading.value = true
-  try {
-    await auth.fetchUserProfile()
-  } finally {
-    refreshPlanLoading.value = false
-  }
-}
-
-const loadAuditHistory = async () => {
-  historyLoading.value = true
-  historyError.value = ''
-  try {
-    await auditStore.fetchAuditHistory()
-  } catch (_error) {
-    historyError.value = 'Históriu auditov sa nepodarilo načítať.'
-  } finally {
-    historyLoading.value = false
-  }
-}
-
-const loadLatestAudit = async () => {
-  if (!auth.isLoggedIn || auditStore.report) return
-  const latest = await auditStore.fetchLatestAudit()
-  if (latest?.url && !targetUrl.value.trim()) {
-    targetUrl.value = latest.url
-  }
-  if (latest?.auditId) {
-    selectedAuditId.value = latest.auditId
-  }
-}
-
-onMounted(() => {
-  if (route.query.paid === '1') {
-    paymentNotice.value = true
-    void refreshPlan()
-  }
-  void loadLatestAudit()
-  void loadAuditHistory()
+const {
+  exporting: isExporting,
+  exportError: currentExportError,
+  exportPdf
+} = useDashboardExport({
+  report: computed(() => auditStore.report),
+  targetUrl,
+  selectedProfile,
+  profileLabel,
+  selectedPrinciple,
+  selectedImpact,
+  searchText,
+  filteredIssues
 })
-
-const profileOptions = [
-  {
-    value: 'wad',
-    title: 'Verejný sektor (WAD 2016/2102)',
-    subtitle: 'Weby a aplikácie verejných inštitúcií'
-  },
-  {
-    value: 'eaa',
-    title: 'Produkty a služby (EAA 2019/882)',
-    subtitle: 'E-shopy, banky, doprava, digitálne služby'
-  }
-] as const
-
-const canRunAudit = computed(
-  () => targetUrl.value.trim().length > 0 && !auditStore.loading && !auditLocked.value
-)
-const profileLabel = computed(
-  () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
-)
-
-const handleStartAudit = async () => {
-  const url = targetUrl.value.trim()
-  if (!url) return
-  await auditStore.runManualAudit(url)
-  if (auditStore.currentAudit?.auditId) {
-    selectedAuditId.value = auditStore.currentAudit.auditId
-  }
-  void loadAuditHistory()
-}
-
-const formatDate = (value?: string) => {
-  if (!value) return ''
-  try {
-    return new Date(value).toLocaleDateString('sk-SK')
-  } catch (_error) {
-    return value
-  }
-}
-
-const selectAudit = async (auditId: string) => {
-  const data = await auditStore.loadAuditById(auditId)
-  if (data?.url) {
-    targetUrl.value = data.url
-  }
-  if (data?.auditId) {
-    selectedAuditId.value = data.auditId
-  }
-}
-
-const openLatestAudit = () => {
-  if (!latestAudit.value) return
-  void selectAudit(latestAudit.value.id)
-}
-
-const buildSummary = (issues: any[]) => {
-  const summary = {
-    total: issues.length,
-    byImpact: {
-      critical: 0,
-      serious: 0,
-      moderate: 0,
-      minor: 0
-    }
-  }
-
-  issues.forEach((issue) => {
-    const impact = issue?.impact
-    if (impact && summary.byImpact[impact as keyof typeof summary.byImpact] !== undefined) {
-      summary.byImpact[impact as keyof typeof summary.byImpact] += 1
-    }
-  })
-
-  return summary
-}
-
-const buildFileName = () => {
-  const date = new Date().toISOString().slice(0, 10)
-  const rawUrl = targetUrl.value.trim()
-  let host = 'web'
-
-  if (rawUrl) {
-    try {
-      const withProtocol = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-      host = new URL(withProtocol).hostname
-    } catch (error) {
-      host = rawUrl
-    }
-  }
-
-  host = host.replace(/[^a-zA-Z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-  return `wcag-report-${host || 'web'}-${date}.pdf`
-}
-
-const exportPdf = async () => {
-  if (!auditStore.report || exporting.value) return
-  exporting.value = true
-  exportError.value = ''
-
-  try {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const accessToken = sessionData.session?.access_token
-    if (!accessToken) {
-      throw new Error('Prihlaste sa, aby ste mohli exportovat report.')
-    }
-
-    const issues = filteredIssues.value
-    const slimIssues = issues.map((issue: any) => ({
-      id: issue.id,
-      title: issue.title,
-      impact: issue.impact,
-      description: issue.description,
-      recommendation: issue.recommendation,
-      wcag: issue.wcag,
-      wcagLevel: issue.wcagLevel,
-      principle: issue.principle,
-      helpUrl: issue.helpUrl,
-      nodesCount: issue.nodesCount
-    }))
-    const payload = {
-      url: targetUrl.value.trim(),
-      profile: selectedProfile.value,
-      profileLabel: profileLabel.value,
-      filters: {
-        principle: selectedPrinciple.value || null,
-        impact: selectedImpact.value || null,
-        search: searchText.value.trim() || null
-      },
-      report: {
-        summary: buildSummary(slimIssues),
-        issues: slimIssues
-      }
-    }
-
-    const response = await fetch('/.netlify/functions/audit-export-pdf', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`
-      },
-      body: JSON.stringify(payload)
-    })
-
-    if (!response.ok) {
-      let message = 'Export zlyhal.'
-      try {
-        const data = await response.json()
-        if (data?.error) message = data.error
-      } catch (error) {
-        // ignore json parsing errors
-      }
-      throw new Error(message)
-    }
-
-    const blob = await response.blob()
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = buildFileName()
-    link.click()
-    URL.revokeObjectURL(link.href)
-  } catch (error: any) {
-    exportError.value = error?.message || 'Export sa nepodaril.'
-  } finally {
-    exporting.value = false
-  }
-}
 
 const formatTarget = (target: string[]) => {
   if (!Array.isArray(target)) return ''
