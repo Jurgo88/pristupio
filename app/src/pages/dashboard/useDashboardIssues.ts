@@ -1,24 +1,14 @@
 import { computed, ref, type Ref } from 'vue'
+import type { DashboardIssue, DashboardReport, DashboardReportSummary, ImpactLevel } from './dashboard.types'
 
-type DashboardIssue = {
-  id?: string
-  impact?: string
-  title?: string
-  description?: string
-  recommendation?: string
-  wcag?: string
-  principle?: string
-  nodesCount?: number
-}
-
-export const useDashboardIssues = (report: Ref<any>) => {
+export const useDashboardIssues = (report: Ref<DashboardReport | null | undefined>) => {
   const selectedPrinciple = ref('')
   const selectedImpact = ref('')
   const searchText = ref('')
   const openDetails = ref<Record<string, boolean>>({})
 
-  const issueTotal = (summary: any) => summary?.total ?? 0
-  const issueHigh = (summary: any) =>
+  const issueTotal = (summary: DashboardReportSummary | null | undefined) => summary?.total ?? 0
+  const issueHigh = (summary: DashboardReportSummary | null | undefined) =>
     (summary?.byImpact?.critical || 0) + (summary?.byImpact?.serious || 0)
 
   const highCount = computed(() => {
@@ -86,7 +76,7 @@ export const useDashboardIssues = (report: Ref<any>) => {
 
   const principleOptions = computed(() => {
     const issues = report.value?.issues || []
-    const unique = new Set(issues.map((i: any) => i.principle).filter(Boolean))
+    const unique = new Set(issues.map((i) => i.principle).filter(Boolean))
     return Array.from(unique)
   })
 
@@ -102,7 +92,7 @@ export const useDashboardIssues = (report: Ref<any>) => {
       return principleOk && impactOk && searchOk
     })
 
-    const order: Record<string, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 }
+    const order: Record<ImpactLevel, number> = { critical: 0, serious: 1, moderate: 2, minor: 3 }
     return filtered.sort((a: DashboardIssue, b: DashboardIssue) => {
       const aOrder = order[a.impact || ''] ?? 99
       const bOrder = order[b.impact || ''] ?? 99

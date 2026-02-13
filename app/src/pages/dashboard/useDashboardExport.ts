@@ -1,28 +1,16 @@
 import { computed, ref, type Ref } from 'vue'
 import { supabase } from '@/services/supabase'
-
-type ExportIssue = {
-  id?: string
-  title?: string
-  impact?: string
-  description?: string
-  recommendation?: string
-  wcag?: string
-  wcagLevel?: string
-  principle?: string
-  helpUrl?: string
-  nodesCount?: number
-}
+import type { DashboardIssue, DashboardReport } from './dashboard.types'
 
 type UseDashboardExportParams = {
-  report: Ref<any>
+  report: Ref<DashboardReport | null | undefined>
   targetUrl: Ref<string>
   selectedProfile: Ref<'wad' | 'eaa'>
   profileLabel: Ref<string>
   selectedPrinciple: Ref<string>
   selectedImpact: Ref<string>
   searchText: Ref<string>
-  filteredIssues: Ref<ExportIssue[]>
+  filteredIssues: Ref<DashboardIssue[]>
 }
 
 export const useDashboardExport = ({
@@ -40,7 +28,7 @@ export const useDashboardExport = ({
 
   const trimmedTargetUrl = computed(() => targetUrl.value.trim())
 
-  const buildSummary = (issues: ExportIssue[]) => {
+  const buildSummary = (issues: DashboardIssue[]) => {
     const summary = {
       total: issues.length,
       byImpact: {
