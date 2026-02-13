@@ -107,38 +107,16 @@
           </button>
         </div>
       </div>
-
-      <div v-if="historyError" class="form-error">{{ historyError }}</div>
-
-      <div v-if="historyLoading" class="empty-state">Načítavam históriu...</div>
-
-      <div v-else-if="auditHistory.length === 0" class="empty-state">
-        Zatiaľ nemáte žiadne audity.
-      </div>
-
-      <div v-else class="history-list">
-        <article
-          v-for="audit in auditHistory"
-          :key="audit.id"
-          class="history-card"
-          :class="{ 'is-active': selectedAuditId === audit.id }"
-        >
-          <div class="history-meta">
-            <strong>{{ audit.url }}</strong>
-            <div class="history-sub">
-              <span>{{ formatDate(audit.created_at) }}</span>
-              <span class="pill">{{ audit.audit_kind === 'paid' ? 'Základný audit' : 'Free audit' }}</span>
-            </div>
-            <div class="history-stats">
-              <span>Spolu: {{ issueTotal(audit.summary) }}</span>
-              <span>Kritické: {{ issueHigh(audit.summary) }}</span>
-            </div>
-          </div>
-          <button class="btn btn-sm btn-outline" @click="selectAudit(audit.id)">
-            Zobraziť audit
-          </button>
-        </article>
-      </div>
+      <DashboardAuditHistoryList
+        :history-error="historyError"
+        :history-loading="historyLoading"
+        :audit-history="auditHistory"
+        :selected-audit-id="selectedAuditId"
+        :format-date="formatDate"
+        :issue-total="issueTotal"
+        :issue-high="issueHigh"
+        :select-audit="selectAudit"
+      />
     </section>
 
     <section class="panel audit-form">
@@ -354,6 +332,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ManualChecklist from '@/components/ManualChecklist.vue'
+import DashboardAuditHistoryList from './DashboardAuditHistoryList.vue'
 import DashboardIssueList from './DashboardIssueList.vue'
 import { useDashboardIssues } from './useDashboardIssues'
 import { useDashboardExport } from './useDashboardExport'
@@ -723,53 +702,6 @@ const {
   align-items: center;
 }
 
-.history-list {
-  display: grid;
-  gap: 0.9rem;
-}
-
-.history-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-  padding: 0.9rem 1.1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-}
-
-.history-card.is-active {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  background: #ffffff;
-}
-
-.history-meta strong {
-  display: block;
-  color: #0f172a;
-}
-
-.history-sub {
-  display: flex;
-  gap: 0.7rem;
-  align-items: center;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.history-sub .pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #ffffff;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .history-stats {
   display: flex;
   gap: 0.8rem;
@@ -1074,11 +1006,6 @@ const {
   .stats-grid,
   .filters {
     grid-template-columns: 1fr;
-  }
-
-  .history-card {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }
 

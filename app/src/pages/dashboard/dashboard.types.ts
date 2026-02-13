@@ -29,3 +29,11 @@ export type DashboardReport = {
   summary?: DashboardReportSummary
   issues?: DashboardIssue[]
 }
+
+export type AuditHistoryItem = {
+  id: string
+  url: string
+  created_at?: string
+  audit_kind?: 'paid' | 'free' | string
+  summary?: DashboardReportSummary
+}
