@@ -403,7 +403,6 @@ import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
 import ManualChecklist from '@/components/ManualChecklist.vue'
-import { supabase } from '@/services/supabase'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 import { useDashboardIssues } from './useDashboardIssues'
 
@@ -532,6 +531,17 @@ const canRunAudit = computed(
 const profileLabel = computed(
   () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
 )
+
+const { exporting, exportError, exportPdf } = useDashboardExport({
+  report: computed(() => auditStore.report),
+  targetUrl,
+  selectedProfile,
+  profileLabel,
+  selectedPrinciple,
+  selectedImpact,
+  searchText,
+  filteredIssues
+})
 
 const handleStartAudit = async () => {
   const url = targetUrl.value.trim()
