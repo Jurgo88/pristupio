@@ -1,0 +1,261 @@
+<template>
+  <div class="issue-list">
+    <article
+      v-for="(violation, index) in filteredIssues"
+      :key="violationKey(violation, index)"
+      class="issue-card"
+      :class="impactClass(violation.impact || '')"
+    >
+      <div class="issue-header">
+        <div class="impact-pill" :class="impactClass(violation.impact || '')">
+          {{ violation.impact }}
+        </div>
+        <h6 class="issue-title">{{ violation.title }}</h6>
+        <button
+          v-if="!isPreview"
+          class="btn btn-outline btn-sm"
+          @click="toggleDetails(violationKey(violation, index))"
+        >
+          {{ isOpen(violationKey(violation, index)) ? 'Skryť detail' : 'Zobraziť detail' }}
+        </button>
+      </div>
+      <p class="issue-desc">{{ violation.description }}</p>
+      <div class="issue-meta">
+        <strong>WCAG:</strong> {{ violation.wcag || 'Neurčené' }} |
+        <strong>Úroveň:</strong> {{ violation.wcagLevel || 'Neurčené' }} |
+        <strong>Princíp:</strong> {{ violation.principle || 'Neurčené' }}
+      </div>
+      <div v-if="!isPreview" class="issue-meta">
+        <strong>Odporúčanie:</strong>
+        {{
+          violation.recommendation ||
+          'Skontrolujte problém manuálne a upravte HTML tak, aby spĺňalo WCAG.'
+        }}
+      </div>
+      <small class="issue-count">Zasiahnutých elementov: {{ violation.nodesCount ?? 0 }}</small>
+
+      <div v-if="!isPreview && isOpen(violationKey(violation, index))" class="issue-details">
+        <div v-if="violation.nodesCount === 0" class="empty-inline">Nenašli sa konkrétne prvky.</div>
+        <div v-for="(node, nIndex) in violation.nodes?.slice(0, 3) || []" :key="nIndex" class="node-detail">
+          <div>{{ describeTarget(node.target) }}</div>
+          <div class="node-code">
+            <code>{{ formatTarget(node.target) }}</code>
+          </div>
+          <div v-if="node.failureSummary" class="node-note">
+            {{ node.failureSummary }}
+          </div>
+          <div v-if="node.html" class="node-note">
+            HTML: <code>{{ node.html }}</code>
+          </div>
+        </div>
+        <div v-if="(violation.nodesCount || 0) > 3" class="node-more">
+          + ďalšie {{ (violation.nodesCount || 0) - 3 }} elementy
+        </div>
+      </div>
+    </article>
+  </div>
+</template>
+
+<script setup lang="ts">
+import type { DashboardIssue } from './dashboard.types'
+import { describeTarget, formatTarget } from './useDashboardTargets'
+
+type ImpactClassFn = (impact: string) => string
+type ViolationKeyFn = (violation: DashboardIssue, index: number) => string
+type IsOpenFn = (key: string) => boolean
+type ToggleDetailsFn = (key: string) => void
+
+defineProps<{
+  filteredIssues: DashboardIssue[]
+  isPreview: boolean
+  impactClass: ImpactClassFn
+  violationKey: ViolationKeyFn
+  isOpen: IsOpenFn
+  toggleDetails: ToggleDetailsFn
+}>()
+</script>
+
+<style scoped>
+.btn {
+  border-radius: var(--radius);
+  font-weight: 600;
+  padding: 0.65rem 1.5rem;
+}
+
+.btn-sm {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+.btn-outline {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: #0f172a;
+}
+
+.btn-outline:hover {
+  background: var(--surface-2);
+}
+
+.issue-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+.issue-card {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.issue-card.impact-critical {
+  border-left: 4px solid var(--danger);
+  padding-left: 1rem;
+}
+
+.issue-card.impact-serious {
+  border-left: 4px solid #c2410c;
+  padding-left: 1rem;
+}
+
+.issue-card.impact-moderate {
+  border-left: 4px solid var(--warning);
+  padding-left: 1rem;
+}
+
+.issue-card.impact-minor {
+  border-left: 4px solid var(--info);
+  padding-left: 1rem;
+}
+
+.issue-card:last-child {
+  border-bottom: 0;
+}
+
+.issue-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.issue-title {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.issue-card.impact-critical .issue-title {
+  color: var(--danger);
+}
+
+.issue-card.impact-serious .issue-title {
+  color: #c2410c;
+}
+
+.issue-card.impact-moderate .issue-title {
+  color: var(--warning);
+}
+
+.issue-card.impact-minor .issue-title {
+  color: var(--info);
+}
+
+.issue-desc {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.issue-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.issue-count {
+  color: var(--text-muted);
+}
+
+.issue-details {
+  margin-top: 0.4rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 0.85rem;
+  color: #475569;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.empty-inline {
+  color: var(--text-muted);
+}
+
+.node-detail {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.node-code code,
+.issue-details code {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius);
+}
+
+.node-note {
+  color: #64748b;
+}
+
+.node-more {
+  color: var(--text-muted);
+}
+
+.impact-pill {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius);
+  min-width: 7rem;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  border: 1px solid var(--border);
+}
+
+.impact-pill.impact-critical {
+  color: var(--danger);
+  background: rgba(185, 28, 28, 0.12);
+  border-color: rgba(185, 28, 28, 0.35);
+}
+
+.impact-pill.impact-serious {
+  color: #9a3412;
+  background: rgba(194, 65, 12, 0.12);
+  border-color: rgba(194, 65, 12, 0.35);
+}
+
+.impact-pill.impact-moderate {
+  color: var(--warning);
+  background: rgba(180, 83, 9, 0.14);
+  border-color: rgba(180, 83, 9, 0.35);
+}
+
+.impact-pill.impact-minor {
+  color: var(--info);
+  background: rgba(2, 132, 199, 0.14);
+  border-color: rgba(2, 132, 199, 0.35);
+}
+
+@media (max-width: 980px) {
+  .issue-header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+</style>
