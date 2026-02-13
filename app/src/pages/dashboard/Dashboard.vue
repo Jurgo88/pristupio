@@ -275,11 +275,11 @@
         </div>
         <button
           class="btn btn-sm btn-export"
-          :disabled="!auditStore.report || exporting || isPreview"
+          :disabled="!auditStore.report || isExporting || isPreview"
           @click="exportPdf"
         >
-          <span v-if="exporting" class="spinner-border spinner-border-sm"></span>
-          {{ exporting ? 'Exportujem...' : 'Export PDF' }}
+          <span v-if="isExporting" class="spinner-border spinner-border-sm"></span>
+          {{ isExporting ? 'Exportujem...' : 'Export PDF' }}
         </button>
       </div>
 
@@ -322,7 +322,7 @@
         </div>
       </div>
 
-      <div v-if="exportError" class="form-error">{{ exportError }}</div>
+      <div v-if="currentExportError" class="form-error">{{ currentExportError }}</div>
 
       <div v-if="!auditStore.report" class="empty-state empty-state--hint">
         Spustite audit, aby sa zobrazili nálezy a detailné odporúčania.
@@ -403,7 +403,6 @@ import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
 import ManualChecklist from '@/components/ManualChecklist.vue'
-import { supabase } from '@/services/supabase'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 import { useDashboardIssues } from './useDashboardIssues'
 
@@ -532,6 +531,21 @@ const canRunAudit = computed(
 const profileLabel = computed(
   () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
 )
+
+const {
+  exporting: isExporting,
+  exportError: currentExportError,
+  exportPdf
+} = useDashboardExport({
+  report: computed(() => auditStore.report),
+  targetUrl,
+  selectedProfile,
+  profileLabel,
+  selectedPrinciple,
+  selectedImpact,
+  searchText,
+  filteredIssues
+})
 
 const handleStartAudit = async () => {
   const url = targetUrl.value.trim()
