@@ -26,6 +26,11 @@ export const useDashboardExport = ({
   const exporting = ref(false)
   const exportError = ref('')
 
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message) return error.message
+    return 'Export sa nepodaril.'
+  }
+
   const trimmedTargetUrl = computed(() => targetUrl.value.trim())
 
   const buildSummary = (issues: DashboardIssue[]) => {
@@ -134,8 +139,8 @@ export const useDashboardExport = ({
       link.download = buildFileName()
       link.click()
       URL.revokeObjectURL(link.href)
-    } catch (error: any) {
-      exportError.value = error?.message || 'Export sa nepodaril.'
+    } catch (error: unknown) {
+      exportError.value = getErrorMessage(error)
     } finally {
       exporting.value = false
     }

@@ -155,7 +155,7 @@
         :selected-impact="selectedImpact"
         :search-text="searchText"
         :principle-options="principleOptions"
-        :current-export-error="currentExportError"
+        :export-error="exportError"
         @update:selected-principle="selectedPrinciple = $event"
         @update:selected-impact="selectedImpact = $event"
         @update:search-text="searchText = $event"
@@ -193,15 +193,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ManualChecklist from '@/components/ManualChecklist.vue'
-import DashboardAuditHistoryList from './DashboardAuditHistoryList.vue'
-import DashboardAuditForm from './DashboardAuditForm.vue'
-import DashboardIssueList from './DashboardIssueList.vue'
-import DashboardIssuesControls from './DashboardIssuesControls.vue'
-import DashboardReportPreview from './DashboardReportPreview.vue'
-import DashboardStats from './DashboardStats.vue'
-import { useDashboardIssues } from './useDashboardIssues'
-import { useDashboardExport } from './useDashboardExport'
-import { useDashboardCore } from './useDashboardCore'
+import {
+  DashboardAuditHistoryList,
+  DashboardAuditForm,
+  DashboardIssueList,
+  DashboardIssuesControls,
+  DashboardReportPreview,
+  DashboardStats,
+  useDashboardIssues,
+  useDashboardExport,
+  useDashboardCore
+} from './index'
 import './dashboard.shared.css'
 
 const {
@@ -257,7 +259,7 @@ const {
 
 const {
   exporting: isExporting,
-  exportError: currentExportError,
+  exportError,
   exportPdf
 } = useDashboardExport({
   report: computed(() => auditStore.report),

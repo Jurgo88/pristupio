@@ -47,7 +47,7 @@
       </div>
     </div>
 
-    <div v-if="currentExportError" class="form-error">{{ currentExportError }}</div>
+    <div v-if="exportError" class="form-error">{{ exportError }}</div>
   </div>
 </template>
 
@@ -60,7 +60,7 @@ defineProps<{
   selectedImpact: string
   searchText: string
   principleOptions: string[]
-  currentExportError: string
+  exportError: string
 }>()
 
 const emit = defineEmits<{
