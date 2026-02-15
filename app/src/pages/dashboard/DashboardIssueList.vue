@@ -8,7 +8,7 @@
     >
       <div class="issue-header">
         <div class="impact-pill" :class="impactClass(violation.impact || '')">
-          {{ violation.impact }}
+          {{ getImpactLabel(violation.impact) }}
         </div>
         <h6 class="issue-title">{{ violation.title }}</h6>
         <button
@@ -58,12 +58,18 @@
 
 <script setup lang="ts">
 import type { DashboardIssue } from './dashboard.types'
+import { IMPACT_LABELS } from './dashboard.constants'
 import { describeTarget, formatTarget } from './useDashboardTargets'
 
 type ImpactClassFn = (impact: string) => string
 type ViolationKeyFn = (violation: DashboardIssue, index: number) => string
 type IsOpenFn = (key: string) => boolean
 type ToggleDetailsFn = (key: string) => void
+
+const getImpactLabel = (impact?: string) => {
+  if (!impact) return 'Neurčené'
+  return IMPACT_LABELS[impact as keyof typeof IMPACT_LABELS] || impact
+}
 
 defineProps<{
   filteredIssues: DashboardIssue[]

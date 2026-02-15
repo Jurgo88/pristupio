@@ -1,24 +1,26 @@
 <template>
   <section class="stats-grid">
     <article class="stat-card stat-critical">
-      <div class="stat-label">Critical & Serious</div>
+      <div class="stat-label">{{ DASHBOARD_IMPACT_TEXT.high }}</div>
       <div class="stat-value">{{ highCount }}</div>
-      <div class="stat-meta">Najvyššia priorita</div>
+      <div class="stat-meta">{{ DASHBOARD_STATS_TEXT.highMeta }}</div>
     </article>
     <article class="stat-card stat-moderate">
-      <div class="stat-label">Moderate</div>
+      <div class="stat-label">{{ DASHBOARD_IMPACT_TEXT.moderate }}</div>
       <div class="stat-value">{{ medCount }}</div>
-      <div class="stat-meta">Vyžaduje plán opráv</div>
+      <div class="stat-meta">{{ DASHBOARD_STATS_TEXT.moderateMeta }}</div>
     </article>
     <article class="stat-card stat-minor">
-      <div class="stat-label">Minor</div>
+      <div class="stat-label">{{ DASHBOARD_IMPACT_TEXT.minor }}</div>
       <div class="stat-value">{{ lowCount }}</div>
-      <div class="stat-meta">Nižší dopad</div>
+      <div class="stat-meta">{{ DASHBOARD_STATS_TEXT.minorMeta }}</div>
     </article>
   </section>
 </template>
 
 <script setup lang="ts">
+import { DASHBOARD_IMPACT_TEXT, DASHBOARD_STATS_TEXT } from './dashboard.constants'
+
 defineProps<{
   highCount: number
   medCount: number

@@ -2,47 +2,46 @@
   <div>
     <div class="panel-head panel-head--tight">
       <div>
-        <p class="kicker">Nálezy</p>
-        <h2>Nájdené problémy (WCAG 2.1)</h2>
+        <p class="kicker">{{ DASHBOARD_ISSUES_TEXT.kicker }}</p>
+        <h2>{{ DASHBOARD_ISSUES_TEXT.title }}</h2>
       </div>
       <button class="btn btn-sm btn-export" :disabled="!hasReport || isExporting || isPreview" @click="$emit('exportPdf')">
         <span v-if="isExporting" class="spinner-border spinner-border-sm"></span>
-        {{ isExporting ? 'Exportujem...' : 'Export PDF' }}
+        {{ isExporting ? DASHBOARD_ISSUES_TEXT.exportLoading : DASHBOARD_ISSUES_TEXT.exportIdle }}
       </button>
     </div>
 
     <div class="filters">
       <div class="field">
-        <label class="field-label">Princíp</label>
+        <label class="field-label">{{ DASHBOARD_ISSUES_TEXT.principleLabel }}</label>
         <select :value="selectedPrinciple" class="field-control" :disabled="!hasReport || isPreview" @change="onPrincipleChange">
-          <option value="">Všetky</option>
+          <option value="">{{ DASHBOARD_ISSUES_TEXT.allOption }}</option>
           <option v-for="p in principleOptions" :key="p" :value="p">{{ p }}</option>
         </select>
       </div>
       <div class="field">
-        <label class="field-label">Závažnosť</label>
+        <label class="field-label">{{ DASHBOARD_ISSUES_TEXT.impactLabel }}</label>
         <select :value="selectedImpact" class="field-control" :disabled="!hasReport || isPreview" @change="onImpactChange">
-          <option value="">Všetky</option>
-          <option value="critical">Critical</option>
-          <option value="serious">Serious</option>
-          <option value="moderate">Moderate</option>
-          <option value="minor">Minor</option>
+          <option value="">{{ DASHBOARD_ISSUES_TEXT.allOption }}</option>
+          <option v-for="option in IMPACT_OPTIONS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
         </select>
       </div>
       <div class="field">
-        <label class="field-label">Hľadať</label>
+        <label class="field-label">{{ DASHBOARD_ISSUES_TEXT.searchLabel }}</label>
         <input
           :value="searchText"
           class="field-control"
           type="text"
-          placeholder="Napr. kontrast, tlačidlo, aria"
+          :placeholder="DASHBOARD_ISSUES_TEXT.searchPlaceholder"
           :disabled="!hasReport || isPreview"
           @input="onSearchInput"
         />
       </div>
       <div class="field field--actions">
         <button class="btn btn-sm btn-filter-clear" @click="$emit('clearFilters')" :disabled="!hasReport || isPreview">
-          Zrušiť filtre
+          {{ DASHBOARD_ISSUES_TEXT.clearFilters }}
         </button>
       </div>
     </div>
@@ -52,6 +51,8 @@
 </template>
 
 <script setup lang="ts">
+import { DASHBOARD_ISSUES_TEXT, IMPACT_OPTIONS } from './dashboard.constants'
+
 defineProps<{
   hasReport: boolean
   isPreview: boolean

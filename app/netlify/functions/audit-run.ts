@@ -470,17 +470,19 @@ function getGuidance(id?: string, description?: string, help?: string) {
       }
     case 'aria-required-children':
       return {
-        title: 'ARIA rola potrebuje spravne vnorenie',
-        description: 'Niektore ARIA roly musia obsahovat konkretne podprvky.',
-        recommendation: 'Ak pouzivate ARIA rolu, doplnte pozadovane vnorene prvky (napr. role="list" ma mat role="listitem").',
+        title: 'ARIA rola potrebuje správne vnorenie',
+        description: 'Niektoré ARIA roly musia obsahovať konkrétne podprvky.',
+        recommendation:
+          'Ak používate ARIA rolu, doplňte požadované vnorené prvky (napr. role="list" má mať role="listitem").',
         wcag: '4.1.2 Nazov, rola, hodnota',
         principle: 'Robustnost'
       }
     case 'aria-required-parent':
       return {
-        title: 'ARIA rola musi byt v spravnom rodicovi',
-        description: 'Niektore roly musia byt vnorene v konkretnych rodicovskych rolach.',
-        recommendation: 'Element s danou rolou musi byt v povolenom rodicovi (napr. role="listitem" v role="list").',
+        title: 'ARIA rola musí byť v správnom rodičovi',
+        description: 'Niektoré roly musia byť vnorené v konkrétnych rodičovských rolách.',
+        recommendation:
+          'Element s danou rolou musí byť v povolenom rodičovi (napr. role="listitem" v role="list").',
         wcag: '4.1.2 Nazov, rola, hodnota',
         principle: 'Robustnost'
       }

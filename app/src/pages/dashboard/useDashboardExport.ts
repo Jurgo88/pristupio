@@ -81,7 +81,7 @@ export const useDashboardExport = ({
       const { data: sessionData } = await supabase.auth.getSession()
       const accessToken = sessionData.session?.access_token
       if (!accessToken) {
-        throw new Error('Prihlaste sa, aby ste mohli exportovat report.')
+        throw new Error('Prihláste sa, aby ste mohli exportovať report.')
       }
 
       const issues = filteredIssues.value

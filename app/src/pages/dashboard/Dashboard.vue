@@ -28,10 +28,10 @@
 
     <section v-if="auditStore.report && isPreview" class="panel preview-banner">
       <p class="kicker">Free audit preview</p>
-      <h2>Vidis len rychly prehlad problemov</h2>
+      <h2>Vidíš len rýchly prehľad problémov</h2>
       <p class="lead">
-        Free audit ukazuje skore, pocty a top 3 nalezy. Detailne odporucania a plny report su
-        dostupne v zakladnom audite.
+        Free audit ukazuje skóre, počty a top 3 nálezy. Detailné odporúčania a plný report sú
+        dostupné v základnom audite.
       </p>
     </section>
 
@@ -164,15 +164,15 @@
       />
 
       <div v-if="!auditStore.report" class="empty-state empty-state--hint">
-        Spustite audit, aby sa zobrazili nálezy a detailné odporúčania.
+        {{ DASHBOARD_ISSUES_TEXT.emptyNoReport }}
       </div>
 
       <div v-else-if="auditStore.report.issues.length === 0" class="empty-state">
-        Nenašli sa žiadne prístupnostné chyby.
+        {{ DASHBOARD_ISSUES_TEXT.emptyNoIssues }}
       </div>
 
       <div v-else-if="filteredIssues.length === 0" class="empty-state">
-        Žiadne chyby pre vybrané filtre.
+        {{ DASHBOARD_ISSUES_TEXT.emptyNoFilteredIssues }}
       </div>
 
       <DashboardIssueList
@@ -200,6 +200,7 @@ import {
   DashboardIssuesControls,
   DashboardReportPreview,
   DashboardStats,
+  DASHBOARD_ISSUES_TEXT,
   useDashboardIssues,
   useDashboardExport,
   useDashboardCore

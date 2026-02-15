@@ -1,12 +1,9 @@
 <template>
   <section class="report-preview">
     <div class="report-preview__copy">
-      <p class="kicker">Prehľad reportu</p>
-      <h2>Index pripravenosti</h2>
-      <p class="lead">
-        Skóre vychádza z pomeru závažností problémov. Čím menej kritických nálezov, tým vyššia
-        pripravenosť.
-      </p>
+      <p class="kicker">{{ DASHBOARD_REPORT_PREVIEW_TEXT.kicker }}</p>
+      <h2>{{ DASHBOARD_REPORT_PREVIEW_TEXT.title }}</h2>
+      <p class="lead">{{ DASHBOARD_REPORT_PREVIEW_TEXT.lead }}</p>
     </div>
     <div class="hero-mockup">
       <div class="mockup-header">
@@ -16,31 +13,31 @@
       <div class="mockup-score">
         <div class="score-circle">{{ auditScore }}</div>
         <div class="score-meta">
-          <strong>Prístupnosť</strong>
-          <span>Index pripravenosti</span>
+          <strong>{{ DASHBOARD_REPORT_PREVIEW_TEXT.accessibilityLabel }}</strong>
+          <span>{{ DASHBOARD_REPORT_PREVIEW_TEXT.title }}</span>
         </div>
       </div>
       <div class="mockup-bars">
         <div class="bar">
-          <span>Critical & Serious</span>
+          <span>{{ DASHBOARD_IMPACT_TEXT.high }}</span>
           <div class="bar-track">
             <div class="bar-fill critical" :style="{ width: criticalPercent + '%' }"></div>
           </div>
-          <small>{{ highCount }} problémov</small>
+          <small>{{ highCount }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</small>
         </div>
         <div class="bar">
-          <span>Moderate</span>
+          <span>{{ DASHBOARD_IMPACT_TEXT.moderate }}</span>
           <div class="bar-track">
             <div class="bar-fill moderate" :style="{ width: moderatePercent + '%' }"></div>
           </div>
-          <small>{{ medCount }} problémov</small>
+          <small>{{ medCount }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</small>
         </div>
         <div class="bar">
-          <span>Minor</span>
+          <span>{{ DASHBOARD_IMPACT_TEXT.minor }}</span>
           <div class="bar-track">
             <div class="bar-fill minor" :style="{ width: minorPercent + '%' }"></div>
           </div>
-          <small>{{ lowCount }} problémov</small>
+          <small>{{ lowCount }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</small>
         </div>
       </div>
     </div>
@@ -48,6 +45,8 @@
 </template>
 
 <script setup lang="ts">
+import { DASHBOARD_IMPACT_TEXT, DASHBOARD_REPORT_PREVIEW_TEXT } from './dashboard.constants'
+
 defineProps<{
   auditScore: number
   highCount: number
