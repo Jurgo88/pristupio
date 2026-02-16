@@ -125,7 +125,7 @@ const closeMobileMenu = () => {
       </div>
     </nav>
 
-    <main class="container mt-4">
+    <main class="container-fluid mt-4 app-main">
       <div v-if="auth.loadingSession" class="text-center mt-5">
         <div class="spinner-border text-primary" role="status"></div>
         <p>Načítavam prístup...</p>
@@ -355,6 +355,15 @@ const closeMobileMenu = () => {
   flex: 1 0 auto;
 }
 
+.app-main {
+  width: 100%;
+  max-width: 1720px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
 .site-footer {
   margin: 0;
   padding: 2.2rem 0 1.2rem;
@@ -452,6 +461,11 @@ const closeMobileMenu = () => {
 }
 
 @media (max-width: 640px) {
+  .app-main {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
   .topbar {
     padding-left: 0.75rem;
     padding-right: 0.75rem;

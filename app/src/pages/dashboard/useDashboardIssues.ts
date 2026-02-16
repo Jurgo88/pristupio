@@ -1,11 +1,13 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type { DashboardIssue, DashboardReport, DashboardReportSummary, ImpactLevel } from './dashboard.types'
 
 export const useDashboardIssues = (report: Ref<DashboardReport | null | undefined>) => {
+  const ISSUE_BATCH_SIZE = 25
   const selectedPrinciple = ref('')
   const selectedImpact = ref('')
   const searchText = ref('')
   const openDetails = ref<Record<string, boolean>>({})
+  const visibleIssuesCount = ref(ISSUE_BATCH_SIZE)
 
   const issueTotal = (summary: DashboardReportSummary | null | undefined) => summary?.total ?? 0
   const issueHigh = (summary: DashboardReportSummary | null | undefined) =>
@@ -101,10 +103,28 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
     })
   })
 
+  const visibleIssues = computed(() => filteredIssues.value.slice(0, visibleIssuesCount.value))
+  const hasMoreIssues = computed(() => filteredIssues.value.length > visibleIssuesCount.value)
+
+  const loadMoreIssues = () => {
+    visibleIssuesCount.value += ISSUE_BATCH_SIZE
+  }
+
+  watch([selectedPrinciple, selectedImpact, searchText, report], () => {
+    visibleIssuesCount.value = ISSUE_BATCH_SIZE
+  })
+
+  watch(filteredIssues, (issues) => {
+    if (visibleIssuesCount.value > issues.length && issues.length > 0) {
+      visibleIssuesCount.value = Math.max(ISSUE_BATCH_SIZE, issues.length)
+    }
+  })
+
   const clearFilters = () => {
     selectedPrinciple.value = ''
     selectedImpact.value = ''
     searchText.value = ''
+    visibleIssuesCount.value = ISSUE_BATCH_SIZE
   }
 
   const violationKey = (violation: DashboardIssue, index: number) => `${violation.id}-${index}`
@@ -132,6 +152,9 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
     impactClass,
     principleOptions,
     filteredIssues,
+    visibleIssues,
+    hasMoreIssues,
+    loadMoreIssues,
     clearFilters,
     violationKey,
     toggleDetails,
