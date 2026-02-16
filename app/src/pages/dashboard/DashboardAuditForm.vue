@@ -30,22 +30,6 @@
           </button>
         </div>
 
-        <div v-if="progressVisible" class="audit-progress">
-          <div class="audit-progress__head">
-            <span>{{ progressLabel }}</span>
-            <strong>{{ Math.round(progress) }}%</strong>
-          </div>
-          <div
-            class="audit-progress__track"
-            role="progressbar"
-            :aria-valuenow="Math.round(progress)"
-            aria-valuemin="0"
-            aria-valuemax="100"
-          >
-            <div class="audit-progress__fill" :style="{ width: progress + '%' }"></div>
-          </div>
-        </div>
-
         <p class="field-hint">Vhodné pre weby, aplikácie a digitálne služby.</p>
       </div>
 
@@ -71,6 +55,22 @@
               <span class="sub">{{ option.subtitle }}</span>
             </span>
           </label>
+        </div>
+      </div>
+
+      <div v-if="progressVisible" class="audit-progress">
+        <div class="audit-progress__head">
+          <span>{{ progressLabel }}</span>
+          <strong>{{ Math.round(progress) }}%</strong>
+        </div>
+        <div
+          class="audit-progress__track"
+          role="progressbar"
+          :aria-valuenow="Math.round(progress)"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <div class="audit-progress__fill" :style="{ width: progress + '%' }"></div>
         </div>
       </div>
 
@@ -173,17 +173,21 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 </script>
 
 <style scoped>
+.audit-form {
+  padding: 1.25rem 1.35rem;
+}
+
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  margin-bottom: 1.4rem;
+  margin-bottom: 0.9rem;
 }
 
 .panel-head h2 {
   margin: 0.2rem 0 0;
-  font-size: clamp(1.4rem, 1.1rem + 1vw, 2rem);
+  font-size: clamp(1.2rem, 1.02rem + 0.7vw, 1.6rem);
 }
 
 .kicker {
@@ -197,13 +201,20 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 
 .lead {
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 0.93rem;
+  line-height: 1.4;
   margin: 0;
 }
 
 .form-grid {
   display: grid;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1rem 1.1rem;
+  align-items: start;
+}
+
+.form-grid > .form-error {
+  grid-column: 1 / -1;
 }
 
 .input-row {
@@ -214,7 +225,8 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 }
 
 .audit-progress {
-  margin-top: 0.65rem;
+  grid-column: 1 / -1;
+  margin-top: -0.15rem;
   display: grid;
   gap: 0.3rem;
 }
@@ -245,7 +257,7 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 
 .field-hint {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -260,16 +272,16 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 
 .profile-toggle {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
 }
 
 .profile-option {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 0.75rem;
-  align-items: start;
-  padding: 0.75rem 0.9rem;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.62rem 0.72rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-2);
@@ -278,19 +290,37 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 }
 
 .profile-option input {
-  margin-top: 0.25rem;
+  margin-top: 0;
   accent-color: #2563eb;
+}
+
+.profile-option strong {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.2;
 }
 
 .profile-option .sub {
   display: block;
-  font-size: 0.8rem;
+  margin-top: 0.1rem;
+  font-size: 0.74rem;
+  line-height: 1.25;
   color: var(--text-muted);
 }
 
 .profile-option.is-selected {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+@media (max-width: 1100px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-toggle {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 640px) {
