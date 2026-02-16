@@ -41,6 +41,47 @@ const impactOrder: Record<Impact, number> = {
   minor: 3
 }
 
+const NAVIGATION_TIMEOUT_MS = 45_000
+const AXE_RUN_TIMEOUT_MS = 90_000
+const NAVIGATION_RETRY_COUNT = 2
+const NAVIGATION_RETRY_DELAY_MS = 1_000
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) return error.message
+  return String(error || 'Neznáma chyba')
+}
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs)
+  })
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  }) as Promise<T>
+}
+
+const gotoWithRetry = async (page: any, url: string) => {
+  let lastError: unknown = null
+
+  for (let attempt = 1; attempt <= NAVIGATION_RETRY_COUNT; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS })
+      return
+    } catch (error: unknown) {
+      lastError = error
+      if (attempt < NAVIGATION_RETRY_COUNT) {
+        await delay(NAVIGATION_RETRY_DELAY_MS)
+      }
+    }
+  }
+
+  throw new Error(`Nepodarilo sa načítať stránku: ${getErrorMessage(lastError)}`)
+}
+
 const normalizeImpact = (value?: string): Impact => {
   if (value === 'critical' || value === 'serious' || value === 'moderate' || value === 'minor') {
     return value
@@ -84,6 +125,8 @@ const pickTopIssues = (issues: ReportIssue[], count: number) => {
 }
 
 export const handler: Handler = async (event) => {
+  let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
+
   try {
     if (!supabase) {
       return { statusCode: 500, body: JSON.stringify({ error: 'Supabase config missing.' }) }
@@ -164,7 +207,7 @@ export const handler: Handler = async (event) => {
 
     const isLocal = process.env.NETLIFY_DEV === 'true'
 
-    const browser = await playwright.launch({
+    browser = await playwright.launch({
       args: chromium.args,
       executablePath: isLocal
         ? undefined
@@ -175,7 +218,8 @@ export const handler: Handler = async (event) => {
     })
 
     const page = await browser.newPage()
-    page.setDefaultNavigationTimeout(45000)
+    page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS)
+    page.setDefaultTimeout(NAVIGATION_TIMEOUT_MS)
 
     await page.route('**/*', (route) => {
       const type = route.request().resourceType()
@@ -185,21 +229,23 @@ export const handler: Handler = async (event) => {
       return route.continue()
     })
 
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 })
+    await gotoWithRetry(page, url)
 
     await page.addScriptTag({ content: axe.source })
-    const results = await page.evaluate(async () => {
-      // @ts-ignore
-      return await window.axe.run(document, {
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
-        },
-        resultTypes: ['violations', 'incomplete', 'passes', 'inapplicable']
-      })
-    })
-
-    await browser.close()
+    const results = await withTimeout(
+      page.evaluate(async () => {
+        // @ts-ignore
+        return await window.axe.run(document, {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
+          },
+          resultTypes: ['violations', 'incomplete', 'passes', 'inapplicable']
+        })
+      }),
+      AXE_RUN_TIMEOUT_MS,
+      'Vyhodnocovanie pravidiel trvalo príliš dlho.'
+    )
 
     const issues = normalizeAuditResults(results)
     const summary = buildSummary(issues)
@@ -266,13 +312,21 @@ export const handler: Handler = async (event) => {
         }
       })
     }
-  } catch (error: any) {
-    console.error('LOG ERROR:', error?.message || error)
+  } catch (error: unknown) {
+    console.error('LOG ERROR:', getErrorMessage(error))
     return {
       statusCode: 500,
       body: JSON.stringify({
-        error: error?.message || 'Audit zlyhal.'
+        error: getErrorMessage(error) || 'Audit zlyhal.'
       })
+    }
+  } finally {
+    if (browser) {
+      try {
+        await browser.close()
+      } catch (closeError) {
+        console.error('Browser close error:', getErrorMessage(closeError))
+      }
     }
   }
 }

@@ -29,6 +29,23 @@
             {{ loading ? 'Auditujem...' : 'Analyzovať web' }}
           </button>
         </div>
+
+        <div v-if="progressVisible" class="audit-progress">
+          <div class="audit-progress__head">
+            <span>{{ progressLabel }}</span>
+            <strong>{{ Math.round(progress) }}%</strong>
+          </div>
+          <div
+            class="audit-progress__track"
+            role="progressbar"
+            :aria-valuenow="Math.round(progress)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <div class="audit-progress__fill" :style="{ width: progress + '%' }"></div>
+          </div>
+        </div>
+
         <p class="field-hint">Vhodné pre weby, aplikácie a digitálne služby.</p>
       </div>
 
@@ -64,6 +81,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { ProfileOption } from './dashboard.types'
 
 const props = defineProps<{
@@ -82,6 +100,67 @@ const emit = defineEmits<{
   (event: 'update:selectedProfile', value: 'wad' | 'eaa'): void
   (event: 'startAudit'): void
 }>()
+
+const progress = ref(0)
+const progressVisible = ref(false)
+let progressTimer: ReturnType<typeof setInterval> | null = null
+let hideTimer: ReturnType<typeof setTimeout> | null = null
+
+const clearTimers = () => {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+  if (hideTimer) {
+    clearTimeout(hideTimer)
+    hideTimer = null
+  }
+}
+
+const startProgress = () => {
+  clearTimers()
+  progressVisible.value = true
+  progress.value = Math.max(progress.value, 6)
+
+  progressTimer = setInterval(() => {
+    if (progress.value >= 92) return
+    const remaining = 92 - progress.value
+    const step = Math.max(0.5, remaining * 0.08)
+    progress.value = Math.min(92, Number((progress.value + step).toFixed(1)))
+  }, 450)
+}
+
+const finishProgress = () => {
+  clearTimers()
+  if (!progressVisible.value) return
+  progress.value = 100
+  hideTimer = setTimeout(() => {
+    progressVisible.value = false
+    progress.value = 0
+    hideTimer = null
+  }, 500)
+}
+
+const progressLabel = computed(() => {
+  if (progress.value < 20) return 'Inicializujem audit...'
+  if (progress.value < 55) return 'Načítavam stránku...'
+  if (progress.value < 85) return 'Vyhodnocujem pravidlá WCAG...'
+  if (progress.value < 100) return 'Ukladám výsledky...'
+  return 'Audit dokončený'
+})
+
+watch(
+  () => props.loading,
+  (loading) => {
+    if (loading) startProgress()
+    else finishProgress()
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  clearTimers()
+})
 
 const onTargetUrlInput = (event: Event) => {
   const next = (event.target as HTMLInputElement | null)?.value || ''
@@ -132,6 +211,36 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.75rem;
   align-items: center;
+}
+
+.audit-progress {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.audit-progress__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.audit-progress__track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+}
+
+.audit-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #0ea5e9);
+  transition: width 0.4s ease;
 }
 
 .field-hint {
