@@ -22,16 +22,16 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     principle: "Vnímateľnosť"
   },
   "page-has-main": {
-    title: "Stránka nemá hlavný obsah (main)",
-    description: "Na stránke chýba hlavný orientačný bod pre asistenčné technológie.",
+    title: "Stránka nemá hlavnú oblasť obsahu",
+    description: "Na stránke chýba hlavná oblasť obsahu, ktorá pomáha orientácii používateľov a čítačiek.",
     recommendation: "Obaľte hlavný obsah do elementu <main>.",
     wcag: "1.3.1 Informácie a vzťahy",
     principle: "Vnímateľnosť"
   },
   "region": {
     title: "Obsah nie je v orientačných oblastiach",
-    description: "Časť obsahu je mimo orientačných oblastí (landmarkov).",
-    recommendation: "Použite vhodné landmarky (<main>, <header>, <nav>, <footer>) alebo aria-label.",
+    description: "Časť obsahu je mimo orientačných oblastí stránky.",
+    recommendation: "Použite orientačné oblasti ako <main>, <header>, <nav>, <footer> alebo doplňte aria-label.",
     wcag: "1.3.1 Informácie a vzťahy",
     principle: "Vnímateľnosť"
   },
@@ -86,8 +86,8 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
   },
   "document-title": {
     title: "Chýba názov stránky",
-    description: "Stránka nemá zmysluplný title v hlavičke.",
-    recommendation: "Doplňte zmysluplný <title> v <head>.",
+    description: "Stránka nemá zmysluplný názov (<title>).",
+    recommendation: "Doplňte zmysluplný názov stránky pomocou elementu <title> v <head>.",
     wcag: "2.4.2 Názov stránky",
     principle: "Ovládateľnosť"
   },
@@ -171,12 +171,12 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
   "input-button-name": {
     title: "Vstupné tlačidlo nemá názov",
     description: "Pole typu button alebo submit nemá zrozumiteľný text.",
-    recommendation: "Doplňte text vo value alebo aria-label.",
+    recommendation: "Doplňte text do value alebo použite aria-label.",
     wcag: "4.1.2 Názov, rola, hodnota",
     principle: "Robustnosť"
   },
   "label-title-only": {
-    title: "Popis poľa je iba v title",
+    title: "Popis poľa je iba v atribúte title",
     description: "Atribút title samotný nestačí ako popis poľa.",
     recommendation: "Použite viditeľný label alebo aria-label.",
     wcag: "3.3.2 Štítky alebo inštrukcie",
@@ -225,8 +225,8 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     principle: "Ovládateľnosť"
   },
   "accesskeys": {
-    title: "Atribút accesskey môže spôsobovať konflikty",
-    description: "Accesskey môže kolidovať so skratkami prehliadača a asistenčných nástrojov.",
+    title: "Klávesová skratka accesskey môže spôsobovať konflikty",
+    description: "Atribút accesskey môže kolidovať so skratkami prehliadača a asistenčných nástrojov.",
     recommendation: "Accesskey radšej nepoužívajte, alebo overte, že nekoliduje s bežnými skratkami.",
     wcag: "2.1.4 Klávesové skratky",
     principle: "Ovládateľnosť"
@@ -260,16 +260,16 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     principle: "Vnímateľnosť"
   },
   "frame-title": {
-    title: "Iframe nemá názov",
+    title: "Vnorený rám (iframe) nemá názov",
     description: "Iframe bez title je nejasný pre čítačku obrazovky.",
-    recommendation: "Každý iframe musí mať zrozumiteľný title.",
+    recommendation: "Každý iframe musí mať zrozumiteľný názov v atribúte title.",
     wcag: "4.1.2 Názov, rola, hodnota",
     principle: "Robustnosť"
   },
   "image-redundant-alt": {
-    title: "Alt text je zbytočne dlhý alebo redundantný",
-    description: "Alt text obsahuje zbytočné slová ako image alebo photo.",
-    recommendation: "V alt texte nechajte iba stručný popis obsahu obrázka.",
+    title: "Alternatívny text obrázka je zbytočný alebo nepresný",
+    description: "Alt text je zbytočne dlhý alebo obsahuje slová, ktoré nepridávajú hodnotu.",
+    recommendation: "Použite stručný alt text, ktorý popisuje podstatu obrázka.",
     wcag: "1.1.1 Ne-textový obsah",
     principle: "Vnímateľnosť"
   },
@@ -309,8 +309,8 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     principle: "Vnímateľnosť"
   },
   "scope-attr-valid": {
-    title: "Neplatný scope v tabuľke",
-    description: "Atribút scope má neplatnú hodnotu.",
+    title: "Neplatná hodnota scope v tabuľke",
+    description: "Atribút scope má neplatnú alebo nesprávnu hodnotu.",
     recommendation: "Použite povolené hodnoty scope: col, row, colgroup, rowgroup.",
     wcag: "1.3.1 Informácie a vzťahy",
     principle: "Vnímateľnosť"
@@ -337,9 +337,9 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     principle: "Vnímateľnosť"
   },
   "autocomplete-valid": {
-    title: "Neplatná hodnota autocomplete",
-    description: "Formulárové polia nemajú platnú hodnotu autocomplete.",
-    recommendation: "Použite platné hodnoty autocomplete podľa typu vstupu.",
+    title: "Neplatná hodnota atribútu autocomplete",
+    description: "Formulárové polia nemajú platnú hodnotu atribútu autocomplete.",
+    recommendation: "Použite platné hodnoty autocomplete podľa typu poľa.",
     wcag: "1.3.5 Identifikácia účelu vstupu",
     principle: "Vnímateľnosť"
   },

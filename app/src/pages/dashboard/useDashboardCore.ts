@@ -39,7 +39,7 @@ export const useDashboardCore = () => {
   const auditLockedMessage = computed(() => {
     if (paidLimitReached.value) return 'Nemáte kredit na základný audit. Objednajte ďalší audit.'
     if (freeLimitReached.value) {
-      return 'Free audit už bol použitý. Pre plný report si objednajte základný audit.'
+      return 'Bezplatný audit už bol použitý. Pre plný report si objednajte základný audit.'
     }
     return ''
   })
