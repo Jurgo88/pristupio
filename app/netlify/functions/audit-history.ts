@@ -26,21 +26,36 @@ export const handler: Handler = async (event) => {
       return { statusCode: 401, body: JSON.stringify({ error: 'Neplatne prihlasenie.' }) }
     }
 
+    const rawPage = Number(event.queryStringParameters?.page || 1)
+    const rawLimit = Number(event.queryStringParameters?.limit || 20)
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 50) : 20
+    const from = (page - 1) * limit
+    const to = from + limit
+
     const { data: audits, error: auditError } = await supabase
       .from('audits')
-      .select('id, url, audit_kind, summary, top_issues, created_at')
+      .select('id, url, audit_kind, summary, created_at')
       .eq('user_id', userData.user.id)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .range(from, to)
 
     if (auditError) {
       return { statusCode: 500, body: JSON.stringify({ error: 'Nacitanie auditov zlyhalo.' }) }
     }
 
+    const safeAudits = Array.isArray(audits) ? audits : []
+    const hasMore = safeAudits.length > limit
+
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audits: audits || [] })
+      body: JSON.stringify({
+        audits: safeAudits.slice(0, limit),
+        page,
+        limit,
+        hasMore
+      })
     }
   } catch (error: any) {
     console.error('Audit history error:', error?.message || error)

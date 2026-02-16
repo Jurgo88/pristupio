@@ -25,26 +25,78 @@
       </div>
       <button class="btn btn-sm btn-outline" @click="selectAudit(audit.id)">Zobraziť audit</button>
     </article>
+
+    <div v-if="historyHasMore" class="history-load-more">
+      <div ref="historySentinel" class="history-sentinel" aria-hidden="true"></div>
+      <button class="btn btn-sm btn-outline" :disabled="historyLoadingMore" @click="loadMoreHistory">
+        {{ historyLoadingMore ? 'Načítavam ďalšie...' : 'Načítať ďalšie' }}
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AuditHistoryItem, DashboardReportSummary } from './dashboard.types'
 
 type FormatDateFn = (value?: string) => string
 type IssueSummaryFn = (summary: DashboardReportSummary | null | undefined) => number
 type SelectAuditFn = (auditId: string) => void | Promise<void>
 
-defineProps<{
+const props = defineProps<{
   historyError: string
   historyLoading: boolean
+  historyLoadingMore: boolean
+  historyHasMore: boolean
   auditHistory: AuditHistoryItem[]
   selectedAuditId: string | null
   formatDate: FormatDateFn
   issueTotal: IssueSummaryFn
   issueHigh: IssueSummaryFn
   selectAudit: SelectAuditFn
+  loadMoreHistory: () => void | Promise<void>
 }>()
+
+const historySentinel = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
+
+const tryLoadMore = () => {
+  if (!props.historyHasMore || props.historyLoading || props.historyLoadingMore) return
+  void props.loadMoreHistory()
+}
+
+onMounted(() => {
+  const sentinel = historySentinel.value
+  if (!sentinel || typeof IntersectionObserver === 'undefined') return
+
+  const scrollRoot = sentinel.closest('.history-scroll') as HTMLElement | null
+  observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      if (entry?.isIntersecting) {
+        tryLoadMore()
+      }
+    },
+    {
+      root: scrollRoot,
+      rootMargin: '120px 0px',
+      threshold: 0.01
+    }
+  )
+  observer.observe(sentinel)
+})
+
+watch(
+  () => [props.historyHasMore, props.historyLoading, props.historyLoadingMore, props.auditHistory.length],
+  () => {
+    tryLoadMore()
+  }
+)
+
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  observer = null
+})
 </script>
 
 <style scoped>
@@ -107,6 +159,20 @@ defineProps<{
   padding: 2rem 0;
   text-align: center;
   color: var(--text-muted);
+}
+
+.history-load-more {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  justify-content: center;
+  align-items: center;
+  padding-top: 0.2rem;
+}
+
+.history-sentinel {
+  width: 100%;
+  height: 1px;
 }
 
 .form-error {

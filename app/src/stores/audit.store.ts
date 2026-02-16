@@ -130,26 +130,52 @@ export const useAuditStore = defineStore('audit', {
       }
     },
 
-    async fetchAuditHistory() {
+    async fetchAuditHistory(options?: { page?: number; limit?: number; append?: boolean }) {
       const auth = useAuthStore()
-      if (!auth.isLoggedIn) return []
+      if (!auth.isLoggedIn) {
+        return {
+          audits: [] as typeof this.history,
+          hasMore: false,
+          page: 1
+        }
+      }
       try {
         const { data: sessionData } = await supabase.auth.getSession()
         const accessToken = sessionData.session?.access_token
-        if (!accessToken) return []
+        if (!accessToken) {
+          throw new Error('Prihlaste sa, aby sa nacitala historia auditov.')
+        }
 
-        const response = await fetch('/.netlify/functions/audit-history', {
+        const page = options?.page && options.page > 0 ? options.page : 1
+        const limit = options?.limit && options.limit > 0 ? options.limit : 20
+        const query = new URLSearchParams({ page: String(page), limit: String(limit) })
+        const response = await fetch(`/.netlify/functions/audit-history?${query.toString()}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`
           }
         })
 
-        if (!response.ok) return []
+        if (!response.ok) {
+          let message = 'Historiu auditov sa nepodarilo nacitat.'
+          try {
+            const data = await response.json()
+            if (data?.error) message = data.error
+          } catch (_error) {
+            // ignore json parsing errors
+          }
+          throw new Error(message)
+        }
+
         const data = await response.json()
-        this.history = Array.isArray(data?.audits) ? data.audits : []
-        return this.history
-      } catch (_error) {
-        return []
+        const audits = Array.isArray(data?.audits) ? data.audits : []
+        this.history = options?.append ? [...this.history, ...audits] : audits
+        return {
+          audits: this.history,
+          hasMore: !!data?.hasMore,
+          page
+        }
+      } catch (error) {
+        throw error
       }
     },
 

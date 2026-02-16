@@ -14,6 +14,9 @@ export const useDashboardCore = () => {
   const refreshPlanLoading = ref(false)
   const paymentNotice = ref(false)
   const historyLoading = ref(false)
+  const historyLoadingMore = ref(false)
+  const historyHasMore = ref(false)
+  const historyPage = ref(1)
   const historyError = ref('')
   const selectedAuditId = ref<string | null>(null)
 
@@ -58,15 +61,35 @@ export const useDashboardCore = () => {
     }
   }
 
-  const loadAuditHistory = async () => {
-    historyLoading.value = true
+  const loadAuditHistory = async (options?: { loadMore?: boolean }) => {
+    const loadMore = !!options?.loadMore
+    if (loadMore) {
+      if (historyLoading.value || historyLoadingMore.value || !historyHasMore.value) return
+      historyLoadingMore.value = true
+    } else {
+      historyLoading.value = true
+      historyPage.value = 1
+      historyHasMore.value = false
+    }
+
     historyError.value = ''
     try {
-      await auditStore.fetchAuditHistory()
+      const nextPage = loadMore ? historyPage.value + 1 : 1
+      const result = await auditStore.fetchAuditHistory({
+        page: nextPage,
+        limit: 20,
+        append: loadMore
+      })
+      historyPage.value = result?.page || nextPage
+      historyHasMore.value = !!result?.hasMore
     } catch (_error) {
       historyError.value = 'Históriu auditov sa nepodarilo načítať.'
     } finally {
-      historyLoading.value = false
+      if (loadMore) {
+        historyLoadingMore.value = false
+      } else {
+        historyLoading.value = false
+      }
     }
   }
 
@@ -160,6 +183,8 @@ export const useDashboardCore = () => {
     paidCredits,
     auditHistory,
     historyLoading,
+    historyLoadingMore,
+    historyHasMore,
     historyError,
     selectedAuditId,
     latestAudit,

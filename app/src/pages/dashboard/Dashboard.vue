@@ -154,11 +154,15 @@
               <button
                 class="btn btn-sm btn-filter-clear"
                 @click="openLatestAudit"
-                :disabled="historyLoading || !latestAudit"
+                :disabled="historyLoading || historyLoadingMore || !latestAudit"
               >
                 Zobraziť posledný audit
               </button>
-              <button class="btn btn-sm btn-filter-clear" @click="loadAuditHistory" :disabled="historyLoading">
+              <button
+                class="btn btn-sm btn-filter-clear"
+                @click="loadAuditHistory"
+                :disabled="historyLoading || historyLoadingMore"
+              >
                 {{ historyLoading ? 'Načítavam...' : 'Obnoviť' }}
               </button>
             </div>
@@ -167,12 +171,15 @@
             <DashboardAuditHistoryList
               :history-error="historyError"
               :history-loading="historyLoading"
+              :history-loading-more="historyLoadingMore"
+              :history-has-more="historyHasMore"
               :audit-history="auditHistory"
               :selected-audit-id="selectedAuditId"
               :format-date="formatDate"
               :issue-total="issueTotal"
               :issue-high="issueHigh"
               :select-audit="selectAudit"
+              :load-more-history="() => loadAuditHistory({ loadMore: true })"
             />
           </div>
         </section>
@@ -292,6 +299,8 @@ const {
   paidCredits,
   auditHistory,
   historyLoading,
+  historyLoadingMore,
+  historyHasMore,
   historyError,
   selectedAuditId,
   latestAudit,
@@ -413,7 +422,10 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 .workspace-rail .audit-history {
   display: grid;
   grid-template-rows: auto 1fr;
+  max-height: calc(100vh - var(--dashboard-sticky-offset) - 0.5rem);
   min-height: 280px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .history-scroll {
