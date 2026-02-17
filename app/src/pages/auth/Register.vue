@@ -201,15 +201,15 @@ const handleRegister = async () => {
   margin: 3rem auto;
   padding: 2.5rem;
   border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
 }
 
 .auth-form h2 {
   margin: 0 0 1.4rem;
   font-size: 1.8rem;
-  color: #0f172a;
+  color: var(--text);
 }
 
 form {
@@ -225,7 +225,7 @@ form {
 .section-title {
   margin: 0;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text);
   text-transform: uppercase;
   font-size: 0.78rem;
   letter-spacing: 0.08em;
@@ -233,7 +233,7 @@ form {
 
 .section-note {
   margin: 0;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.92rem;
 }
 
@@ -248,11 +248,11 @@ form {
   align-items: center;
   gap: 0.45rem;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .account-type .option input {
-  accent-color: #2563eb;
+  accent-color: var(--brand);
 }
 
 .form-grid {
@@ -265,7 +265,7 @@ form {
   display: grid;
   gap: 0.4rem;
   font-size: 0.95rem;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .field span {
@@ -273,23 +273,25 @@ form {
 }
 
 .required-mark {
-  color: #b91c1c;
+  color: var(--danger);
   font-weight: 700;
   margin-left: 0.2rem;
 }
 
 .field input {
-  border: 1px solid #cbd5f5;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.7rem 0.85rem;
   font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .field input:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
 }
 
 .field.full {
@@ -303,7 +305,7 @@ form {
   align-items: start;
   margin: 0.35rem 0;
   font-size: 0.92rem;
-  color: #475569;
+  color: var(--text-muted);
 }
 
 .consent input {
@@ -311,44 +313,67 @@ form {
 }
 
 .consent a {
-  color: #2563eb;
+  color: var(--brand);
   text-decoration: none;
   margin-left: 0.35rem;
   font-weight: 600;
 }
 
 .consent a:hover {
+  color: var(--brand-2);
   text-decoration: underline;
 }
 
 button {
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   padding: 0.85rem 1rem;
   font-weight: 700;
-  background: #2563eb;
-  color: #fff;
+  background: var(--brand);
+  color: #ffffff;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 button:hover {
-  background: #1d4ed8;
+  background: color-mix(in srgb, var(--brand) 82%, #000000);
   transform: translateY(-1px);
-  box-shadow: 0 12px 20px rgba(37, 99, 235, 0.25);
+  box-shadow: var(--shadow-sm);
 }
 
 button:disabled {
   cursor: not-allowed;
-  background: #94a3b8;
+  background: color-mix(in srgb, var(--text-muted) 75%, var(--surface) 25%);
   box-shadow: none;
   transform: none;
+  color: color-mix(in srgb, var(--text) 65%, var(--surface) 35%);
 }
 
 .error {
-  color: #b91c1c;
+  color: var(--danger);
   font-weight: 600;
   margin: 0;
+}
+
+[data-theme='dark'] .auth-form {
+  background: color-mix(in srgb, var(--surface) 94%, #0b1220 6%);
+}
+
+[data-theme='dark'] .account-type .option {
+  color: var(--text);
+}
+
+[data-theme='dark'] .field input {
+  background: color-mix(in srgb, var(--surface-2) 80%, var(--surface) 20%);
+  border-color: color-mix(in srgb, var(--border) 86%, #9fb5d8 14%);
+}
+
+[data-theme='dark'] .field input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 86%, #c8d6eb 14%);
+}
+
+[data-theme='dark'] .consent {
+  color: color-mix(in srgb, var(--text-muted) 88%, #d6e4f8 12%);
 }
 
 @media (max-width: 720px) {

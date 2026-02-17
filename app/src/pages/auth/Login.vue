@@ -34,8 +34,97 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.auth-container { max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-input { display: block; width: 100%; margin-bottom: 10px; padding: 10px; }
-button { width: 100%; padding: 10px; background: #42b883; color: white; border: none; cursor: pointer; }
-.error { color: red; margin-top: 10px; }
+.auth-container {
+  max-width: 430px;
+  margin: 3rem auto;
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+h1 {
+  margin: 0 0 1.1rem;
+  color: var(--text);
+  font-size: 1.7rem;
+}
+
+form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+input {
+  display: block;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
+}
+
+button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--brand);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--brand) 82%, #000000);
+  box-shadow: var(--shadow-sm);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--text-muted) 75%, var(--surface) 25%);
+  color: color-mix(in srgb, var(--text) 65%, var(--surface) 35%);
+  transform: none;
+  box-shadow: none;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0.35rem 0 0;
+  font-weight: 600;
+}
+
+.auth-container > a {
+  display: inline-block;
+  margin-top: 1rem;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.auth-container > a:hover {
+  color: var(--brand-2);
+}
+
+[data-theme='dark'] .auth-container {
+  background: color-mix(in srgb, var(--surface) 94%, #0b1220 6%);
+}
+
+[data-theme='dark'] input {
+  background: color-mix(in srgb, var(--surface-2) 80%, var(--surface) 20%);
+  border-color: color-mix(in srgb, var(--border) 86%, #9fb5d8 14%);
+}
+
+[data-theme='dark'] input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 86%, #c8d6eb 14%);
+}
 </style>

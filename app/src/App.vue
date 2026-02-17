@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useRouter } from 'vue-router'
@@ -8,6 +8,7 @@ const router = useRouter()
 const mobileMenuOpen = ref(false)
 const isDark = ref(false)
 const isTopbarScrolled = ref(false)
+const isMobileTopbar = ref(false)
 const THEME_KEY = 'pristupio-theme'
 
 const handleLogout = async () => {
@@ -46,6 +47,12 @@ const handleTopbarScroll = () => {
   }
 }
 
+const MOBILE_TOPBAR_BREAKPOINT = 980
+
+const handleViewport = () => {
+  isMobileTopbar.value = window.innerWidth <= MOBILE_TOPBAR_BREAKPOINT
+}
+
 onMounted(() => {
   const stored = localStorage.getItem(THEME_KEY)
   if (stored === 'light' || stored === 'dark') {
@@ -55,7 +62,9 @@ onMounted(() => {
     applyTheme(prefersDark ? 'dark' : 'light')
   }
   handleTopbarScroll()
+  handleViewport()
   window.addEventListener('scroll', handleTopbarScroll, { passive: true })
+  window.addEventListener('resize', handleViewport, { passive: true })
 })
 
 watch(isDark, (dark) => {
@@ -64,6 +73,7 @@ watch(isDark, (dark) => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleTopbarScroll)
+  window.removeEventListener('resize', handleViewport)
 })
 </script>
 
@@ -95,12 +105,33 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <div v-if="!auth.isLoggedIn" class="topbar-guest">
-            <router-link to="/login" class="btn btn-sm btn-outline-light">
+            <router-link
+              v-if="!isMobileTopbar"
+              to="/login"
+              class="btn btn-sm topbar-btn topbar-btn--ghost topbar-guest-link"
+            >
               Prihlásiť sa
             </router-link>
-            <router-link to="/register" class="btn btn-sm btn-light">
+            <router-link
+              v-if="!isMobileTopbar"
+              to="/register"
+              class="btn btn-sm topbar-btn topbar-btn--solid topbar-guest-link"
+            >
               Registrácia
             </router-link>
+            <button
+              v-if="isMobileTopbar"
+              class="btn btn-sm topbar-btn topbar-btn--ghost burger-btn guest-burger-btn"
+              @click="toggleMobileMenu"
+              :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
+              :class="{ open: mobileMenuOpen }"
+              aria-label="Otvoriť menu"
+              aria-controls="mobile-menu"
+            >
+              <span class="burger-line"></span>
+              <span class="burger-line"></span>
+              <span class="burger-line"></span>
+            </button>
           </div>
 
           <div v-else class="d-flex align-items-center topbar-auth">
@@ -113,22 +144,23 @@ onBeforeUnmount(() => {
               </span>
             </div>
 
-            <div class="topbar-links">
-              <router-link to="/dashboard" class="btn btn-sm btn-outline-light">
+            <div v-if="!isMobileTopbar" class="topbar-links">
+              <router-link to="/dashboard" class="btn btn-sm topbar-btn topbar-btn--ghost">
                 Dashboard
               </router-link>
 
               <router-link
                 v-if="auth.isAdmin"
                 to="/admin"
-                class="btn btn-sm btn-outline-light"
+                class="btn btn-sm topbar-btn topbar-btn--ghost"
               >
                 Admin
               </router-link>
             </div>
 
             <button
-              class="btn btn-sm btn-outline-warning logout-btn"
+              v-if="!isMobileTopbar"
+              class="btn btn-sm topbar-btn topbar-btn--ghost logout-btn"
               @click="handleLogout"
               :disabled="auth.loading"
             >
@@ -137,7 +169,8 @@ onBeforeUnmount(() => {
             </button>
 
             <button
-              class="btn btn-sm btn-outline-light burger-btn"
+              v-if="isMobileTopbar"
+              class="btn btn-sm topbar-btn topbar-btn--ghost burger-btn"
               @click="toggleMobileMenu"
               :aria-expanded="mobileMenuOpen ? 'true' : 'false'"
               :class="{ open: mobileMenuOpen }"
@@ -153,11 +186,11 @@ onBeforeUnmount(() => {
       </div>
 
       <div
-        v-if="auth.isLoggedIn"
         id="mobile-menu"
         class="mobile-menu"
         :class="{ open: mobileMenuOpen }"
       >
+        <template v-if="auth.isLoggedIn">
         <div class="mobile-account">
           <div class="mobile-email">{{ auth.user?.email }}</div>
           <div class="mobile-meta">
@@ -185,6 +218,15 @@ onBeforeUnmount(() => {
         >
           Odhlásiť sa
         </button>
+        </template>
+        <template v-else>
+          <router-link to="/login" class="mobile-link" @click="closeMobileMenu">
+            Prihlásiť sa
+          </router-link>
+          <router-link to="/register" class="mobile-link" @click="closeMobileMenu">
+            Registrácia
+          </router-link>
+        </template>
       </div>
     </nav>
 
@@ -235,7 +277,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="footer-bottom">
-          <span>© 2026 Pristupio. Všetky práva vyhradené · Created By <a href="https://jurgo.sk">Jurgo</a></span>
+          <span>© 2026 Pristupio. Všetky práva vyhradené · Created by <a href="https://jurgo.sk">Jurgo</a></span>
         </div>
       </div>
     </footer>
@@ -333,64 +375,75 @@ onBeforeUnmount(() => {
   transform: rotate(-8deg);
 }
 
-.topbar .btn {
-  border-radius: 9px;
+.topbar .topbar-btn,
+.topbar .topbar-btn.btn-sm {
+  border-radius: var(--radius-sm);
   font-weight: 700;
-  min-height: 40px;
-  padding: 0.42rem 0.85rem;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 0.92rem;
+  font-size: 0.84rem;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.42rem;
+  border-width: 1px;
+  border-style: solid;
   letter-spacing: 0.01em;
+  white-space: nowrap;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
     border-color 0.2s ease, color 0.2s ease;
 }
 
-.topbar .btn-outline-light {
+.topbar .topbar-btn--ghost {
   border-color: rgba(148, 163, 184, 0.42);
   color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 42, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.topbar .btn-outline-light:hover {
+.topbar .topbar-btn--ghost:hover {
   background: rgba(226, 232, 240, 0.16);
   border-color: rgba(226, 232, 240, 0.58);
   color: #f8fafc;
   transform: translateY(-1px);
 }
 
-.topbar .btn-light {
-  color: #0f172a;
-  background: #f8fafc;
-  border: none;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
+.topbar .topbar-btn--solid {
+  color: #f8fafc;
+  border-color: rgba(147, 197, 253, 0.6);
+  background: rgba(59, 130, 246, 0.44);
+  box-shadow: inset 0 1px 0 rgba(219, 234, 254, 0.24);
 }
 
-.topbar .btn-outline-warning {
-  border-color: rgba(251, 191, 36, 0.55);
-  color: #fde68a;
-  background: rgba(120, 53, 15, 0.24);
+.topbar .topbar-btn--solid:hover {
+  background: rgba(59, 130, 246, 0.58);
+  border-color: rgba(191, 219, 254, 0.74);
+  transform: translateY(-1px);
 }
 
-.topbar .btn-outline-warning:hover {
-  border-color: rgba(251, 191, 36, 0.8);
-  background: rgba(120, 53, 15, 0.36);
-  color: #fef3c7;
-}
-
-.topbar-links .btn {
-  min-width: 104px;
+.topbar-links .topbar-btn {
+  min-width: 108px;
 }
 
 .logout-btn {
   min-width: 122px;
-  gap: 0.4rem;
-  font-weight: 700;
+  padding-inline: 0.95rem;
 }
 
 .topbar .logout-btn {
   display: inline-flex;
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(15, 23, 42, 0.24);
+}
+
+.topbar .logout-btn:hover {
+  background: rgba(226, 232, 240, 0.16);
+  border-color: rgba(226, 232, 240, 0.58);
+  color: #f8fafc;
+  transform: translateY(-1px);
 }
 
 .topbar-actions {
@@ -512,21 +565,38 @@ onBeforeUnmount(() => {
   color: #87a0c1;
 }
 
-[data-theme='dark'] .topbar .btn-outline-light {
+[data-theme='dark'] .topbar .topbar-btn--ghost {
   border-color: rgba(71, 85, 105, 0.82);
   background: rgba(2, 6, 23, 0.32);
   color: #dbe7fb;
 }
 
-[data-theme='dark'] .topbar .btn-outline-light:hover {
+[data-theme='dark'] .topbar .topbar-btn--ghost:hover {
   border-color: rgba(125, 211, 252, 0.5);
   background: rgba(15, 23, 42, 0.52);
 }
 
-[data-theme='dark'] .topbar .btn-outline-warning {
-  border-color: rgba(251, 191, 36, 0.58);
-  background: rgba(120, 53, 15, 0.32);
-  color: #fde68a;
+[data-theme='dark'] .topbar .topbar-btn--solid {
+  border-color: rgba(147, 197, 253, 0.6);
+  background: rgba(59, 130, 246, 0.45);
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .topbar .topbar-btn--solid:hover {
+  border-color: rgba(186, 230, 253, 0.74);
+  background: rgba(59, 130, 246, 0.6);
+}
+
+[data-theme='dark'] .topbar .logout-btn {
+  border-color: rgba(71, 85, 105, 0.82);
+  background: rgba(2, 6, 23, 0.32);
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .topbar .logout-btn:hover {
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(15, 23, 42, 0.52);
+  color: #f8fafc;
 }
 
 [data-theme='dark'] .theme-switch__thumb {
@@ -537,6 +607,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+.guest-burger-btn {
+  display: none;
 }
 
 .topbar-auth {
@@ -592,6 +666,12 @@ onBeforeUnmount(() => {
 
 .topbar .burger-btn {
   display: none;
+}
+
+@media (min-width: 641px) {
+  .topbar .burger-btn {
+    display: none !important;
+  }
 }
 
 .burger-line {
@@ -738,6 +818,41 @@ onBeforeUnmount(() => {
     gap: 0.66rem;
   }
 
+  .topbar-guest {
+    width: auto;
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+
+  .topbar-guest .topbar-btn {
+    display: none;
+  }
+
+  .topbar-guest .guest-burger-btn {
+    display: inline-flex !important;
+    margin-left: 0;
+  }
+
+  .topbar-auth {
+    width: auto;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .topbar-auth .topbar-btn {
+    display: none;
+  }
+
+  .topbar-auth .burger-btn {
+    display: inline-flex !important;
+    align-self: center;
+    margin-left: auto;
+  }
+
   .account-chip {
     margin-right: 0;
   }
@@ -801,16 +916,21 @@ onBeforeUnmount(() => {
   }
 
   .topbar-guest {
-    width: 100%;
+    width: auto;
     margin-left: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
   }
 
-  .topbar-guest .btn {
-    width: 100%;
-    justify-content: center;
+  .topbar-guest .topbar-btn {
+    display: none;
+  }
+
+  .topbar-guest .guest-burger-btn {
+    display: inline-flex !important;
+    margin-left: 0;
   }
 
   .topbar-auth {
@@ -835,16 +955,12 @@ onBeforeUnmount(() => {
     display: none;
   }
 
-  .topbar-links {
+  .topbar-auth .topbar-btn {
     display: none;
   }
 
-  .topbar .logout-btn {
-    display: none;
-  }
-
-  .topbar .burger-btn {
-    display: inline-flex;
+  .topbar-auth .burger-btn {
+    display: inline-flex !important;
     align-self: center;
     margin-left: auto;
   }
@@ -954,7 +1070,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 460px) {
   .topbar-guest {
-    grid-template-columns: 1fr;
+    width: auto;
   }
 }
 </style>
+
