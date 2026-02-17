@@ -37,9 +37,9 @@ defineProps<{
 
 .stat-card {
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   padding: 1.2rem 1.3rem;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+  box-shadow: var(--shadow-sm);
   display: grid;
   gap: 0.35rem;
   color: #0f172a;
@@ -64,17 +64,17 @@ defineProps<{
 }
 
 .stat-card.stat-critical {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(185, 28, 28, 0.1));
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(127, 29, 29, 0.08));
   border-color: rgba(185, 28, 28, 0.25);
 }
 
 .stat-card.stat-moderate {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(180, 83, 9, 0.12));
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(180, 83, 9, 0.1));
   border-color: rgba(180, 83, 9, 0.25);
 }
 
 .stat-card.stat-minor {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(2, 132, 199, 0.12));
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(2, 132, 199, 0.1));
   border-color: rgba(2, 132, 199, 0.25);
 }
 
@@ -97,6 +97,41 @@ defineProps<{
 .stat-card.stat-minor .stat-label,
 .stat-card.stat-minor .stat-meta {
   color: #075985;
+}
+
+[data-theme='dark'] .stat-card {
+  color: #e2e8f0;
+  border-color: #2d3f5e;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme='dark'] .stat-card.stat-critical {
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.58), rgba(69, 10, 10, 0.52));
+  border-color: rgba(248, 113, 113, 0.45);
+}
+
+[data-theme='dark'] .stat-card.stat-moderate {
+  background: linear-gradient(135deg, rgba(146, 64, 14, 0.5), rgba(120, 53, 15, 0.44));
+  border-color: rgba(251, 191, 36, 0.42);
+}
+
+[data-theme='dark'] .stat-card.stat-minor {
+  background: linear-gradient(135deg, rgba(12, 74, 110, 0.56), rgba(8, 47, 73, 0.5));
+  border-color: rgba(56, 189, 248, 0.42);
+}
+
+[data-theme='dark'] .stat-card .stat-value,
+[data-theme='dark'] .stat-card .stat-label,
+[data-theme='dark'] .stat-card .stat-meta {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .stat-card .stat-label {
+  opacity: 0.92;
+}
+
+[data-theme='dark'] .stat-card .stat-meta {
+  opacity: 0.86;
 }
 
 @media (max-width: 980px) {

@@ -170,6 +170,36 @@ const onSearchInput = (event: Event) => {
   font-size: 0.9rem;
 }
 
+[data-theme='dark'] .btn-filter-clear {
+  background: #101b2e;
+  border-color: #3b4f6e;
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .btn-filter-clear:hover {
+  background: #17243a;
+  border-color: #5476a3;
+}
+
+[data-theme='dark'] .btn-export {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.34);
+}
+
+[data-theme='dark'] .kicker {
+  color: #93c5fd;
+}
+
+[data-theme='dark'] .panel-head h2 {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .form-error {
+  border-color: rgba(248, 113, 113, 0.52);
+  background: linear-gradient(140deg, rgba(127, 29, 29, 0.36), rgba(69, 10, 10, 0.3));
+  color: #fecaca;
+}
+
 @media (max-width: 980px) {
   .filters {
     grid-template-columns: 1fr;

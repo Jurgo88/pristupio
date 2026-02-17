@@ -1,11 +1,14 @@
-﻿<script setup lang="ts">
-import { ref } from 'vue'
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useRouter } from 'vue-router'
 
 const auth = useAuthStore()
 const router = useRouter()
 const mobileMenuOpen = ref(false)
+const isDark = ref(false)
+const isTopbarScrolled = ref(false)
+const THEME_KEY = 'pristupio-theme'
 
 const handleLogout = async () => {
   await auth.signOut()
@@ -19,11 +22,54 @@ const toggleMobileMenu = () => {
 const closeMobileMenu = () => {
   mobileMenuOpen.value = false
 }
+
+const applyTheme = (theme: 'light' | 'dark') => {
+  document.documentElement.setAttribute('data-theme', theme)
+  isDark.value = theme === 'dark'
+}
+
+const toggleTheme = () => {
+  applyTheme(isDark.value ? 'light' : 'dark')
+}
+
+const TOPBAR_SCROLL_ON = 52
+const TOPBAR_SCROLL_OFF = 20
+
+const handleTopbarScroll = () => {
+  const y = window.scrollY || 0
+  if (!isTopbarScrolled.value && y > TOPBAR_SCROLL_ON) {
+    isTopbarScrolled.value = true
+    return
+  }
+  if (isTopbarScrolled.value && y < TOPBAR_SCROLL_OFF) {
+    isTopbarScrolled.value = false
+  }
+}
+
+onMounted(() => {
+  const stored = localStorage.getItem(THEME_KEY)
+  if (stored === 'light' || stored === 'dark') {
+    applyTheme(stored)
+  } else {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    applyTheme(prefersDark ? 'dark' : 'light')
+  }
+  handleTopbarScroll()
+  window.addEventListener('scroll', handleTopbarScroll, { passive: true })
+})
+
+watch(isDark, (dark) => {
+  localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light')
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', handleTopbarScroll)
+})
 </script>
 
 <template>
   <div class="app-shell">
-    <nav class="navbar navbar-expand topbar px-3">
+    <nav class="navbar navbar-expand topbar px-3" :class="{ 'is-scrolled': isTopbarScrolled }">
       <div class="container-fluid">
         <router-link to="/" class="navbar-brand brand">
           <span class="brand-mark">P</span>
@@ -31,6 +77,23 @@ const closeMobileMenu = () => {
         </router-link>
 
         <div class="ms-auto d-flex align-items-center topbar-actions">
+          <div class="topbar-theme">
+            <button
+              type="button"
+              class="theme-switch"
+              :class="{ 'is-dark': isDark }"
+              role="switch"
+              :aria-checked="isDark ? 'true' : 'false'"
+              @click="toggleTheme"
+              :aria-label="isDark ? 'Prepnúť na svetlý režim' : 'Prepnúť na tmavý režim'"
+            >
+              <span class="theme-switch__text theme-switch__text--light">Light</span>
+              <span class="theme-switch__text theme-switch__text--dark">Dark</span>
+              <span class="theme-switch__thumb" :class="{ 'is-dark': isDark }">
+                <span class="theme-switch__glyph" :class="isDark ? 'is-moon' : 'is-sun'"></span>
+              </span>
+            </button>
+          </div>
           <div v-if="!auth.isLoggedIn" class="topbar-guest">
             <router-link to="/login" class="btn btn-sm btn-outline-light">
               Prihlásiť sa
@@ -181,24 +244,69 @@ const closeMobileMenu = () => {
 
 <style scoped>
 .topbar {
-  background: linear-gradient(120deg, #0f172a 0%, #1e3a8a 45%, #0ea5e9 100%);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.25);
   position: sticky;
-  top: 0;
+  top: 0.35rem;
   z-index: 1030;
-  backdrop-filter: blur(8px);
-  padding: 0.65rem 0;
+  width: min(1720px, calc(100% - 1.25rem));
+  margin: 0 auto 1.35rem;
+  height: 100px;
+  padding: 0 0.9rem;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 11px;
+  background:
+    radial-gradient(380px 180px at 88% -30%, rgba(56, 189, 248, 0.33), transparent 66%),
+    linear-gradient(120deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.92) 56%, rgba(14, 165, 233, 0.86) 100%);
+  box-shadow:
+    0 18px 36px rgba(15, 23, 42, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
   overflow: visible;
+  transition: height 0.34s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease,
+    backdrop-filter 0.3s ease;
+  will-change: height;
+}
+
+.topbar.is-scrolled {
+  height: 90px;
+  box-shadow:
+    0 22px 40px rgba(15, 23, 42, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.topbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+[data-theme='dark'] .topbar {
+  border-color: rgba(71, 85, 105, 0.66);
+  background:
+    radial-gradient(420px 210px at 88% -30%, rgba(37, 99, 235, 0.36), transparent 65%),
+    linear-gradient(120deg, rgba(2, 6, 23, 0.94) 0%, rgba(15, 23, 42, 0.92) 58%, rgba(30, 64, 175, 0.7) 100%);
+  box-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.5),
+    inset 0 1px 0 rgba(148, 163, 184, 0.11);
+}
+
+[data-theme='dark'] .topbar.is-scrolled {
+  box-shadow:
+    0 22px 40px rgba(2, 6, 23, 0.56),
+    inset 0 1px 0 rgba(148, 163, 184, 0.1);
 }
 
 .brand {
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  font-size: 1.02rem;
   color: #f8fafc;
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.68rem;
 }
 
 .brand,
@@ -211,32 +319,43 @@ const closeMobileMenu = () => {
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #38bdf8, #2563eb);
+  background: linear-gradient(145deg, #67e8f9, #2563eb);
   color: #0f172a;
-  font-weight: 800;
-  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.35);
+  font-weight: 900;
+  box-shadow:
+    0 12px 24px rgba(37, 99, 235, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: rotate(-8deg);
 }
 
 .topbar .btn {
-  border-radius: var(--radius);
-  font-weight: 600;
-  padding: 0.35rem 0.95rem;
+  border-radius: 9px;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0.42rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.01em;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease, color 0.2s ease;
 }
 
 .topbar .btn-outline-light {
-  border-color: rgba(226, 232, 240, 0.6);
+  border-color: rgba(148, 163, 184, 0.42);
   color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .topbar .btn-outline-light:hover {
-  background: rgba(226, 232, 240, 0.2);
+  background: rgba(226, 232, 240, 0.16);
+  border-color: rgba(226, 232, 240, 0.58);
   color: #f8fafc;
   transform: translateY(-1px);
 }
@@ -245,17 +364,173 @@ const closeMobileMenu = () => {
   color: #0f172a;
   background: #f8fafc;
   border: none;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
 }
 
 .topbar .btn-outline-warning {
-  border-color: rgba(251, 191, 36, 0.7);
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.24);
+}
+
+.topbar .btn-outline-warning:hover {
+  border-color: rgba(251, 191, 36, 0.8);
+  background: rgba(120, 53, 15, 0.36);
   color: #fef3c7;
 }
 
+.topbar-links .btn {
+  min-width: 104px;
+}
+
+.logout-btn {
+  min-width: 122px;
+  gap: 0.4rem;
+  font-weight: 700;
+}
+
+.topbar .logout-btn {
+  display: inline-flex;
+}
+
 .topbar-actions {
-  gap: 0.8rem;
+  gap: 0.82rem;
   align-items: center;
+}
+
+.topbar-theme {
+  display: flex;
+  align-items: center;
+}
+
+.theme-switch {
+  position: relative;
+  width: 136px;
+  height: 44px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: var(--radius-pill);
+  background: rgba(15, 23, 42, 0.45);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 0;
+  overflow: hidden;
+}
+
+.theme-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.35);
+}
+
+.theme-switch__text {
+  z-index: 2;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #96aac7;
+  transition: color 0.22s ease;
+}
+
+.theme-switch__text--light {
+  color: #f8fafc;
+}
+
+.theme-switch.is-dark .theme-switch__text--light {
+  color: #96aac7;
+  opacity: 0.92;
+}
+
+.theme-switch.is-dark .theme-switch__text--dark {
+  color: #f8fafc;
+  opacity: 0;
+}
+
+.theme-switch:not(.is-dark) .theme-switch__text--light {
+  opacity: 0;
+}
+
+.theme-switch:not(.is-dark) .theme-switch__text--dark {
+  opacity: 0.92;
+}
+
+.theme-switch__thumb {
+  position: absolute;
+  left: 3px;
+  top: 4px;
+  width: 64px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(145deg, #f8fafc, #bae6fd);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  display: grid;
+  place-items: center;
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), background 0.24s ease,
+    box-shadow 0.24s ease;
+  z-index: 1;
+}
+
+.theme-switch__thumb.is-dark {
+  transform: translateX(66px);
+  background: linear-gradient(145deg, #0f172a, #1e293b);
+}
+
+.theme-switch__glyph {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.theme-switch__glyph.is-sun {
+  background: radial-gradient(circle at 35% 35%, #fde68a, #f59e0b 72%);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+}
+
+.theme-switch__glyph.is-moon {
+  background: #e2e8f0;
+}
+
+.theme-switch__glyph.is-moon::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1e293b;
+  top: 1px;
+  left: 4px;
+}
+
+[data-theme='dark'] .theme-switch {
+  border-color: rgba(71, 85, 105, 0.88);
+  background: rgba(2, 6, 23, 0.52);
+}
+
+[data-theme='dark'] .theme-switch__text {
+  color: #87a0c1;
+}
+
+[data-theme='dark'] .topbar .btn-outline-light {
+  border-color: rgba(71, 85, 105, 0.82);
+  background: rgba(2, 6, 23, 0.32);
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .topbar .btn-outline-light:hover {
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(15, 23, 42, 0.52);
+}
+
+[data-theme='dark'] .topbar .btn-outline-warning {
+  border-color: rgba(251, 191, 36, 0.58);
+  background: rgba(120, 53, 15, 0.32);
+  color: #fde68a;
+}
+
+[data-theme='dark'] .theme-switch__thumb {
+  box-shadow: 0 8px 18px rgba(2, 6, 23, 0.44);
 }
 
 .topbar-guest {
@@ -315,6 +590,10 @@ const closeMobileMenu = () => {
   border-color: rgba(226, 232, 240, 0.6);
 }
 
+.topbar .burger-btn {
+  display: none;
+}
+
 .burger-line {
   width: 18px;
   height: 2px;
@@ -338,11 +617,16 @@ const closeMobileMenu = () => {
 }
 
 .navbar {
-  margin-bottom: 2rem;
+  margin-bottom: 1.1rem;
+  padding: 0;
 }
 
 .navbar .container-fluid {
   align-items: center;
+  gap: 0.72rem;
+  padding-left: 0.08rem;
+  padding-right: 0.08rem;
+  height: 100%;
 }
 
 .app-shell {
@@ -438,9 +722,20 @@ const closeMobileMenu = () => {
 }
 
 @media (max-width: 980px) {
+  .topbar {
+    width: calc(100% - 0.9rem);
+    height: 92px;
+    padding: 0 0.72rem;
+  }
+
+  .topbar.is-scrolled {
+    height: 84px;
+  }
+
   .topbar-actions {
     flex-wrap: wrap;
     justify-content: flex-end;
+    gap: 0.66rem;
   }
 
   .account-chip {
@@ -467,8 +762,15 @@ const closeMobileMenu = () => {
   }
 
   .topbar {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    top: 0.25rem;
+    width: calc(100% - 0.7rem);
+    height: 84px;
+    padding: 0 0.64rem;
+    border-radius: 10px;
+  }
+
+  .topbar.is-scrolled {
+    height: 76px;
   }
 
   .navbar .container-fluid {
@@ -480,6 +782,22 @@ const closeMobileMenu = () => {
     width: auto;
     margin-left: auto;
     justify-content: flex-end;
+    gap: 0.54rem;
+  }
+
+  .theme-switch {
+    width: 122px;
+    height: 40px;
+    padding: 0;
+  }
+
+  .theme-switch__thumb {
+    width: 56px;
+    height: 32px;
+  }
+
+  .theme-switch__thumb.is-dark {
+    transform: translateX(60px);
   }
 
   .topbar-guest {
@@ -521,11 +839,11 @@ const closeMobileMenu = () => {
     display: none;
   }
 
-  .logout-btn {
+  .topbar .logout-btn {
     display: none;
   }
 
-  .burger-btn {
+  .topbar .burger-btn {
     display: inline-flex;
     align-self: center;
     margin-left: auto;

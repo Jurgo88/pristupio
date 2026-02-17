@@ -3,9 +3,9 @@
     <section class="page-hero">
       <div class="page-hero__content">
         <span class="kicker">Dashboard</span>
-        <h1>WCAG audit prehľad</h1>
+        <h1>WCAG cockpit pre produktovy tim</h1>
         <p class="lead">
-          Spustite audit, filtrujte nálezy a zdieľajte report v jednom konzistentnom prehľade.
+          Spustite audit, prioritizujte bariery a odovzdajte report bez chaosu.
         </p>
         <div class="hero-tags">
           <span>WCAG 2.1 AA</span>
@@ -15,15 +15,38 @@
       </div>
       <div class="page-hero__aside">
         <div class="page-hero__card">
-          <div class="hero-card-title">Rýchly postup</div>
+          <div class="hero-card-title">Rychly workflow</div>
           <ul>
-            <li>Zadajte URL a vyberte profil</li>
-            <li>Spustite audit a sledujte nálezy</li>
-            <li>Exportujte report pre tím</li>
+            <li>Vlozte URL a vyberte profil legislativy</li>
+            <li>Spustite audit a vyriesite najkritickejsie nalezy</li>
+            <li>Zdielajte report pre vyvoj, produkt a compliance</li>
           </ul>
-          <div class="hero-card-meta">Automatický audit + manuálny checklist</div>
+          <div class="hero-card-meta">Automaticky audit + manualny checklist</div>
         </div>
       </div>
+    </section>
+
+    <section class="metrics-strip" aria-label="Klucove metriky">
+      <article class="metric-card">
+        <span>Skore pripravenosti</span>
+        <strong>{{ auditStore.report ? `${auditScore}%` : '--' }}</strong>
+        <small>{{ scoreStateLabel }}</small>
+      </article>
+      <article class="metric-card">
+        <span>Kriticke nalezy</span>
+        <strong>{{ auditStore.report ? highCount : '--' }}</strong>
+        <small>Priorita pre najblizsi sprint</small>
+      </article>
+      <article class="metric-card">
+        <span>Vsetky nalezy</span>
+        <strong>{{ auditStore.report ? totalIssuesCount : '--' }}</strong>
+        <small>{{ auditStore.report ? `Filtrovatelnych: ${filteredIssues.length}` : 'Po audite sa doplni' }}</small>
+      </article>
+      <article class="metric-card">
+        <span>Posledny audit</span>
+        <strong>{{ lastAuditLabel || '--' }}</strong>
+        <small>{{ latestAudit ? 'Audit historia je aktivna' : 'Po prvom audite uvidite historiu' }}</small>
+      </article>
     </section>
 
     <section v-if="auditStore.report && isPreview" class="panel preview-banner">
@@ -68,7 +91,11 @@
       </div>
     </section>
 
-    <section v-if="showPaidStatus" class="panel paid-banner">
+    <section
+      v-if="showPaidStatus"
+      class="panel paid-banner"
+      :class="{ 'is-empty-credit': paidCredits <= 0 }"
+    >
       <div class="paid-banner__copy">
         <p class="kicker">Základný audit</p>
         <h2 v-if="paidCredits <= 0">Nemáte dostupný kredit.</h2>
@@ -269,7 +296,6 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import ManualChecklist from '@/components/ManualChecklist.vue'
 import {
   DashboardAuditHistoryList,
   DashboardAuditForm,
@@ -356,6 +382,18 @@ const {
 })
 
 const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
+const totalIssuesCount = computed(() => auditStore.report?.issues?.length || 0)
+const scoreStateLabel = computed(() => {
+  if (!auditStore.report) return 'Spustite audit'
+  if (auditScore.value >= 90) return 'Vysoka pripravenost'
+  if (auditScore.value >= 75) return 'Solidny zaklad'
+  if (auditScore.value >= 60) return 'Treba dorobit klucove opravy'
+  return 'Rizikovy stav'
+})
+const lastAuditLabel = computed(() => {
+  if (!latestAudit.value?.created_at) return ''
+  return formatDate(latestAudit.value.created_at)
+})
 </script>
 
 <style scoped>
@@ -374,6 +412,44 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   grid-template-columns: minmax(340px, 0.85fr) minmax(0, 1.8fr);
   gap: 1.5rem;
   align-items: start;
+}
+
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.metric-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.25rem;
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-sm);
+}
+
+.metric-card span {
+  font-size: 0.72rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.metric-card strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 1.05rem + 0.8vw, 1.8rem);
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.metric-card small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.2;
 }
 
 .workspace-rail {
@@ -468,13 +544,13 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 /* Hero */
 .page-hero {
   position: relative;
-  background: linear-gradient(135deg, #0f172a 0%, #111827 100%);
+  background: linear-gradient(125deg, #0f172a 0%, #111827 56%, #0b274f 100%);
   color: #e2e8f0;
   border: 1px solid #0b1220;
-  border-radius: var(--radius);
-  padding: 1.8rem 2rem;
+  border-radius: var(--radius-lg);
+  padding: 2rem 2.2rem;
   overflow: hidden;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+  box-shadow: var(--shadow-lg);
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   gap: 1.4rem;
@@ -512,9 +588,10 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 }
 
 .page-hero__content h1 {
-  font-size: clamp(1.6rem, 1.25rem + 1.4vw, 2.25rem);
+  font-size: clamp(1.7rem, 1.28rem + 1.45vw, 2.45rem);
   line-height: 1.1;
   margin: 0 0 0.5rem;
+  color: #f8fafc;
 }
 
 .kicker {
@@ -538,18 +615,22 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   font-size: 0.94rem;
 }
 
+.page-hero .kicker {
+  color: #93c5fd;
+}
+
 .hero-tags {
   display: flex;
   gap: 0.45rem;
   flex-wrap: wrap;
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
 .hero-tags span {
   border: 1px solid #1f2937;
-  padding: 0.22rem 0.55rem;
-  border-radius: var(--radius);
+  padding: 0.28rem 0.62rem;
+  border-radius: var(--radius-pill);
   background: rgba(15, 23, 42, 0.45);
 }
 
@@ -558,8 +639,8 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   z-index: 1;
   background: #ffffff;
   color: #0f172a;
-  border-radius: var(--radius);
-  padding: 0.95rem 1.05rem;
+  border-radius: var(--radius-md);
+  padding: 1.05rem 1.1rem;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
   border: 1px solid rgba(226, 232, 240, 0.7);
 }
@@ -595,9 +676,9 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   padding: 1.8rem;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 
 .preview-banner {
@@ -622,6 +703,11 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   gap: 0.75rem 1rem;
   align-items: center;
   padding: 1.25rem 1.35rem;
+}
+
+.paid-banner.is-empty-credit {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(185, 28, 28, 0.1));
+  border-color: rgba(180, 83, 9, 0.38);
 }
 
 .paid-banner__copy {
@@ -664,6 +750,15 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   line-height: 1;
 }
 
+.paid-banner.is-empty-credit .paid-banner__credits {
+  border-color: rgba(180, 83, 9, 0.42);
+  background: rgba(255, 251, 235, 0.9);
+}
+
+.paid-banner.is-empty-credit .paid-banner__credits strong {
+  color: #9a3412;
+}
+
 .paid-banner__actions {
   display: flex;
   justify-content: flex-end;
@@ -673,6 +768,35 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   padding: 0.5rem 0.95rem;
   box-shadow: 0 10px 18px rgba(29, 78, 216, 0.25);
   white-space: nowrap;
+}
+
+[data-theme='dark'] .paid-banner {
+  background: linear-gradient(135deg, rgba(8, 47, 73, 0.55), rgba(14, 116, 144, 0.34));
+  border-color: rgba(56, 189, 248, 0.38);
+}
+
+[data-theme='dark'] .paid-banner.is-empty-credit {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.54), rgba(127, 29, 29, 0.38));
+  border-color: rgba(251, 191, 36, 0.42);
+}
+
+[data-theme='dark'] .paid-banner__credits {
+  background: rgba(15, 23, 42, 0.88);
+  border-color: rgba(148, 163, 184, 0.42);
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .paid-banner__credits strong {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .paid-banner.is-empty-credit .paid-banner__credits {
+  background: rgba(69, 26, 3, 0.55);
+  border-color: rgba(251, 191, 36, 0.46);
+}
+
+[data-theme='dark'] .paid-banner.is-empty-credit .paid-banner__credits strong {
+  color: #fde68a;
 }
 
 .upgrade-panel {
@@ -690,12 +814,31 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 /* History Section */
 .audit-history .btn-filter-clear {
   height: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.audit-history .btn-filter-clear:hover {
+  background: #e2e8f0;
 }
 
 .history-actions {
   display: flex;
   gap: 0.6rem;
   align-items: center;
+}
+
+[data-theme='dark'] .audit-history .btn-filter-clear {
+  background: #101b2e;
+  border-color: #3b4f6e;
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .audit-history .btn-filter-clear:hover {
+  background: #17243a;
+  border-color: #5476a3;
 }
 
 .panel-head {
@@ -739,6 +882,10 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 
 /* Responsive */
 @media (max-width: 1100px) {
+  .metrics-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .page-hero {
     grid-template-columns: 1fr;
     padding: 1.6rem 1.5rem;
@@ -768,6 +915,10 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
   .dashboard-workspace {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+
+  .metrics-strip {
+    grid-template-columns: 1fr;
   }
 
   .workspace-rail {

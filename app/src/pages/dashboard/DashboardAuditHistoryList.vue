@@ -185,6 +185,41 @@ onBeforeUnmount(() => {
   margin-bottom: 1rem;
 }
 
+[data-theme='dark'] .history-card {
+  background: #13233c;
+  border-color: #2b3d5a;
+}
+
+[data-theme='dark'] .history-card.is-active {
+  background: linear-gradient(140deg, rgba(37, 99, 235, 0.28), rgba(14, 116, 144, 0.2));
+  border-color: rgba(96, 165, 250, 0.72);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+[data-theme='dark'] .history-meta strong {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .history-sub {
+  color: #a7b6cb;
+}
+
+[data-theme='dark'] .history-sub .pill {
+  background: #0f1c31;
+  border-color: #334862;
+  color: #bfdbfe;
+}
+
+[data-theme='dark'] .history-stats {
+  color: #9eb1c9;
+}
+
+[data-theme='dark'] .form-error {
+  border-color: rgba(248, 113, 113, 0.46);
+  background: rgba(127, 29, 29, 0.34);
+  color: #fecaca;
+}
+
 @media (max-width: 980px) {
   .history-card {
     flex-direction: column;

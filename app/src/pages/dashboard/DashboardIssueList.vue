@@ -237,6 +237,100 @@ defineProps<{
   border-color: rgba(2, 132, 199, 0.35);
 }
 
+[data-theme='dark'] .issue-list {
+  border-top-color: #2c3b55;
+}
+
+[data-theme='dark'] .issue-card {
+  border-bottom-color: #2c3b55;
+  padding: 1rem 1rem 1rem 1.1rem;
+  border-radius: var(--radius-sm);
+  background: #0f1a2d;
+}
+
+[data-theme='dark'] .issue-card.impact-critical {
+  border-left-color: #f87171;
+  background: linear-gradient(100deg, rgba(127, 29, 29, 0.44), rgba(15, 23, 42, 0.96) 65%);
+}
+
+[data-theme='dark'] .issue-card.impact-serious {
+  border-left-color: #fb923c;
+  background: linear-gradient(100deg, rgba(154, 52, 18, 0.4), rgba(15, 23, 42, 0.96) 65%);
+}
+
+[data-theme='dark'] .issue-card.impact-moderate {
+  border-left-color: #fbbf24;
+  background: linear-gradient(100deg, rgba(120, 53, 15, 0.35), rgba(15, 23, 42, 0.96) 65%);
+}
+
+[data-theme='dark'] .issue-card.impact-minor {
+  border-left-color: #38bdf8;
+  background: linear-gradient(100deg, rgba(8, 47, 73, 0.42), rgba(15, 23, 42, 0.96) 65%);
+}
+
+[data-theme='dark'] .issue-title {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .issue-card.impact-critical .issue-title,
+[data-theme='dark'] .issue-card.impact-serious .issue-title,
+[data-theme='dark'] .issue-card.impact-moderate .issue-title,
+[data-theme='dark'] .issue-card.impact-minor .issue-title {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .issue-desc,
+[data-theme='dark'] .issue-meta,
+[data-theme='dark'] .issue-count,
+[data-theme='dark'] .node-note,
+[data-theme='dark'] .node-more,
+[data-theme='dark'] .empty-inline {
+  color: #b8c7dc;
+}
+
+[data-theme='dark'] .issue-details {
+  background: #101d32;
+  border-color: #334862;
+  color: #c8d7ea;
+}
+
+[data-theme='dark'] .node-code code,
+[data-theme='dark'] .issue-details code {
+  background: #020617;
+  color: #bfdbfe;
+  border: 1px solid #334862;
+}
+
+[data-theme='dark'] .impact-pill {
+  background: rgba(148, 163, 184, 0.15);
+  color: #dbe7fb;
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+[data-theme='dark'] .impact-pill.impact-critical {
+  color: #fecaca;
+  background: rgba(185, 28, 28, 0.3);
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+[data-theme='dark'] .impact-pill.impact-serious {
+  color: #fed7aa;
+  background: rgba(154, 52, 18, 0.28);
+  border-color: rgba(251, 146, 60, 0.55);
+}
+
+[data-theme='dark'] .impact-pill.impact-moderate {
+  color: #fde68a;
+  background: rgba(146, 64, 14, 0.28);
+  border-color: rgba(251, 191, 36, 0.55);
+}
+
+[data-theme='dark'] .impact-pill.impact-minor {
+  color: #bae6fd;
+  background: rgba(12, 74, 110, 0.34);
+  border-color: rgba(56, 189, 248, 0.55);
+}
+
 @media (max-width: 980px) {
   .issue-header {
     grid-template-columns: 1fr;

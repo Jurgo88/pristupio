@@ -76,7 +76,7 @@ defineProps<{
 
 .hero-mockup {
   background: #0b1220;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   border: 1px solid #1f2937;
   padding: 1.1rem 1.2rem;
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.55);
@@ -98,7 +98,7 @@ defineProps<{
 .mockup-pill {
   font-size: 0.68rem;
   padding: 0.2rem 0.5rem;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   border: 1px solid #334155;
   color: #94a3b8;
   background: rgba(15, 23, 42, 0.8);
@@ -149,13 +149,13 @@ defineProps<{
 .bar-track {
   height: 7px;
   background: #111827;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
 }
 
 .bar-fill.critical {
@@ -185,6 +185,65 @@ defineProps<{
 .report-preview__copy h2 {
   margin: 0.2rem 0 0.6rem;
   font-size: clamp(1.4rem, 1.1rem + 1vw, 2rem);
+}
+
+[data-theme='dark'] .report-preview {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme='dark'] .report-preview__copy h2 {
+  color: var(--text);
+}
+
+[data-theme='dark'] .hero-mockup {
+  background: linear-gradient(145deg, #0f1a2c, #0b1220 58%, #111f35);
+  border-color: #2e4360;
+  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.44);
+}
+
+[data-theme='dark'] .mockup-title {
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .mockup-pill {
+  border-color: #3e5b80;
+  color: #bfdbfe;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+[data-theme='dark'] .score-circle {
+  color: #f8fafc;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+[data-theme='dark'] .score-meta strong {
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .score-meta span {
+  color: #9fb3cc;
+}
+
+[data-theme='dark'] .bar {
+  color: #a7b6cb;
+}
+
+[data-theme='dark'] .bar-track {
+  background: #162136;
+}
+
+[data-theme='dark'] .bar-fill.critical {
+  background: linear-gradient(90deg, #f87171, #dc2626);
+}
+
+[data-theme='dark'] .bar-fill.moderate {
+  background: linear-gradient(90deg, #fbbf24, #d97706);
+}
+
+[data-theme='dark'] .bar-fill.minor {
+  background: linear-gradient(90deg, #38bdf8, #0284c7);
 }
 
 @media (max-width: 1100px) {
