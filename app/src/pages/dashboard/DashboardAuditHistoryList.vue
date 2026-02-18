@@ -1,9 +1,9 @@
 <template>
-  <div v-if="historyError" class="form-error">{{ historyError }}</div>
+  <div v-if="historyError" class="status-alert status-alert--danger">{{ historyError }}</div>
 
-  <div v-if="historyLoading" class="empty-state">Načítavam históriu...</div>
+  <div v-if="historyLoading" class="status-state status-state--loading">Načítavam históriu...</div>
 
-  <div v-else-if="auditHistory.length === 0" class="empty-state">Zatiaľ nemáte žiadne audity.</div>
+  <div v-else-if="auditHistory.length === 0" class="status-state">Zatiaľ nemáte žiadne audity.</div>
 
   <div v-else class="history-list">
     <article
@@ -155,12 +155,6 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.empty-state {
-  padding: 2rem 0;
-  text-align: center;
-  color: var(--text-muted);
-}
-
 .history-load-more {
   display: flex;
   flex-direction: column;
@@ -173,16 +167,6 @@ onBeforeUnmount(() => {
 .history-sentinel {
   width: 100%;
   height: 1px;
-}
-
-.form-error {
-  padding: 0.75rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid rgba(185, 28, 28, 0.25);
-  background: rgba(185, 28, 28, 0.08);
-  color: #7f1d1d;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
 }
 
 [data-theme='dark'] .history-card {
@@ -212,12 +196,6 @@ onBeforeUnmount(() => {
 
 [data-theme='dark'] .history-stats {
   color: #9eb1c9;
-}
-
-[data-theme='dark'] .form-error {
-  border-color: rgba(248, 113, 113, 0.46);
-  background: rgba(127, 29, 29, 0.34);
-  color: #fecaca;
 }
 
 @media (max-width: 980px) {

@@ -1,10 +1,12 @@
 ﻿<script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+const topbarRef = ref<HTMLElement | null>(null)
 const mobileMenuOpen = ref(false)
 const isDark = ref(false)
 const isTopbarScrolled = ref(false)
@@ -51,6 +53,18 @@ const MOBILE_TOPBAR_BREAKPOINT = 980
 
 const handleViewport = () => {
   isMobileTopbar.value = window.innerWidth <= MOBILE_TOPBAR_BREAKPOINT
+  if (!isMobileTopbar.value) {
+    closeMobileMenu()
+  }
+}
+
+const handlePointerDown = (event: PointerEvent) => {
+  if (!mobileMenuOpen.value) return
+  const target = event.target as Node | null
+  if (!target || !topbarRef.value) return
+  if (!topbarRef.value.contains(target)) {
+    closeMobileMenu()
+  }
 }
 
 onMounted(() => {
@@ -65,21 +79,34 @@ onMounted(() => {
   handleViewport()
   window.addEventListener('scroll', handleTopbarScroll, { passive: true })
   window.addEventListener('resize', handleViewport, { passive: true })
+  window.addEventListener('pointerdown', handlePointerDown, { passive: true })
 })
 
 watch(isDark, (dark) => {
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light')
 })
 
+watch(
+  () => route.fullPath,
+  () => {
+    closeMobileMenu()
+  }
+)
+
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', handleTopbarScroll)
   window.removeEventListener('resize', handleViewport)
+  window.removeEventListener('pointerdown', handlePointerDown)
 })
 </script>
 
 <template>
   <div class="app-shell">
-    <nav class="navbar navbar-expand topbar px-3" :class="{ 'is-scrolled': isTopbarScrolled }">
+    <nav
+      ref="topbarRef"
+      class="navbar navbar-expand topbar px-3"
+      :class="{ 'is-scrolled': isTopbarScrolled }"
+    >
       <div class="container-fluid">
         <router-link to="/" class="navbar-brand brand">
           <span class="brand-mark">P</span>
@@ -303,8 +330,10 @@ onBeforeUnmount(() => {
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(14px);
   overflow: visible;
-  transition: height 0.34s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease,
-    backdrop-filter 0.3s ease;
+  transition:
+    height var(--motion-base) var(--ease-emphasized),
+    box-shadow var(--motion-base) var(--ease-standard),
+    backdrop-filter var(--motion-base) var(--ease-standard);
   will-change: height;
 }
 
@@ -392,8 +421,12 @@ onBeforeUnmount(() => {
   border-style: solid;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
-    border-color 0.2s ease, color 0.2s ease;
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
 
 .topbar .topbar-btn--ghost {
@@ -408,6 +441,13 @@ onBeforeUnmount(() => {
   border-color: rgba(226, 232, 240, 0.58);
   color: #f8fafc;
   transform: translateY(-1px);
+}
+
+.topbar .topbar-btn.router-link-active,
+.topbar .topbar-btn.router-link-exact-active {
+  border-color: rgba(125, 211, 252, 0.6);
+  background: rgba(14, 165, 233, 0.2);
+  color: #f8fafc;
 }
 
 .topbar .topbar-btn--solid {
@@ -483,7 +523,7 @@ onBeforeUnmount(() => {
   font-size: 0.64rem;
   font-weight: 800;
   color: #96aac7;
-  transition: color 0.22s ease;
+  transition: color var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard);
 }
 
 .theme-switch__text--light {
@@ -519,8 +559,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
   display: grid;
   place-items: center;
-  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), background 0.24s ease,
-    box-shadow 0.24s ease;
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
   z-index: 1;
 }
 
@@ -574,6 +616,13 @@ onBeforeUnmount(() => {
 [data-theme='dark'] .topbar .topbar-btn--ghost:hover {
   border-color: rgba(125, 211, 252, 0.5);
   background: rgba(15, 23, 42, 0.52);
+}
+
+[data-theme='dark'] .topbar .topbar-btn.router-link-active,
+[data-theme='dark'] .topbar .topbar-btn.router-link-exact-active {
+  border-color: rgba(125, 211, 252, 0.65);
+  background: rgba(14, 165, 233, 0.24);
+  color: #f8fafc;
 }
 
 [data-theme='dark'] .topbar .topbar-btn--solid {
@@ -680,7 +729,7 @@ onBeforeUnmount(() => {
   background: #e2e8f0;
   border-radius: 999px;
   display: block;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard);
 }
 
 .mobile-menu {
@@ -801,6 +850,24 @@ onBeforeUnmount(() => {
   color: #38bdf8;
 }
 
+[data-theme='dark'] .site-footer {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86) 0%, rgba(2, 6, 23, 0.95) 100%),
+    radial-gradient(520px 180px at 50% 0%, rgba(56, 189, 248, 0.12), transparent 72%);
+  border-top: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.12), 0 -14px 30px rgba(2, 6, 23, 0.45);
+}
+
+[data-theme='dark'] .footer-brand p,
+[data-theme='dark'] .footer-col a,
+[data-theme='dark'] .footer-col span {
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .footer-bottom {
+  color: #c4d4ef;
+}
+
 @media (max-width: 980px) {
   .topbar {
     width: calc(100% - 0.9rem);
@@ -813,106 +880,14 @@ onBeforeUnmount(() => {
   }
 
   .topbar-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     gap: 0.66rem;
   }
 
-  .topbar-guest {
-    width: auto;
-    margin-left: 0;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.4rem;
-  }
-
-  .topbar-guest .topbar-btn {
-    display: none;
-  }
-
-  .topbar-guest .guest-burger-btn {
-    display: inline-flex !important;
-    margin-left: 0;
-  }
-
-  .topbar-auth {
-    width: auto;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .topbar-auth .topbar-btn {
-    display: none;
-  }
-
-  .topbar-auth .burger-btn {
-    display: inline-flex !important;
-    align-self: center;
-    margin-left: auto;
-  }
-
-  .account-chip {
-    margin-right: 0;
-  }
-
-  .topbar-links {
-    margin-right: 0;
-  }
-
-  .footer-inner {
-    grid-template-columns: 1fr;
-  }
-
-  .footer-links {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 640px) {
-  .app-main {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-
-  .topbar {
-    top: 0.25rem;
-    width: calc(100% - 0.7rem);
-    height: 84px;
-    padding: 0 0.64rem;
-    border-radius: 10px;
-  }
-
-  .topbar.is-scrolled {
-    height: 76px;
-  }
-
   .navbar .container-fluid {
-    flex-wrap: wrap;
-    gap: 0.6rem;
-  }
-
-  .topbar-actions {
-    width: auto;
-    margin-left: auto;
-    justify-content: flex-end;
-    gap: 0.54rem;
-  }
-
-  .theme-switch {
-    width: 122px;
-    height: 40px;
-    padding: 0;
-  }
-
-  .theme-switch__thumb {
-    width: 56px;
-    height: 32px;
-  }
-
-  .theme-switch__thumb.is-dark {
-    transform: translateX(60px);
+    flex-wrap: nowrap;
+    justify-content: space-between;
   }
 
   .topbar-guest {
@@ -938,21 +913,6 @@ onBeforeUnmount(() => {
     justify-content: flex-end;
     align-items: center;
     gap: 0.4rem;
-  }
-
-  .account-chip {
-    display: none;
-  }
-
-  .account-email {
-    max-width: 170px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-credit {
-    display: none;
   }
 
   .topbar-auth .topbar-btn {
@@ -978,8 +938,12 @@ onBeforeUnmount(() => {
     transform: translateY(-6px);
     overflow: hidden;
     pointer-events: none;
-    transition: max-height 0.25s ease, opacity 0.2s ease, transform 0.2s ease,
-      padding 0.2s ease, border-color 0.2s ease;
+    transition:
+      max-height var(--motion-base) var(--ease-standard),
+      opacity var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard),
+      padding var(--motion-fast) var(--ease-standard),
+      border-color var(--motion-fast) var(--ease-standard);
     position: absolute;
     left: 0;
     right: 0;
@@ -1053,6 +1017,13 @@ onBeforeUnmount(() => {
     font-weight: 600;
   }
 
+  .mobile-link.router-link-active,
+  .mobile-link.router-link-exact-active {
+    border-color: rgba(125, 211, 252, 0.58);
+    background: rgba(14, 165, 233, 0.22);
+    color: #f8fafc;
+  }
+
   .mobile-link.is-logout {
     background: rgba(251, 191, 36, 0.08);
     border-color: rgba(251, 191, 36, 0.35);
@@ -1066,6 +1037,137 @@ onBeforeUnmount(() => {
   .logout-icon {
     margin-right: 0;
   }
+
+  .account-chip {
+    margin-right: 0;
+  }
+
+  .topbar-links {
+    margin-right: 0;
+  }
+
+  .footer-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-links {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-main {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .topbar {
+    top: 0.25rem;
+    width: calc(100% - 0.7rem);
+    height: 84px;
+    padding: 0 0.64rem;
+    border-radius: 10px;
+  }
+
+  .topbar.is-scrolled {
+    height: 76px;
+  }
+
+  .navbar .container-fluid {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    justify-content: space-between;
+  }
+
+  .topbar-actions {
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 0.54rem;
+  }
+
+  .brand {
+    font-size: 0.95rem;
+    gap: 0.52rem;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 11px;
+  }
+
+  .theme-switch {
+    width: 114px;
+    height: 38px;
+    padding: 0;
+  }
+
+  .theme-switch__text {
+    font-size: 0.58rem;
+  }
+
+  .theme-switch__thumb {
+    width: 52px;
+    height: 30px;
+    top: 3px;
+  }
+
+  .theme-switch__thumb.is-dark {
+    transform: translateX(56px);
+  }
+
+  .topbar-guest {
+    width: auto;
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+
+  .topbar-guest .topbar-btn {
+    display: none;
+  }
+
+  .topbar-guest .guest-burger-btn {
+    display: inline-flex !important;
+    margin-left: 0;
+  }
+
+  .topbar-auth {
+    width: auto;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .account-chip {
+    display: none;
+  }
+
+  .account-email {
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .account-credit {
+    display: none;
+  }
+
+  .topbar-auth .topbar-btn {
+    display: none;
+  }
+
+  .topbar-auth .burger-btn {
+    display: inline-flex !important;
+    align-self: center;
+    margin-left: auto;
+  }
+
 }
 
 @media (max-width: 460px) {

@@ -25,10 +25,28 @@ export const useDashboardExport = ({
 }: UseDashboardExportParams) => {
   const exporting = ref(false)
   const exportError = ref('')
+  const exportProgress = ref(0)
+  const exportStatus = ref('')
+  let progressTimer: ReturnType<typeof setInterval> | null = null
 
   const getErrorMessage = (error: unknown) => {
     if (error instanceof Error && error.message) return error.message
     return 'Export sa nepodaril.'
+  }
+
+  const stopProgressTimer = () => {
+    if (!progressTimer) return
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+
+  const startProgressTimer = () => {
+    stopProgressTimer()
+    progressTimer = setInterval(() => {
+      if (exportProgress.value >= 88) return
+      const step = exportProgress.value < 40 ? 6 : exportProgress.value < 70 ? 3 : 1
+      exportProgress.value = Math.min(88, exportProgress.value + step)
+    }, 420)
   }
 
   const trimmedTargetUrl = computed(() => targetUrl.value.trim())
@@ -76,6 +94,9 @@ export const useDashboardExport = ({
     if (!report.value || exporting.value) return
     exporting.value = true
     exportError.value = ''
+    exportProgress.value = 8
+    exportStatus.value = 'Pripravujem data...'
+    startProgressTimer()
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
@@ -83,6 +104,9 @@ export const useDashboardExport = ({
       if (!accessToken) {
         throw new Error('Prihláste sa, aby ste mohli exportovať report.')
       }
+
+      exportProgress.value = Math.max(exportProgress.value, 18)
+      exportStatus.value = 'Pripravujem export...'
 
       const issues = filteredIssues.value
       const slimIssues = issues.map((issue) => ({
@@ -121,6 +145,8 @@ export const useDashboardExport = ({
         },
         body: JSON.stringify(payload)
       })
+      exportProgress.value = Math.max(exportProgress.value, 74)
+      exportStatus.value = 'Generujem PDF na serveri...'
 
       if (!response.ok) {
         let message = 'Export zlyhal.'
@@ -134,21 +160,33 @@ export const useDashboardExport = ({
       }
 
       const blob = await response.blob()
+      exportProgress.value = 94
+      exportStatus.value = 'Stahujem PDF...'
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
       link.download = buildFileName()
       link.click()
       URL.revokeObjectURL(link.href)
+      exportProgress.value = 100
+      exportStatus.value = 'Hotovo'
     } catch (error: unknown) {
       exportError.value = getErrorMessage(error)
+      exportStatus.value = exportError.value
     } finally {
+      stopProgressTimer()
       exporting.value = false
+      setTimeout(() => {
+        exportProgress.value = 0
+        exportStatus.value = ''
+      }, 900)
     }
   }
 
   return {
     exporting,
     exportError,
+    exportProgress,
+    exportStatus,
     exportPdf
   }
 }

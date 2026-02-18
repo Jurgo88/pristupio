@@ -243,6 +243,8 @@
               :has-report="!!auditStore.report"
               :is-preview="isPreview"
               :is-exporting="isExporting"
+              :export-progress="exportProgress"
+              :export-status="exportStatus"
               :selected-principle="selectedPrinciple"
               :selected-impact="selectedImpact"
               :search-text="searchText"
@@ -261,15 +263,15 @@
             <span class="issues-meta-total"> (celkovo {{ auditStore.report.issues.length }})</span>
           </p>
 
-          <div v-if="!auditStore.report" class="empty-state empty-state--hint">
+          <div v-if="!auditStore.report" class="status-state">
             {{ DASHBOARD_ISSUES_TEXT.emptyNoReport }}
           </div>
 
-          <div v-else-if="auditStore.report.issues.length === 0" class="empty-state">
+          <div v-else-if="auditStore.report.issues.length === 0" class="status-state">
             {{ DASHBOARD_ISSUES_TEXT.emptyNoIssues }}
           </div>
 
-          <div v-else-if="filteredIssues.length === 0" class="empty-state">
+          <div v-else-if="filteredIssues.length === 0" class="status-state">
             {{ DASHBOARD_ISSUES_TEXT.emptyNoFilteredIssues }}
           </div>
 
@@ -369,6 +371,8 @@ const {
 const {
   exporting: isExporting,
   exportError,
+  exportProgress,
+  exportStatus,
   exportPdf
 } = useDashboardExport({
   report: computed(() => auditStore.report),
@@ -864,20 +868,6 @@ const lastAuditLabel = computed(() => {
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--text-muted);
-}
-
-/* Empty States (issues section) */
-.empty-state {
-  padding: 2rem 0;
-  text-align: center;
-  color: var(--text-muted);
-}
-
-.empty-state--hint {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-  padding: 1.5rem;
 }
 
 /* Responsive */

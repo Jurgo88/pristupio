@@ -588,7 +588,9 @@ onBeforeUnmount(() => {
 .reveal {
   opacity: 0;
   transform: translateY(22px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  transition:
+    opacity var(--motion-slow) var(--ease-standard),
+    transform var(--motion-slow) var(--ease-standard);
   will-change: opacity, transform;
 }
 
@@ -656,6 +658,7 @@ onBeforeUnmount(() => {
   font-size: clamp(2.2rem, 1.6rem + 2.2vw, 3.4rem);
   line-height: 1.1;
   margin-bottom: 1rem;
+  color: #f8fafc;
 }
 
 .hero-copy p {
@@ -1015,7 +1018,9 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
   display: grid;
   gap: 0.75rem;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform var(--motion-base) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard);
 }
 
 .value-card:hover {
@@ -1272,13 +1277,29 @@ onBeforeUnmount(() => {
   color: #f8fafc;
 }
 
+[data-theme='dark'] .pricing-card .btn-outline-dark {
+  border-color: #3b4f6e;
+  color: #dbe7fb;
+  background: rgba(2, 6, 23, 0.28);
+}
+
+[data-theme='dark'] .pricing-card .btn-outline-dark:hover {
+  border-color: #5476a3;
+  background: #17243a;
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .pricing-card .btn-primary {
+  color: #f8fafc;
+}
+
 .step-card {
   background: #0f172a;
   color: #e2e8f0;
   border-radius: var(--radius);
   padding: 1.6rem;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
-  transition: transform 0.3s ease;
+  transition: transform var(--motion-base) var(--ease-standard);
 }
 
 .step-card:hover {
@@ -1326,7 +1347,9 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 0.9rem;
   color: #475569;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    transform var(--motion-base) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard);
 }
 
 .compliance-card:hover {
@@ -1374,7 +1397,7 @@ onBeforeUnmount(() => {
   background:
     linear-gradient(#1d4ed8, #1d4ed8) center/12px 2px no-repeat,
     linear-gradient(#1d4ed8, #1d4ed8) center/2px 12px no-repeat;
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-fast) var(--ease-standard);
 }
 
 .faq-item[open] summary::after {
@@ -1407,6 +1430,7 @@ onBeforeUnmount(() => {
 
 .cta h2 {
   margin: 0 0 0.6rem;
+  color: #f8fafc;
 }
 
 .cta p {
@@ -1418,6 +1442,11 @@ onBeforeUnmount(() => {
   border-radius: var(--radius);
   padding: 0.7rem 1.6rem;
   font-weight: 700;
+}
+
+[data-theme='dark'] .hero-copy h1,
+[data-theme='dark'] .cta h2 {
+  color: #f8fafc;
 }
 
 

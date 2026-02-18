@@ -11,6 +11,16 @@
       </button>
     </div>
 
+    <div v-if="isExporting || exportProgress > 0" class="export-progress" role="status" aria-live="polite">
+      <div class="export-progress__meta">
+        <span>{{ exportStatus || 'Generujem PDF...' }}</span>
+        <strong>{{ Math.round(exportProgress) }}%</strong>
+      </div>
+      <div class="export-progress__track">
+        <div class="export-progress__fill" :style="{ width: `${Math.max(4, exportProgress)}%` }"></div>
+      </div>
+    </div>
+
     <div class="filters">
       <div class="field">
         <label class="field-label">{{ DASHBOARD_ISSUES_TEXT.principleLabel }}</label>
@@ -46,7 +56,7 @@
       </div>
     </div>
 
-    <div v-if="exportError" class="form-error">{{ exportError }}</div>
+    <div v-if="exportError" class="status-alert status-alert--danger">{{ exportError }}</div>
   </div>
 </template>
 
@@ -57,6 +67,8 @@ defineProps<{
   hasReport: boolean
   isPreview: boolean
   isExporting: boolean
+  exportProgress: number
+  exportStatus: string
   selectedPrinciple: string
   selectedImpact: string
   searchText: string
@@ -161,13 +173,42 @@ const onSearchInput = (event: Event) => {
   box-shadow: none;
 }
 
-.form-error {
-  padding: 0.75rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid rgba(185, 28, 28, 0.25);
-  background: rgba(185, 28, 28, 0.08);
-  color: #7f1d1d;
-  font-size: 0.9rem;
+.export-progress {
+  margin: 0 0 1rem;
+  padding: 0.72rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.export-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.export-progress__meta strong {
+  color: var(--text);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.export-progress__track {
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.export-progress__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  transition: width var(--motion-base) var(--ease-standard);
 }
 
 [data-theme='dark'] .btn-filter-clear {
@@ -186,18 +227,29 @@ const onSearchInput = (event: Event) => {
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.34);
 }
 
+[data-theme='dark'] .export-progress {
+  background: #101b2e;
+  border-color: #334862;
+}
+
+[data-theme='dark'] .export-progress__meta {
+  color: #b6c7dd;
+}
+
+[data-theme='dark'] .export-progress__meta strong {
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .export-progress__track {
+  background: #1a2a42;
+}
+
 [data-theme='dark'] .kicker {
   color: #93c5fd;
 }
 
 [data-theme='dark'] .panel-head h2 {
   color: #e2e8f0;
-}
-
-[data-theme='dark'] .form-error {
-  border-color: rgba(248, 113, 113, 0.52);
-  background: linear-gradient(140deg, rgba(127, 29, 29, 0.36), rgba(69, 10, 10, 0.3));
-  color: #fecaca;
 }
 
 @media (max-width: 980px) {

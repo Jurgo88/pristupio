@@ -185,10 +185,10 @@ const handleRegister = async () => {
         {{ auth.loading ? 'Pracujem...' : 'Vytvoriť účet' }}
       </button>
 
-      <p v-if="formError" class="error">
+      <p v-if="formError" class="error status-alert status-alert--danger">
         {{ formError }}
       </p>
-      <p v-if="auth.authError" class="error">
+      <p v-if="auth.authError" class="error status-alert status-alert--danger">
         {{ auth.authError }}
       </p>
     </form>
@@ -350,8 +350,6 @@ button:disabled {
 }
 
 .error {
-  color: var(--danger);
-  font-weight: 600;
   margin: 0;
 }
 

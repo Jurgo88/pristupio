@@ -100,8 +100,8 @@
       </div>
     </div>
 
-    <div v-if="errorMessage" class="form-error">{{ errorMessage }}</div>
-    <div v-if="auditLockedMessage" class="form-error">{{ auditLockedMessage }}</div>
+    <div v-if="errorMessage" class="status-alert status-alert--danger">{{ errorMessage }}</div>
+    <div v-if="auditLockedMessage" class="status-alert status-alert--warning">{{ auditLockedMessage }}</div>
   </section>
 </template>
 
@@ -396,23 +396,11 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
   height: 100%;
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, #2563eb, #0ea5e9);
-  transition: width 0.4s ease;
+  transition: width var(--motion-base) var(--ease-standard);
 }
 
-.form-error {
+.status-alert {
   margin-top: 0.8rem;
-  padding: 0.75rem 0.9rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(185, 28, 28, 0.25);
-  background: rgba(185, 28, 28, 0.08);
-  color: #7f1d1d;
-  font-size: 0.88rem;
-}
-
-[data-theme='dark'] .form-error {
-  border-color: rgba(248, 113, 113, 0.52);
-  background: linear-gradient(140deg, rgba(127, 29, 29, 0.36), rgba(69, 10, 10, 0.3));
-  color: #fecaca;
 }
 
 @media (max-width: 1180px) {

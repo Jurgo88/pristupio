@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="auth-container">
     <h1>Prihlásenie</h1>
     <form @submit.prevent="handleLogin">
@@ -8,7 +8,7 @@
         {{ auth.loading ? 'Pracujem...' : 'Vstúpiť' }}
       </button>
     </form>
-    <p v-if="auth.authError" class="error">{{ auth.authError }}</p>
+    <p v-if="auth.authError" class="error status-alert status-alert--danger">{{ auth.authError }}</p>
     <router-link to="/register">Ešte nemáš účet? Registruj sa</router-link>
   </div>
 </template>
@@ -99,9 +99,7 @@ button:disabled {
 }
 
 .error {
-  color: var(--danger);
   margin: 0.35rem 0 0;
-  font-weight: 600;
 }
 
 .auth-container > a {
@@ -128,3 +126,4 @@ button:disabled {
   color: color-mix(in srgb, var(--text-muted) 86%, #c8d6eb 14%);
 }
 </style>
+

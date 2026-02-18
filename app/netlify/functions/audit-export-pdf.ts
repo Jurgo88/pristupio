@@ -116,36 +116,70 @@ const buildFiltersLine = (filters?: ExportPayload['filters']) => {
   return entries.length ? entries.join(' | ') : 'Filters: none'
 }
 
+const IMPACT_ORDER: Impact[] = ['critical', 'serious', 'moderate', 'minor']
+
+const impactLabel = (impact: Impact) => {
+  if (impact === 'critical') return 'Critical'
+  if (impact === 'serious') return 'Serious'
+  if (impact === 'moderate') return 'Moderate'
+  return 'Minor'
+}
+
 const buildIssuesHtml = (issues: ReportIssue[]) => {
   if (!issues.length) {
     return `<div class="empty">No accessibility issues were found.</div>`
   }
 
-  return issues
-    .map((issue) => {
-      const impact = normalizeImpact(issue.impact)
+  const grouped: Record<Impact, ReportIssue[]> = {
+    critical: [],
+    serious: [],
+    moderate: [],
+    minor: []
+  }
+
+  issues.forEach((issue) => {
+    grouped[normalizeImpact(issue.impact)].push(issue)
+  })
+
+  return IMPACT_ORDER.filter((impact) => grouped[impact].length > 0)
+    .map((impact) => {
+      const groupIssues = grouped[impact]
       return `
-        <div class="issue">
-          <div class="issue-head">
-            <span class="pill pill-${impact}">${impact.toUpperCase()}</span>
-            <div class="issue-title">${safeText(issue.title || 'Issue')}</div>
+        <section class="issue-group issue-group-${impact}">
+          <div class="issue-group-head">
+            <h3>${impactLabel(impact)} findings</h3>
+            <span>${groupIssues.length}</span>
           </div>
-          <div class="issue-meta">
-            <span><strong>WCAG:</strong> ${safeText(issue.wcag || 'N/A')}</span>
-            <span><strong>Level:</strong> ${safeText(issue.wcagLevel || 'N/A')}</span>
-            <span><strong>Principle:</strong> ${safeText(issue.principle || 'N/A')}</span>
+          <div class="issue-group-list">
+            ${groupIssues
+              .map((issue) => {
+                return `
+                  <div class="issue">
+                    <div class="issue-head">
+                      <span class="pill pill-${impact}">${impactLabel(impact).toUpperCase()}</span>
+                      <div class="issue-title">${safeText(issue.title || 'Issue')}</div>
+                    </div>
+                    <div class="issue-meta">
+                      <span><strong>WCAG:</strong> ${safeText(issue.wcag || 'N/A')}</span>
+                      <span><strong>Level:</strong> ${safeText(issue.wcagLevel || 'N/A')}</span>
+                      <span><strong>Principle:</strong> ${safeText(issue.principle || 'N/A')}</span>
+                    </div>
+                    <div class="issue-desc">${safeText(issue.description || '')}</div>
+                    <div class="issue-rec"><strong>Recommendation:</strong> ${safeText(
+                      issue.recommendation || ''
+                    )}</div>
+                    <div class="issue-count">Affected elements: ${Number(issue.nodesCount || 0)}</div>
+                    ${
+                      issue.helpUrl
+                        ? `<div class="issue-link">Guidance: ${safeText(issue.helpUrl)}</div>`
+                        : ''
+                    }
+                  </div>
+                `
+              })
+              .join('')}
           </div>
-          <div class="issue-desc">${safeText(issue.description || '')}</div>
-          <div class="issue-rec"><strong>Recommendation:</strong> ${safeText(
-            issue.recommendation || ''
-          )}</div>
-          <div class="issue-count">Affected elements: ${Number(issue.nodesCount || 0)}</div>
-          ${
-            issue.helpUrl
-              ? `<div class="issue-link">Guidance: ${safeText(issue.helpUrl)}</div>`
-              : ''
-          }
-        </div>
+        </section>
       `
     })
     .join('')
@@ -232,12 +266,18 @@ export const handler: Handler = async (event) => {
               box-sizing: border-box;
             }
 
+            @page {
+              size: A4;
+              margin: 24mm 14mm 18mm;
+            }
+
             body {
               margin: 0;
               padding: 0;
               font-family: "Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
               color: var(--text);
               background: #ffffff;
+              line-height: 1.45;
             }
 
             .page {
@@ -308,6 +348,7 @@ export const handler: Handler = async (event) => {
               padding: 18px;
               display: grid;
               gap: 12px;
+              break-inside: avoid;
             }
 
             .score {
@@ -347,6 +388,19 @@ export const handler: Handler = async (event) => {
               border-radius: var(--radius);
               padding: 12px;
               background: var(--surface-2);
+              border-top-width: 3px;
+            }
+
+            .stat-card-critical {
+              border-top-color: #b91c1c;
+            }
+
+            .stat-card-moderate {
+              border-top-color: #b45309;
+            }
+
+            .stat-card-minor {
+              border-top-color: #0284c7;
             }
 
             .stat-card strong {
@@ -413,6 +467,64 @@ export const handler: Handler = async (event) => {
             .issues h2 {
               margin: 0;
               font-size: 18px;
+            }
+
+            .issues-intro {
+              margin: 0;
+              font-size: 11px;
+              color: var(--muted);
+            }
+
+            .issue-group {
+              display: grid;
+              gap: 10px;
+              break-inside: avoid;
+            }
+
+            .issue-group + .issue-group {
+              padding-top: 4px;
+            }
+
+            .issue-group-head {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              border-bottom: 1px solid var(--border);
+              padding-bottom: 4px;
+            }
+
+            .issue-group-head h3 {
+              margin: 0;
+              font-size: 13px;
+              letter-spacing: 0.06em;
+              text-transform: uppercase;
+            }
+
+            .issue-group-head span {
+              font-size: 11px;
+              font-weight: 700;
+              color: var(--muted);
+            }
+
+            .issue-group-critical .issue-group-head h3 {
+              color: var(--danger);
+            }
+
+            .issue-group-serious .issue-group-head h3 {
+              color: #9a3412;
+            }
+
+            .issue-group-moderate .issue-group-head h3 {
+              color: var(--warning);
+            }
+
+            .issue-group-minor .issue-group-head h3 {
+              color: var(--info);
+            }
+
+            .issue-group-list {
+              display: grid;
+              gap: 10px;
             }
 
             .issue {
@@ -546,15 +658,15 @@ export const handler: Handler = async (event) => {
                   </div>
                 </div>
                 <div class="summary-grid">
-                  <div class="stat-card">
+                  <div class="stat-card stat-card-critical">
                     <span>Critical + Serious</span>
                     <strong>${highCount}</strong>
                   </div>
-                  <div class="stat-card">
+                  <div class="stat-card stat-card-moderate">
                     <span>Moderate</span>
                     <strong>${normalizedSummary.byImpact.moderate}</strong>
                   </div>
-                  <div class="stat-card">
+                  <div class="stat-card stat-card-minor">
                     <span>Minor</span>
                     <strong>${normalizedSummary.byImpact.minor}</strong>
                   </div>
@@ -597,6 +709,9 @@ export const handler: Handler = async (event) => {
 
             <section class="issues">
               <h2>Identified issues (${total})</h2>
+              <p class="issues-intro">
+                Findings are grouped by severity to prioritize remediation and sprint planning.
+              </p>
               ${issuesHtml}
             </section>
 

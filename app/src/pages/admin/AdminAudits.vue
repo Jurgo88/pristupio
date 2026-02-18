@@ -139,7 +139,7 @@ onMounted(() => {
       </button>
     </section>
 
-    <div v-if="error" class="form-error">{{ error }}</div>
+    <div v-if="error" class="status-alert status-alert--danger">{{ error }}</div>
 
     <section class="admin-grid">
       <div class="panel">
@@ -150,8 +150,8 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="loading" class="empty-state">Nacitam audity...</div>
-        <div v-else-if="audits.length === 0" class="empty-state">Zatial ziadne audity.</div>
+        <div v-if="loading" class="status-state status-state--loading">Nacitam audity...</div>
+        <div v-else-if="audits.length === 0" class="status-state">Zatial ziadne audity.</div>
 
         <div v-else class="audit-list">
           <article v-for="audit in audits" :key="audit.id" class="audit-card">
@@ -202,9 +202,9 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="detailLoading" class="empty-state">Nacitam detail...</div>
-        <div v-else-if="detailError" class="form-error">{{ detailError }}</div>
-        <div v-else-if="!selectedAudit" class="empty-state">
+        <div v-if="detailLoading" class="status-state status-state--loading">Nacitam detail...</div>
+        <div v-else-if="detailError" class="status-alert status-alert--danger">{{ detailError }}</div>
+        <div v-else-if="!selectedAudit" class="status-state">
           Vyber audit na zobrazenie detailu.
         </div>
 
@@ -249,7 +249,7 @@ onMounted(() => {
 
           <div class="detail-issues">
             <h3>Nalezy</h3>
-            <div v-if="selectedAudit.fullIssues.length === 0" class="empty-state">
+            <div v-if="selectedAudit.fullIssues.length === 0" class="status-state">
               Ziadne nalezy.
             </div>
             <article v-for="issue in selectedAudit.fullIssues" :key="issue.id" class="issue-card">
@@ -490,21 +490,6 @@ onMounted(() => {
 
 .dot {
   opacity: 0.5;
-}
-
-.empty-state {
-  padding: 1.4rem 0;
-  color: #64748b;
-  text-align: center;
-}
-
-.form-error {
-  padding: 0.75rem 0.9rem;
-  border-radius: var(--radius);
-  border: 1px solid rgba(185, 28, 28, 0.25);
-  background: rgba(185, 28, 28, 0.08);
-  color: #7f1d1d;
-  font-size: 0.9rem;
 }
 
 .btn {
