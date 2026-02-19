@@ -2,14 +2,16 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
+import { useMonitoringStore } from '@/stores/monitoring.store'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
-import type { ProfileOption } from './dashboard.types'
+import type { AuditHistoryItem, ProfileOption } from './dashboard.types'
 
 export const useDashboardCore = () => {
   const targetUrl = ref('')
   const selectedProfile = ref<'wad' | 'eaa'>('wad')
   const auditStore = useAuditStore()
   const auth = useAuthStore()
+  const monitoringStore = useMonitoringStore()
   const route = useRoute()
   const refreshPlanLoading = ref(false)
   const paymentNotice = ref(false)
@@ -19,12 +21,23 @@ export const useDashboardCore = () => {
   const historyPage = ref(1)
   const historyError = ref('')
   const selectedAuditId = ref<string | null>(null)
+  const monitoringMessage = ref('')
+  const monitoringError = ref('')
 
   const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
+  const monitoringCheckoutBase = import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL || ''
   const auditCheckoutUrl = computed(() => {
     if (!auth.user || !auditCheckoutBase) return ''
     return buildLemonCheckoutUrl({
       baseUrl: auditCheckoutBase,
+      userId: auth.user.id,
+      email: auth.user.email
+    })
+  })
+  const monitoringCheckoutUrl = computed(() => {
+    if (!auth.user || !monitoringCheckoutBase) return ''
+    return buildLemonCheckoutUrl({
+      baseUrl: monitoringCheckoutBase,
       userId: auth.user.id,
       email: auth.user.email
     })
@@ -51,6 +64,21 @@ export const useDashboardCore = () => {
   const paidCredits = computed(() => auth.paidAuditCredits || 0)
   const auditHistory = computed(() => auditStore.history || [])
   const latestAudit = computed(() => auditHistory.value[0] || null)
+  const monitoringHasAccess = computed(() => monitoringStore.hasAccess)
+  const canBuyMonitoring = computed(() => auth.isAdmin || auth.paidAuditCompleted)
+  const monitoringTarget = computed(() => monitoringStore.target)
+  const monitoringLatestRun = computed(() => monitoringStore.latestRun)
+  const monitoringLoadingStatus = computed(() => monitoringStore.loadingStatus)
+  const monitoringLoadingAction = computed(() => monitoringStore.loadingAction)
+  const monitoringIsActive = computed(() => !!monitoringTarget.value?.active)
+  const monitoringDefaultCadenceLabel = computed(() => {
+    const target = monitoringTarget.value
+    if (!target) return 'Každých 14 dní'
+    if (target.cadence_mode === 'monthly_runs') {
+      return `${target.cadence_value}x mesačne`
+    }
+    return `Každých ${target.cadence_value} dní`
+  })
 
   const refreshPlan = async () => {
     refreshPlanLoading.value = true
@@ -102,6 +130,14 @@ export const useDashboardCore = () => {
     if (latest?.auditId) {
       selectedAuditId.value = latest.auditId
     }
+  }
+
+  const loadMonitoringStatus = async () => {
+    if (!auth.isLoggedIn) return
+
+    monitoringError.value = ''
+    monitoringMessage.value = ''
+    await monitoringStore.fetchStatus()
   }
 
   const profileOptions: ProfileOption[] = [
@@ -158,6 +194,73 @@ export const useDashboardCore = () => {
     void selectAudit(latestAudit.value.id)
   }
 
+  const toggleMonitoringActive = async () => {
+    const target = monitoringTarget.value
+    if (!target) return
+
+    monitoringError.value = ''
+    monitoringMessage.value = ''
+    try {
+      await monitoringStore.updateConfig({ active: !target.active })
+      monitoringMessage.value = target.active ? 'Monitoring je pozastavený.' : 'Monitoring je znova aktívny.'
+      void loadMonitoringStatus()
+    } catch (error: any) {
+      monitoringError.value = error?.message || 'Stav monitoringu sa nepodarilo zmeniť.'
+    }
+  }
+
+  const runMonitoringNow = async (overrideUrl?: string) => {
+    monitoringError.value = ''
+    monitoringMessage.value = ''
+    try {
+      const runUrl = typeof overrideUrl === 'string' ? overrideUrl.trim() : ''
+      await monitoringStore.runNow(runUrl || undefined)
+      monitoringMessage.value = 'Monitoring bol spustený.'
+      void loadAuditHistory()
+      void loadMonitoringStatus()
+    } catch (error: any) {
+      monitoringError.value = error?.message || 'Spustenie monitoringu zlyhalo.'
+    }
+  }
+
+  const runMonitoringForAudit = async (audit: AuditHistoryItem) => {
+    const url = typeof audit?.url === 'string' ? audit.url.trim() : ''
+    if (!url) {
+      monitoringError.value = 'Vybrany audit nema URL pre monitoring.'
+      return
+    }
+
+    if (!monitoringHasAccess.value) {
+      monitoringError.value = 'Monitoring plan nie je aktivny pre tento ucet.'
+      return
+    }
+
+    if (!monitoringTarget.value?.id) {
+      try {
+        await monitoringStore.activate({
+          defaultUrl: url,
+          profile: selectedProfile.value,
+          cadenceMode: 'interval_days',
+          cadenceValue: 14
+        })
+      } catch (error: any) {
+        monitoringError.value = error?.message || 'Monitoring target sa nepodarilo inicializovat.'
+        return
+      }
+    }
+
+    await runMonitoringNow(url)
+  }
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return ''
+    try {
+      return new Date(value).toLocaleString('sk-SK')
+    } catch (_error) {
+      return value
+    }
+  }
+
   onMounted(() => {
     if (route.query.paid === '1') {
       paymentNotice.value = true
@@ -165,6 +268,7 @@ export const useDashboardCore = () => {
     }
     void loadLatestAudit()
     void loadAuditHistory()
+    void loadMonitoringStatus()
   })
 
   return {
@@ -175,6 +279,7 @@ export const useDashboardCore = () => {
     refreshPlanLoading,
     paymentNotice,
     auditCheckoutUrl,
+    monitoringCheckoutUrl,
     isPreview,
     auditLocked,
     auditLockedMessage,
@@ -188,14 +293,30 @@ export const useDashboardCore = () => {
     historyError,
     selectedAuditId,
     latestAudit,
+    monitoringStore,
+    monitoringHasAccess,
+    canBuyMonitoring,
+    monitoringTarget,
+    monitoringLatestRun,
+    monitoringLoadingStatus,
+    monitoringLoadingAction,
+    monitoringIsActive,
+    monitoringDefaultCadenceLabel,
+    monitoringMessage,
+    monitoringError,
     refreshPlan,
     loadAuditHistory,
+    loadMonitoringStatus,
     profileOptions,
     canRunAudit,
     profileLabel,
     handleStartAudit,
     formatDate,
+    formatDateTime,
     selectAudit,
-    openLatestAudit
+    openLatestAudit,
+    toggleMonitoringActive,
+    runMonitoringNow,
+    runMonitoringForAudit
   }
 }

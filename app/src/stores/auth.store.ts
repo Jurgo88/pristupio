@@ -5,6 +5,23 @@ import type { User } from '@supabase/supabase-js'
 type UserRole = 'guest' | 'user' | 'admin'
 type UserPlan = 'free' | 'paid'
 
+const isAbortError = (error: unknown) => {
+  const name = typeof error === 'object' && error && 'name' in error ? String((error as any).name) : ''
+  const message =
+    typeof error === 'object' && error && 'message' in error ? String((error as any).message) : ''
+  return name === 'AbortError' || message.toLowerCase().includes('signal is aborted')
+}
+
+const resetGuestState = (store: any) => {
+  store.user = null
+  store.userRole = 'guest'
+  store.userPlan = 'free'
+  store.freeAuditUsed = false
+  store.paidAuditCompleted = false
+  store.paidAuditCredits = 0
+  store.consentMarketing = false
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null as User | null,
@@ -28,13 +45,22 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     async init() {
-      const { data } = await supabase.auth.getSession()
-      this.user = data.session?.user ?? null
+      this.loadingSession = true
+      this.authError = null
+      try {
+        const { data } = await supabase.auth.getSession()
+        this.user = data.session?.user ?? null
 
-      if (this.user) await this.fetchUserProfile()
-
-      this.loadingSession = false
-      this.initAuthListener()
+        if (this.user) await this.fetchUserProfile()
+      } catch (error: any) {
+        if (!isAbortError(error)) {
+          this.authError = error?.message || 'Inicializacia prihlasenia zlyhala.'
+        }
+        resetGuestState(this)
+      } finally {
+        this.loadingSession = false
+        this.initAuthListener()
+      }
     },
 
     initAuthListener() {
@@ -42,16 +68,17 @@ export const useAuthStore = defineStore('auth', {
       this._listenerInitialized = true
 
       supabase.auth.onAuthStateChange(async (_event, session) => {
-        this.user = session?.user ?? null
-        if (!this.user) {
-          this.userRole = 'guest'
-          this.userPlan = 'free'
-          this.freeAuditUsed = false
-          this.paidAuditCompleted = false
-          this.paidAuditCredits = 0
-          this.consentMarketing = false
-        } else {
+        try {
+          this.user = session?.user ?? null
+          if (!this.user) {
+            resetGuestState(this)
+            return
+          }
           await this.fetchUserProfile()
+        } catch (error: any) {
+          if (!isAbortError(error)) {
+            this.authError = error?.message || 'Aktualizacia prihlasenia zlyhala.'
+          }
         }
       })
     },
@@ -100,13 +127,7 @@ export const useAuthStore = defineStore('auth', {
 
     async signOut() {
       await supabase.auth.signOut()
-      this.user = null
-      this.userRole = 'guest'
-      this.userPlan = 'free'
-      this.freeAuditUsed = false
-      this.paidAuditCompleted = false
-      this.paidAuditCredits = 0
-      this.consentMarketing = false
+      resetGuestState(this)
     },
 
     async fetchUserProfile() {

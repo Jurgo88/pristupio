@@ -121,6 +121,86 @@
       </div>
     </section>
 
+    <section v-if="auth.isLoggedIn" class="panel monitoring-panel">
+      <div class="panel-head panel-head--tight">
+        <div>
+          <p class="kicker">Monitoring</p>
+          <h2>Automatické kontroly dostupnosti</h2>
+        </div>
+        <div class="monitoring-head-status">
+          <span class="status-badge" :class="monitoringIsActive ? 'status-badge--success' : 'status-badge--warning'">
+            {{ monitoringIsActive ? 'Aktívny' : 'Pozastavený' }}
+          </span>
+        </div>
+      </div>
+
+      <div v-if="monitoringLoadingStatus" class="status-state status-state--loading">
+        Načítavam monitoring...
+      </div>
+
+      <template v-else>
+        <div v-if="monitoringHasAccess" class="monitoring-grid">
+          <div class="monitoring-summary">
+            <span class="monitoring-summary__label">URL monitoringu:</span>
+            <a
+              v-if="monitoringTarget?.default_url"
+              :href="monitoringTarget.default_url"
+              target="_blank"
+              rel="noopener noreferrer"
+              :title="monitoringTarget.default_url"
+            >
+              {{ monitoringTarget.default_url }}
+            </a>
+            <strong v-else>Nie je nastavená</strong>
+          </div>
+
+          <div class="monitoring-metrics">
+            <article class="metric-card">
+              <span>Frekvencia</span>
+              <strong>{{ monitoringDefaultCadenceLabel }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Ďalší beh</span>
+              <strong>{{ formatDateTime(monitoringTarget?.next_run_at) || '--' }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Posledný beh</span>
+              <strong>{{ formatDateTime(monitoringLatestRun?.finished_at || monitoringTarget?.last_run_at) || '--' }}</strong>
+            </article>
+          </div>
+
+          <div class="monitoring-actions">
+            <button class="btn btn-outline" @click="toggleMonitoringActive" :disabled="monitoringLoadingAction || !monitoringTarget">
+              {{ monitoringIsActive ? 'Pozastaviť' : 'Obnoviť' }}
+            </button>
+            <button class="btn btn-primary" @click="runMonitoringNow" :disabled="monitoringLoadingAction || !monitoringIsActive">
+              {{ monitoringLoadingAction ? 'Spúšťam...' : 'Spustiť teraz' }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="monitoring-empty">
+          <p class="status-state" v-if="canBuyMonitoring">
+            Monitoring plán nie je aktívny.
+          </p>
+          <p class="status-state" v-else>
+            Monitoring je dostupný až po základnom audite.
+          </p>
+          <a v-if="canBuyMonitoring && monitoringCheckoutUrl" :href="monitoringCheckoutUrl" class="btn btn-primary">
+            Objednať monitoring
+          </a>
+          <button v-else-if="canBuyMonitoring" class="btn btn-outline" disabled>
+            Monitoring checkout URL nie je nastavená
+          </button>
+        </div>
+      </template>
+
+      <p v-if="monitoringMessage" class="status-alert status-alert--success">{{ monitoringMessage }}</p>
+      <p v-if="monitoringError || monitoringStore.error" class="status-alert status-alert--danger">
+        {{ monitoringError || monitoringStore.error }}
+      </p>
+    </section>
+
     <DashboardAuditForm
       :target-url="targetUrl"
       :selected-profile="selectedProfile"
@@ -316,15 +396,28 @@ const {
   targetUrl,
   selectedProfile,
   auditStore,
+  auth,
   refreshPlanLoading,
   paymentNotice,
   auditCheckoutUrl,
+  monitoringCheckoutUrl,
   isPreview,
   auditLocked,
   auditLockedMessage,
   showUpgrade,
   showPaidStatus,
   paidCredits,
+  monitoringStore,
+  monitoringHasAccess,
+  canBuyMonitoring,
+  monitoringTarget,
+  monitoringLatestRun,
+  monitoringLoadingStatus,
+  monitoringLoadingAction,
+  monitoringIsActive,
+  monitoringDefaultCadenceLabel,
+  monitoringMessage,
+  monitoringError,
   auditHistory,
   historyLoading,
   historyLoadingMore,
@@ -339,8 +432,11 @@ const {
   profileLabel,
   handleStartAudit,
   formatDate,
+  formatDateTime,
   selectAudit,
-  openLatestAudit
+  openLatestAudit,
+  toggleMonitoringActive,
+  runMonitoringNow
 } = useDashboardCore()
 
 const {
@@ -454,6 +550,59 @@ const lastAuditLabel = computed(() => {
   color: var(--text-muted);
   font-size: 0.8rem;
   line-height: 1.2;
+}
+
+.monitoring-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.monitoring-head-status {
+  display: flex;
+  align-items: center;
+}
+
+.monitoring-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.monitoring-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.monitoring-summary__label {
+  color: #64748b;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.monitoring-summary a,
+.monitoring-summary strong {
+  color: #0f172a;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.monitoring-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.monitoring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.monitoring-empty {
+  display: grid;
+  gap: 0.7rem;
 }
 
 .workspace-rail {
@@ -845,6 +994,11 @@ const lastAuditLabel = computed(() => {
   border-color: #5476a3;
 }
 
+[data-theme='dark'] .monitoring-summary a,
+[data-theme='dark'] .monitoring-summary strong {
+  color: #dbe7fb;
+}
+
 .panel-head {
   display: flex;
   align-items: center;
@@ -874,6 +1028,10 @@ const lastAuditLabel = computed(() => {
 @media (max-width: 1100px) {
   .metrics-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .monitoring-metrics {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .page-hero {
@@ -944,6 +1102,10 @@ const lastAuditLabel = computed(() => {
     position: static;
     border-bottom: 0;
     padding-bottom: 0;
+  }
+
+  .monitoring-actions {
+    width: 100%;
   }
 
   .dashboard-workspace.is-tab-overview .mobile-pane--overview {
