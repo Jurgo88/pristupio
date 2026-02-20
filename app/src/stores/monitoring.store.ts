@@ -10,6 +10,9 @@ type MonitoringEntitlement = {
   role: string | null
   monitoringActive: boolean
   monitoringUntil: string | null
+  monitoringTier?: 'none' | 'basic' | 'pro' | string
+  monitoringDomainsLimit?: number
+  monitoringMonthlyRuns?: number
   hasAccess: boolean
 }
 
@@ -30,6 +33,7 @@ type MonitoringTarget = {
 
 type MonitoringRun = {
   id: string
+  target_id?: string
   trigger: 'manual' | 'scheduled' | string
   run_url: string
   status: 'pending' | 'running' | 'success' | 'failed' | string
@@ -49,11 +53,21 @@ type ActivatePayload = {
 }
 
 type UpdateConfigPayload = {
+  targetId?: string
   defaultUrl?: string
   profile?: MonitoringProfile
   cadenceMode?: MonitoringCadenceMode
   cadenceValue?: number
   active?: boolean
+}
+
+type RunNowPayload = {
+  targetId?: string
+  url?: string
+}
+
+type DeleteTargetPayload = {
+  targetId: string
 }
 
 const getErrorMessage = async (response: Response, fallback: string) => {
@@ -73,6 +87,7 @@ export const useMonitoringStore = defineStore('monitoring', {
     loadingHistory: false,
     error: null as string | null,
     entitlement: null as MonitoringEntitlement | null,
+    targets: [] as MonitoringTarget[],
     target: null as MonitoringTarget | null,
     latestAuditUrl: '' as string,
     latestRun: null as MonitoringRun | null,
@@ -83,7 +98,7 @@ export const useMonitoringStore = defineStore('monitoring', {
 
   getters: {
     hasAccess: (state) => !!state.entitlement?.hasAccess,
-    isActive: (state) => !!state.target?.active
+    isActive: (state) => state.targets.some((target) => !!target.active)
   },
 
   actions: {
@@ -111,6 +126,7 @@ export const useMonitoringStore = defineStore('monitoring', {
       const auth = useAuthStore()
       if (!auth.isLoggedIn) {
         this.entitlement = null
+        this.targets = []
         this.target = null
         this.latestRun = null
         this.latestAuditUrl = ''
@@ -128,7 +144,9 @@ export const useMonitoringStore = defineStore('monitoring', {
 
         const data = await response.json()
         this.entitlement = data?.entitlement || null
-        this.target = data?.target || null
+        const targets = Array.isArray(data?.targets) ? data.targets : data?.target ? [data.target] : []
+        this.targets = targets
+        this.target = data?.target || targets[0] || null
         this.latestRun = data?.latestRun || null
         this.latestAuditUrl = data?.latestAuditUrl || ''
         return data
@@ -153,7 +171,7 @@ export const useMonitoringStore = defineStore('monitoring', {
         }
 
         const data = await response.json()
-        this.target = data?.target || null
+        await this.fetchStatus()
         return data
       } catch (error: any) {
         this.error = error?.message || 'Monitoring sa nepodarilo aktivovat.'
@@ -176,7 +194,7 @@ export const useMonitoringStore = defineStore('monitoring', {
         }
 
         const data = await response.json()
-        this.target = data?.target || null
+        await this.fetchStatus()
         return data
       } catch (error: any) {
         this.error = error?.message || 'Monitoring konfiguraciu sa nepodarilo ulozit.'
@@ -186,13 +204,15 @@ export const useMonitoringStore = defineStore('monitoring', {
       }
     },
 
-    async runNow(url?: string) {
+    async runNow(payload?: RunNowPayload | string) {
       this.loadingAction = true
       this.error = null
       try {
+        const resolvedPayload =
+          typeof payload === 'string' ? ({ url: payload } as RunNowPayload) : payload || {}
         const response = await this.authorizedFetch('monitoring-run-now', {
           method: 'POST',
-          body: JSON.stringify(url ? { url } : {})
+          body: JSON.stringify(resolvedPayload)
         })
         if (!response.ok) {
           throw new Error(await getErrorMessage(response, 'Monitoring spustenie zlyhalo.'))
@@ -203,6 +223,37 @@ export const useMonitoringStore = defineStore('monitoring', {
         return data
       } catch (error: any) {
         this.error = error?.message || 'Monitoring spustenie zlyhalo.'
+        throw error
+      } finally {
+        this.loadingAction = false
+      }
+    },
+
+    async deleteTarget(payload: DeleteTargetPayload) {
+      this.loadingAction = true
+      this.error = null
+      try {
+        const targetId = typeof payload?.targetId === 'string' ? payload.targetId.trim() : ''
+        if (!targetId) {
+          throw new Error('Chyba target id pre zrusenie monitoringu.')
+        }
+
+        const response = await this.authorizedFetch('monitoring-delete', {
+          method: 'DELETE',
+          body: JSON.stringify({ targetId })
+        })
+        if (!response.ok) {
+          throw new Error(await getErrorMessage(response, 'Monitoring sa nepodarilo zrusit.'))
+        }
+
+        const data = await response.json()
+        const targets = Array.isArray(data?.targets) ? data.targets : []
+        this.targets = targets
+        this.target = targets[0] || null
+        await this.fetchStatus()
+        return data
+      } catch (error: any) {
+        this.error = error?.message || 'Monitoring sa nepodarilo zrusit.'
         throw error
       } finally {
         this.loadingAction = false

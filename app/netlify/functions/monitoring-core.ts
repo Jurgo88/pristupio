@@ -14,6 +14,7 @@ process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 export type Impact = 'critical' | 'serious' | 'moderate' | 'minor'
 export type MonitoringCadenceMode = 'interval_days' | 'monthly_runs'
 export type MonitoringProfile = 'wad' | 'eaa'
+export type MonitoringTier = 'none' | 'basic' | 'pro'
 
 export type Summary = {
   total: number
@@ -58,7 +59,13 @@ export type MonitoringEntitlement = {
   paidAuditCompleted: boolean
   monitoringActive: boolean
   monitoringUntil: string | null
+  monitoringTier: MonitoringTier
+  monitoringDomainsLimit: number
+  monitoringMonthlyRuns: number
 }
+
+export const monitoringTargetSelect =
+  'id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -150,17 +157,33 @@ export const loadMonitoringEntitlement = async (
 ): Promise<MonitoringEntitlement> => {
   const withMonitoring = await supabase
     .from('profiles')
-    .select('plan, role, paid_audit_completed, monitoring_active, monitoring_until')
+    .select(
+      'plan, role, paid_audit_completed, monitoring_active, monitoring_until, monitoring_tier, monitoring_domains_limit, monitoring_monthly_runs'
+    )
     .eq('id', userId)
     .maybeSingle()
 
   if (!withMonitoring.error && withMonitoring.data) {
+    const monitoringTier =
+      withMonitoring.data.monitoring_tier === 'pro' || withMonitoring.data.monitoring_tier === 'basic'
+        ? withMonitoring.data.monitoring_tier
+        : 'none'
+    const rawDomainsLimit = Number(withMonitoring.data.monitoring_domains_limit || 0)
+    const rawMonthlyRuns = Number(withMonitoring.data.monitoring_monthly_runs || 0)
+    const fallbackDomainsLimit = monitoringTier === 'pro' ? 8 : monitoringTier === 'basic' ? 2 : 0
+    const fallbackMonthlyRuns = monitoringTier === 'pro' ? 8 : monitoringTier === 'basic' ? 4 : 0
+    const monitoringDomainsLimit = rawDomainsLimit > 0 ? rawDomainsLimit : fallbackDomainsLimit
+    const monitoringMonthlyRuns = rawMonthlyRuns > 0 ? rawMonthlyRuns : fallbackMonthlyRuns
+
     return {
       plan: withMonitoring.data.plan || 'free',
       role: withMonitoring.data.role || null,
       paidAuditCompleted: !!withMonitoring.data.paid_audit_completed,
       monitoringActive: !!withMonitoring.data.monitoring_active,
-      monitoringUntil: withMonitoring.data.monitoring_until || null
+      monitoringUntil: withMonitoring.data.monitoring_until || null,
+      monitoringTier,
+      monitoringDomainsLimit,
+      monitoringMonthlyRuns
     }
   }
 
@@ -174,7 +197,10 @@ export const loadMonitoringEntitlement = async (
     role: fallback.data?.role || null,
     paidAuditCompleted: !!fallback.data?.paid_audit_completed,
     monitoringActive: false,
-    monitoringUntil: null
+    monitoringUntil: null,
+    monitoringTier: 'none',
+    monitoringDomainsLimit: 0,
+    monitoringMonthlyRuns: 0
   }
 }
 
@@ -210,10 +236,40 @@ export const getMonitoringTarget = async (
 ) => {
   const { data, error } = await supabase
     .from('monitoring_targets')
-    .select(
-      'id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at'
-    )
+    .select(monitoringTargetSelect)
     .eq('user_id', userId)
+    .order('active', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return { data, error }
+}
+
+export const getMonitoringTargets = async (supabase: SupabaseAdminClient, userId: string) => {
+  const { data, error } = await supabase
+    .from('monitoring_targets')
+    .select(monitoringTargetSelect)
+    .eq('user_id', userId)
+    .order('active', { ascending: false })
+    .order('updated_at', { ascending: false })
+
+  return {
+    data: Array.isArray(data) ? data : [],
+    error
+  }
+}
+
+export const getMonitoringTargetById = async (
+  supabase: SupabaseAdminClient,
+  userId: string,
+  targetId: string
+) => {
+  const { data, error } = await supabase
+    .from('monitoring_targets')
+    .select(monitoringTargetSelect)
+    .eq('user_id', userId)
+    .eq('id', targetId)
     .maybeSingle()
 
   return { data, error }
@@ -235,9 +291,53 @@ export const normalizeAuditUrl = (rawUrl: unknown): string | null => {
   }
 }
 
+export const normalizeMonitoringUrlForCompare = (rawUrl: unknown): string => {
+  const parsed = normalizeAuditUrl(rawUrl)
+  if (!parsed) return ''
+  return parsed.replace(/\/+$/, '').toLowerCase()
+}
+
 export const normalizeMonitoringProfile = (value: unknown): MonitoringProfile => {
   if (value === 'eaa') return 'eaa'
   return 'wad'
+}
+
+export const normalizeMonitoringTier = (value: unknown): MonitoringTier => {
+  if (value === 'pro') return 'pro'
+  if (value === 'basic') return 'basic'
+  return 'none'
+}
+
+export const monitoringWeekdaysByTier = (tier: MonitoringTier): number[] => {
+  if (tier === 'pro') return [1, 4]
+  return [1]
+}
+
+export const computeNextWeeklyRunAt = (from: Date, weekdays: number[]) => {
+  const normalized: number[] = []
+  weekdays.forEach((day) => {
+    if (!Number.isInteger(day) || day < 0 || day > 6) return
+    if (!normalized.includes(day)) normalized.push(day)
+  })
+  const activeDays = normalized.length > 0 ? normalized : [1]
+  const daySet = new Set(activeDays)
+  const next = new Date(from.getTime())
+
+  for (let offset = 1; offset <= 14; offset += 1) {
+    next.setTime(from.getTime())
+    next.setUTCDate(from.getUTCDate() + offset)
+    if (daySet.has(next.getUTCDay())) {
+      return next
+    }
+  }
+
+  next.setTime(from.getTime())
+  next.setUTCDate(from.getUTCDate() + 7)
+  return next
+}
+
+export const computeNextRunAtByTier = (from: Date, tier: MonitoringTier) => {
+  return computeNextWeeklyRunAt(from, monitoringWeekdaysByTier(tier))
 }
 
 export const normalizeCadenceMode = (value: unknown): MonitoringCadenceMode => {
@@ -250,7 +350,7 @@ export const normalizeCadenceValue = (mode: MonitoringCadenceMode, value: unknow
 
   if (mode === 'monthly_runs') {
     if (!Number.isFinite(parsed)) return 2
-    return Math.min(4, Math.max(2, Math.round(parsed)))
+    return Math.min(8, Math.max(2, Math.round(parsed)))
   }
 
   if (!Number.isFinite(parsed)) return 14
@@ -259,9 +359,8 @@ export const normalizeCadenceValue = (mode: MonitoringCadenceMode, value: unknow
 
 export const cadenceDays = (mode: MonitoringCadenceMode, value: number) => {
   if (mode === 'monthly_runs') {
-    if (value === 2) return 15
-    if (value === 3) return 10
-    return 7
+    const monthlyRuns = Math.min(8, Math.max(2, Math.round(value)))
+    return Math.max(1, Math.round(30 / monthlyRuns))
   }
   return Math.max(1, value)
 }

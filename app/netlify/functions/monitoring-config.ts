@@ -1,21 +1,22 @@
 import type { Handler } from '@netlify/functions'
 import {
-  computeNextRunAt,
+  computeNextRunAtByTier,
   createSupabaseAdminClient,
   getAuthUser,
   getBearerToken,
   getMonitoringTarget,
+  getMonitoringTargetById,
+  getMonitoringTargets,
+  loadMonitoringEntitlement,
   normalizeAuditUrl,
-  normalizeCadenceMode,
-  normalizeCadenceValue,
-  normalizeMonitoringProfile
+  normalizeMonitoringProfile,
+  normalizeMonitoringTier
 } from './monitoring-core'
 
 type ConfigBody = {
+  targetId?: unknown
   defaultUrl?: unknown
   profile?: unknown
-  cadenceMode?: unknown
-  cadenceValue?: unknown
   active?: unknown
 }
 
@@ -59,15 +60,24 @@ export const handler: Handler = async (event) => {
       return errorResponse(401, auth.error || 'Invalid login.')
     }
 
-    const targetResult = await getMonitoringTarget(supabase, auth.userId)
+    const body = parseBody(event.body)
+    const targetId = typeof body.targetId === 'string' ? body.targetId.trim() : ''
+
+    const targetResult = targetId
+      ? await getMonitoringTargetById(supabase, auth.userId, targetId)
+      : await getMonitoringTarget(supabase, auth.userId)
+
     if (targetResult.error) {
       return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
     }
     if (!targetResult.data?.id) {
       return errorResponse(404, 'Monitoring target does not exist.')
     }
+    const entitlement = await loadMonitoringEntitlement(supabase, auth.userId)
+    const monitoringTier = normalizeMonitoringTier(entitlement.monitoringTier)
+    const tierCadenceMode = 'monthly_runs'
+    const tierCadenceValue = monitoringTier === 'pro' ? 8 : 4
 
-    const body = parseBody(event.body)
     const now = new Date()
     const updates: Record<string, unknown> = {
       updated_at: now.toISOString()
@@ -85,39 +95,33 @@ export const handler: Handler = async (event) => {
       updates.profile = normalizeMonitoringProfile(body.profile)
     }
 
-    const hasCadenceUpdate =
-      typeof body.cadenceMode !== 'undefined' || typeof body.cadenceValue !== 'undefined'
-    if (hasCadenceUpdate) {
-      const mode = normalizeCadenceMode(body.cadenceMode ?? targetResult.data.cadence_mode)
-      const value = normalizeCadenceValue(mode, body.cadenceValue ?? targetResult.data.cadence_value)
-      updates.cadence_mode = mode
-      updates.cadence_value = value
-      updates.next_run_at = computeNextRunAt(now, mode, value).toISOString()
-    }
+    updates.cadence_mode = tierCadenceMode
+    updates.cadence_value = tierCadenceValue
 
     if (typeof body.active !== 'undefined') {
       updates.active = !!body.active
-      if (!!body.active && !hasCadenceUpdate) {
-        const mode = normalizeCadenceMode(targetResult.data.cadence_mode)
-        const value = normalizeCadenceValue(mode, targetResult.data.cadence_value)
-        updates.next_run_at = computeNextRunAt(now, mode, value).toISOString()
-      }
+    }
+
+    const isActiveAfterUpdate =
+      typeof updates.active === 'boolean' ? !!updates.active : !!targetResult.data.active
+    if (isActiveAfterUpdate) {
+      updates.next_run_at = computeNextRunAtByTier(now, monitoringTier).toISOString()
     }
 
     const { data, error } = await supabase
       .from('monitoring_targets')
       .update(updates)
       .eq('id', targetResult.data.id)
-      .select(
-        'id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at'
-      )
+      .eq('user_id', auth.userId)
+      .select('id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at')
       .single()
 
     if (error || !data) {
       return errorResponse(500, 'Monitoring config update failed.')
     }
 
-    return jsonResponse(200, { target: data })
+    const refreshed = await getMonitoringTargets(supabase, auth.userId)
+    return jsonResponse(200, { target: data, targets: refreshed.data || [] })
   } catch (error) {
     console.error('Monitoring config error:', error)
     return errorResponse(500, 'Monitoring config update failed.')

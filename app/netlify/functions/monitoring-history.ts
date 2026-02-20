@@ -1,5 +1,11 @@
 import type { Handler } from '@netlify/functions'
-import { createSupabaseAdminClient, getAuthUser, getBearerToken, getMonitoringTarget } from './monitoring-core'
+import {
+  createSupabaseAdminClient,
+  getAuthUser,
+  getBearerToken,
+  getMonitoringTargetById,
+  getMonitoringTargets
+} from './monitoring-core'
 
 const jsonResponse = (statusCode: number, payload: Record<string, unknown>) => ({
   statusCode,
@@ -36,12 +42,26 @@ export const handler: Handler = async (event) => {
       return errorResponse(401, auth.error || 'Invalid login.')
     }
 
-    const targetResult = await getMonitoringTarget(supabase, auth.userId)
-    if (targetResult.error) {
-      return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+    const requestedTargetId = (event.queryStringParameters?.targetId || '').trim()
+    const targetIds: string[] = []
+
+    if (requestedTargetId) {
+      const targetResult = await getMonitoringTargetById(supabase, auth.userId, requestedTargetId)
+      if (targetResult.error) {
+        return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+      }
+      if (targetResult.data?.id) targetIds.push(targetResult.data.id)
+    } else {
+      const targetsResult = await getMonitoringTargets(supabase, auth.userId)
+      if (targetsResult.error) {
+        return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+      }
+      ;(targetsResult.data || []).forEach((target: any) => {
+        if (target?.id) targetIds.push(target.id)
+      })
     }
 
-    if (!targetResult.data?.id) {
+    if (targetIds.length === 0) {
       return jsonResponse(200, {
         runs: [],
         hasMore: false,
@@ -57,9 +77,9 @@ export const handler: Handler = async (event) => {
     const { data, error } = await supabase
       .from('monitoring_runs')
       .select(
-        'id, trigger, run_url, status, audit_id, summary_json, diff_json, error_message, started_at, finished_at'
+        'id, target_id, trigger, run_url, status, audit_id, summary_json, diff_json, error_message, started_at, finished_at'
       )
-      .eq('target_id', targetResult.data.id)
+      .in('target_id', targetIds)
       .order('started_at', { ascending: false })
       .range(from, to)
 

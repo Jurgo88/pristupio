@@ -1,10 +1,12 @@
-import { computed, onMounted, ref } from 'vue'
+﻿import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { useMonitoringStore } from '@/stores/monitoring.store'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 import type { AuditHistoryItem, ProfileOption } from './dashboard.types'
+
+const normalizeMonitoringUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '').toLowerCase()
 
 export const useDashboardCore = () => {
   const targetUrl = ref('')
@@ -24,24 +26,38 @@ export const useDashboardCore = () => {
   const monitoringMessage = ref('')
   const monitoringError = ref('')
 
-  const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
-  const monitoringCheckoutBase = import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL || ''
-  const auditCheckoutUrl = computed(() => {
-    if (!auth.user || !auditCheckoutBase) return ''
+  const auditCheckoutBasicBase =
+    import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL_BASIC ||
+    import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL ||
+    ''
+  const auditCheckoutProBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL_PRO || ''
+  const monitoringCheckoutBasicBase =
+    import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL_BASIC ||
+    import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL ||
+    ''
+  const monitoringCheckoutProBase = import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL_PRO || ''
+
+  const buildCheckout = (baseUrl: string, purchaseType: 'audit' | 'monitoring', tier: 'basic' | 'pro') => {
+    if (!auth.user || !baseUrl) return ''
     return buildLemonCheckoutUrl({
-      baseUrl: auditCheckoutBase,
+      baseUrl,
       userId: auth.user.id,
-      email: auth.user.email
+      email: auth.user.email,
+      customData: {
+        purchase_type: purchaseType,
+        purchase_tier: tier
+      }
     })
-  })
-  const monitoringCheckoutUrl = computed(() => {
-    if (!auth.user || !monitoringCheckoutBase) return ''
-    return buildLemonCheckoutUrl({
-      baseUrl: monitoringCheckoutBase,
-      userId: auth.user.id,
-      email: auth.user.email
-    })
-  })
+  }
+
+  const auditCheckoutBasicUrl = computed(() => buildCheckout(auditCheckoutBasicBase, 'audit', 'basic'))
+  const auditCheckoutProUrl = computed(() => buildCheckout(auditCheckoutProBase, 'audit', 'pro'))
+  const monitoringCheckoutBasicUrl = computed(() =>
+    buildCheckout(monitoringCheckoutBasicBase, 'monitoring', 'basic')
+  )
+  const monitoringCheckoutProUrl = computed(() =>
+    buildCheckout(monitoringCheckoutProBase, 'monitoring', 'pro')
+  )
 
   const isPreview = computed(() => auditStore.accessLevel === 'free')
   const freeLimitReached = computed(() => auth.isLoggedIn && !auth.isPaid && auth.freeAuditUsed)
@@ -66,18 +82,28 @@ export const useDashboardCore = () => {
   const latestAudit = computed(() => auditHistory.value[0] || null)
   const monitoringHasAccess = computed(() => monitoringStore.hasAccess)
   const canBuyMonitoring = computed(() => auth.isAdmin || auth.paidAuditCompleted)
-  const monitoringTarget = computed(() => monitoringStore.target)
+  const monitoringTargets = computed(() => monitoringStore.targets || [])
+  const monitoringTarget = computed(() => monitoringStore.target || monitoringTargets.value[0] || null)
   const monitoringLatestRun = computed(() => monitoringStore.latestRun)
   const monitoringLoadingStatus = computed(() => monitoringStore.loadingStatus)
   const monitoringLoadingAction = computed(() => monitoringStore.loadingAction)
-  const monitoringIsActive = computed(() => !!monitoringTarget.value?.active)
+  const monitoringDomainsLimit = computed(() =>
+    Math.max(0, Number(monitoringStore.entitlement?.monitoringDomainsLimit || 0))
+  )
+  const monitoringConfiguredCount = computed(() => monitoringTargets.value.length)
+  const monitoringCanAddTarget = computed(() => {
+    if (auth.isAdmin) return true
+    if (monitoringDomainsLimit.value <= 0) return false
+    return monitoringConfiguredCount.value < monitoringDomainsLimit.value
+  })
+  const monitoringIsActive = computed(() => monitoringTargets.value.some((target) => !!target.active))
+  const monitoringActiveTargetUrls = computed(() =>
+    monitoringTargets.value.filter((target) => !!target.active).map((target) => target.default_url || '')
+  )
   const monitoringDefaultCadenceLabel = computed(() => {
-    const target = monitoringTarget.value
-    if (!target) return 'Každých 14 dní'
-    if (target.cadence_mode === 'monthly_runs') {
-      return `${target.cadence_value}x mesačne`
-    }
-    return `Každých ${target.cadence_value} dní`
+    const tier = monitoringStore.entitlement?.monitoringTier
+    if (tier === 'pro') return 'Pondelok a štvrtok'
+    return 'Každý pondelok'
   })
 
   const refreshPlan = async () => {
@@ -136,7 +162,6 @@ export const useDashboardCore = () => {
     if (!auth.isLoggedIn) return
 
     monitoringError.value = ''
-    monitoringMessage.value = ''
     await monitoringStore.fetchStatus()
   }
 
@@ -194,32 +219,16 @@ export const useDashboardCore = () => {
     void selectAudit(latestAudit.value.id)
   }
 
-  const toggleMonitoringActive = async () => {
-    const target = monitoringTarget.value
-    if (!target) return
+  const removeMonitoringTarget = async (targetId: string) => {
+    if (!targetId) return
 
     monitoringError.value = ''
     monitoringMessage.value = ''
     try {
-      await monitoringStore.updateConfig({ active: !target.active })
-      monitoringMessage.value = target.active ? 'Monitoring je pozastavený.' : 'Monitoring je znova aktívny.'
-      void loadMonitoringStatus()
+      await monitoringStore.deleteTarget({ targetId })
+      monitoringMessage.value = 'Monitoring domeny bol zruseny.'
     } catch (error: any) {
-      monitoringError.value = error?.message || 'Stav monitoringu sa nepodarilo zmeniť.'
-    }
-  }
-
-  const runMonitoringNow = async (overrideUrl?: string) => {
-    monitoringError.value = ''
-    monitoringMessage.value = ''
-    try {
-      const runUrl = typeof overrideUrl === 'string' ? overrideUrl.trim() : ''
-      await monitoringStore.runNow(runUrl || undefined)
-      monitoringMessage.value = 'Monitoring bol spustený.'
-      void loadAuditHistory()
-      void loadMonitoringStatus()
-    } catch (error: any) {
-      monitoringError.value = error?.message || 'Spustenie monitoringu zlyhalo.'
+      monitoringError.value = error?.message || 'Monitoring domeny sa nepodarilo zrusit.'
     }
   }
 
@@ -238,37 +247,50 @@ export const useDashboardCore = () => {
       return
     }
 
-    if (!monitoringTarget.value?.id) {
+    const normalizedUrl = normalizeMonitoringUrl(url)
+    const existingTarget = monitoringTargets.value.find(
+      (target) => normalizeMonitoringUrl(target.default_url) === normalizedUrl
+    )
+
+    if (existingTarget?.active) {
+      monitoringMessage.value = 'Tato domena je uz monitorovana.'
+      return
+    }
+
+    if (existingTarget?.id) {
       try {
-        await monitoringStore.activate({
+        await monitoringStore.updateConfig({
+          targetId: existingTarget.id,
           defaultUrl: url,
           profile: selectedProfile.value,
-          cadenceMode: 'interval_days',
-          cadenceValue: 14
+          active: true
         })
-        monitoringMessage.value = 'Monitoring URL bola nastavená podľa vybraného auditu.'
+        monitoringMessage.value = 'Monitoring domeny bol obnoveny.'
       } catch (error: any) {
-        monitoringError.value = error?.message || 'Monitoring target sa nepodarilo inicializovat.'
+        monitoringError.value = error?.message || 'Monitoring domeny sa nepodarilo obnovit.'
         return
       }
     } else {
-      const currentUrl = (monitoringTarget.value.default_url || '').trim()
-      if (currentUrl !== url || !monitoringTarget.value.active) {
-        try {
-          await monitoringStore.updateConfig({
-            defaultUrl: url,
-            active: true
-          })
-          monitoringMessage.value = 'Monitoring URL bola nastavená podľa vybraného auditu.'
-        } catch (error: any) {
-          monitoringError.value = error?.message || 'Monitoring URL sa nepodarilo aktualizovat.'
-          return
-        }
-      } else {
-        monitoringMessage.value = 'Tento audit je už nastavený pre monitoring.'
+      if (!monitoringCanAddTarget.value) {
+        const limit = monitoringDomainsLimit.value
+        monitoringError.value =
+          limit > 0
+            ? `Dosiahli ste limit monitorovanych domen (${limit}).`
+            : 'Monitoring plan pre tento ucet nema dostupne domeny.'
+        return
+      }
+
+      try {
+        await monitoringStore.activate({
+          defaultUrl: url,
+          profile: selectedProfile.value
+        })
+        monitoringMessage.value = 'Domena bola pridana do monitoringu.'
+      } catch (error: any) {
+        monitoringError.value = error?.message || 'Monitoring domeny sa nepodarilo aktivovat.'
+        return
       }
     }
-    void loadMonitoringStatus()
   }
 
   const formatDateTime = (value?: string | null) => {
@@ -297,8 +319,10 @@ export const useDashboardCore = () => {
     auth,
     refreshPlanLoading,
     paymentNotice,
-    auditCheckoutUrl,
-    monitoringCheckoutUrl,
+    auditCheckoutBasicUrl,
+    auditCheckoutProUrl,
+    monitoringCheckoutBasicUrl,
+    monitoringCheckoutProUrl,
     isPreview,
     auditLocked,
     auditLockedMessage,
@@ -315,11 +339,16 @@ export const useDashboardCore = () => {
     monitoringStore,
     monitoringHasAccess,
     canBuyMonitoring,
+    monitoringTargets,
     monitoringTarget,
     monitoringLatestRun,
     monitoringLoadingStatus,
     monitoringLoadingAction,
+    monitoringDomainsLimit,
+    monitoringConfiguredCount,
+    monitoringCanAddTarget,
     monitoringIsActive,
+    monitoringActiveTargetUrls,
     monitoringDefaultCadenceLabel,
     monitoringMessage,
     monitoringError,
@@ -334,8 +363,8 @@ export const useDashboardCore = () => {
     formatDateTime,
     selectAudit,
     openLatestAudit,
-    toggleMonitoringActive,
-    runMonitoringNow,
+    removeMonitoringTarget,
     runMonitoringForAudit
   }
 }
+

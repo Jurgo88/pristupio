@@ -4,7 +4,7 @@ import {
   getAuthUser,
   getBearerToken,
   getLatestAuditUrl,
-  getMonitoringTarget,
+  getMonitoringTargets,
   hasMonitoringAccess,
   loadMonitoringEntitlement
 } from './monitoring-core'
@@ -38,22 +38,25 @@ export const handler: Handler = async (event) => {
       return errorResponse(401, auth.error || 'Invalid login.')
     }
 
-    const [entitlement, targetResult, latestAuditUrl] = await Promise.all([
+    const [entitlement, targetsResult, latestAuditUrl] = await Promise.all([
       loadMonitoringEntitlement(supabase, auth.userId),
-      getMonitoringTarget(supabase, auth.userId),
+      getMonitoringTargets(supabase, auth.userId),
       getLatestAuditUrl(supabase, auth.userId)
     ])
 
-    if (targetResult.error) {
+    if (targetsResult.error) {
       return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
     }
 
+    const targets = targetsResult.data || []
+    const primaryTarget = targets[0] || null
+
     let latestRun: Record<string, unknown> | null = null
-    if (targetResult.data?.id) {
+    if (primaryTarget?.id) {
       const { data: runData } = await supabase
         .from('monitoring_runs')
         .select('id, trigger, run_url, status, audit_id, summary_json, diff_json, error_message, started_at, finished_at')
-        .eq('target_id', targetResult.data.id)
+        .eq('target_id', primaryTarget.id)
         .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -67,7 +70,8 @@ export const handler: Handler = async (event) => {
         hasAccess: hasMonitoringAccess(entitlement)
       },
       latestAuditUrl,
-      target: targetResult.data || null,
+      target: primaryTarget,
+      targets,
       latestRun
     })
   } catch (error) {

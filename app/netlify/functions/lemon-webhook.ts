@@ -1,5 +1,5 @@
 import type { Handler } from '@netlify/functions'
-import crypto from 'node:crypto'
+import * as crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.SUPABASE_URL
@@ -11,13 +11,38 @@ const supabase =
     ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
     : null
 
-const monitoringVariantIds = new Set(
+const monitoringBasicVariantIds = new Set(
+  (process.env.LEMON_MONITORING_BASIC_VARIANT_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+)
+const monitoringProVariantIds = new Set(
+  (process.env.LEMON_MONITORING_PRO_VARIANT_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+)
+const auditBasicVariantIds = new Set(
+  (process.env.LEMON_AUDIT_BASIC_VARIANT_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+)
+const auditProVariantIds = new Set(
+  (process.env.LEMON_AUDIT_PRO_VARIANT_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+)
+
+const legacyMonitoringVariantIds = new Set(
   (process.env.LEMON_MONITORING_VARIANT_IDS || '')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean)
 )
-const auditVariantIds = new Set(
+const legacyAuditVariantIds = new Set(
   (process.env.LEMON_AUDIT_VARIANT_IDS || '')
     .split(',')
     .map((value) => value.trim())
@@ -40,6 +65,7 @@ const verifySignature = (rawBody: string, signature: string, secret: string) => 
 }
 
 type PurchaseType = 'audit' | 'monitoring'
+type PurchaseTier = 'basic' | 'pro'
 
 const pickVariantId = (payload: any): string => {
   const candidates = [
@@ -58,17 +84,50 @@ const pickVariantId = (payload: any): string => {
   return ''
 }
 
-const resolvePurchaseType = (payload: any): PurchaseType => {
+const normalizeTier = (value: unknown): PurchaseTier | null => {
+  if (value === 'pro') return 'pro'
+  if (value === 'basic') return 'basic'
+  return null
+}
+
+const getAuditCreditsByTier = (tier: PurchaseTier) => (tier === 'pro' ? 15 : 5)
+
+const getMonitoringLimitsByTier = (tier: PurchaseTier) => {
+  if (tier === 'pro') {
+    return {
+      domains: 8,
+      monthlyRuns: 8
+    }
+  }
+
+  return {
+    domains: 2,
+    monthlyRuns: 4
+  }
+}
+
+const resolvePurchase = (payload: any): { type: PurchaseType; tier: PurchaseTier } => {
   const customType = payload?.meta?.custom_data?.purchase_type
-  if (customType === 'monitoring') return 'monitoring'
-  if (customType === 'audit') return 'audit'
+  const customTier = normalizeTier(payload?.meta?.custom_data?.purchase_tier)
+  if (customType === 'monitoring') return { type: 'monitoring', tier: customTier || 'basic' }
+  if (customType === 'audit') return { type: 'audit', tier: customTier || 'basic' }
 
   const variantId = pickVariantId(payload)
-  if (variantId && monitoringVariantIds.has(variantId)) return 'monitoring'
-  if (variantId && auditVariantIds.has(variantId)) return 'audit'
+  if (variantId && monitoringProVariantIds.has(variantId)) return { type: 'monitoring', tier: 'pro' }
+  if (variantId && monitoringBasicVariantIds.has(variantId)) return { type: 'monitoring', tier: 'basic' }
+  if (variantId && auditProVariantIds.has(variantId)) return { type: 'audit', tier: 'pro' }
+  if (variantId && auditBasicVariantIds.has(variantId)) return { type: 'audit', tier: 'basic' }
 
-  if (monitoringVariantIds.size > 0 && auditVariantIds.size === 0) return 'monitoring'
-  return 'audit'
+  if (variantId && legacyMonitoringVariantIds.has(variantId)) return { type: 'monitoring', tier: 'basic' }
+  if (variantId && legacyAuditVariantIds.has(variantId)) return { type: 'audit', tier: 'basic' }
+
+  const anyMonitoringConfigured =
+    monitoringBasicVariantIds.size > 0 || monitoringProVariantIds.size > 0 || legacyMonitoringVariantIds.size > 0
+  const anyAuditConfigured =
+    auditBasicVariantIds.size > 0 || auditProVariantIds.size > 0 || legacyAuditVariantIds.size > 0
+
+  if (anyMonitoringConfigured && !anyAuditConfigured) return { type: 'monitoring', tier: 'basic' }
+  return { type: 'audit', tier: 'basic' }
 }
 
 const loadProfileByUser = async (userId?: string, userEmail?: string) => {
@@ -76,7 +135,9 @@ const loadProfileByUser = async (userId?: string, userEmail?: string) => {
 
   const profileQuery = supabase
     .from('profiles')
-    .select('id, role, paid_audit_completed, paid_audit_credits, monitoring_active, monitoring_until')
+    .select(
+      'id, role, plan, paid_audit_completed, paid_audit_credits, audit_tier, monitoring_active, monitoring_until, monitoring_tier'
+    )
 
   if (userId) return profileQuery.eq('id', userId).maybeSingle()
   if (userEmail) return profileQuery.eq('email', userEmail).maybeSingle()
@@ -118,17 +179,36 @@ export const handler: Handler = async (event) => {
       return { statusCode: 200, body: 'No user mapping provided.' }
     }
 
-    const purchaseType = resolvePurchaseType(payload)
+    const purchase = resolvePurchase(payload)
+    const purchaseType = purchase.type as PurchaseType
+    const purchaseTier = purchase.tier
 
     if (eventName === 'order_refunded') {
+      const profileResult = await loadProfileByUser(userId, userEmail)
+      if (!profileResult.data?.id) {
+        return { statusCode: 200, body: 'OK' }
+      }
+
       const updatePayload =
         purchaseType === 'monitoring'
-          ? { monitoring_active: false, monitoring_until: null }
-          : { plan: 'free', paid_audit_credits: 0 }
-      const query = supabase.from('profiles').update(updatePayload)
-      const updateResult = userId
-        ? await query.eq('id', userId)
-        : await query.eq('email', userEmail)
+          ? {
+              monitoring_active: false,
+              monitoring_until: null,
+              monitoring_tier: 'none',
+              monitoring_domains_limit: 0,
+              monitoring_monthly_runs: 0
+            }
+          : (() => {
+              const currentCredits = Number(profileResult.data?.paid_audit_credits || 0)
+              const refundCredits = getAuditCreditsByTier(purchaseTier)
+              const nextCredits = Math.max(0, currentCredits - refundCredits)
+              return {
+                plan: nextCredits > 0 ? 'paid' : 'free',
+                paid_audit_credits: nextCredits,
+                audit_tier: nextCredits > 0 ? (profileResult.data?.audit_tier || 'basic') : 'none'
+              }
+            })()
+      const updateResult = await supabase.from('profiles').update(updatePayload).eq('id', profileResult.data.id)
 
       if (updateResult.error) {
         console.error('Lemon webhook update error:', updateResult.error)
@@ -152,13 +232,17 @@ export const handler: Handler = async (event) => {
       const insertResult = await supabase.from('profiles').insert({
         id: userId,
         email: userEmail || null,
-        plan: purchaseType === 'audit' ? 'paid' : 'free',
+        plan: 'paid',
         free_audit_used: false,
         paid_audit_completed: false,
         consent_marketing: false,
-        paid_audit_credits: purchaseType === 'audit' ? 1 : 0,
-        monitoring_active: purchaseType === 'monitoring',
-        monitoring_until: null
+        paid_audit_credits: getAuditCreditsByTier(purchaseTier),
+        audit_tier: purchaseTier,
+        monitoring_active: false,
+        monitoring_until: null,
+        monitoring_tier: 'none',
+        monitoring_domains_limit: 0,
+        monitoring_monthly_runs: 0
       })
 
       if (insertResult.error) {
@@ -179,11 +263,16 @@ export const handler: Handler = async (event) => {
       purchaseType === 'monitoring'
         ? {
             monitoring_active: true,
-            monitoring_until: null
+            monitoring_until: null,
+            monitoring_tier: purchaseTier,
+            monitoring_domains_limit: getMonitoringLimitsByTier(purchaseTier).domains,
+            monitoring_monthly_runs: getMonitoringLimitsByTier(purchaseTier).monthlyRuns
           }
         : {
             plan: 'paid',
-            paid_audit_credits: Number(profileResult.data?.paid_audit_credits || 0) + 1
+            paid_audit_credits:
+              Number(profileResult.data?.paid_audit_credits || 0) + getAuditCreditsByTier(purchaseTier),
+            audit_tier: purchaseTier
           }
 
     const updateResult = await supabase.from('profiles').update(updatePayload).eq('id', profileResult.data.id)

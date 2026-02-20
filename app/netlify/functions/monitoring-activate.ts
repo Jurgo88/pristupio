@@ -1,18 +1,18 @@
 import type { Handler } from '@netlify/functions'
 import {
-  computeNextRunAt,
+  computeNextRunAtByTier,
   createSupabaseAdminClient,
   getAuthUser,
   getBearerToken,
   getLatestAuditUrl,
-  getMonitoringTarget,
+  getMonitoringTargets,
   hasMonitoringAccess,
   hasMonitoringPrerequisite,
   loadMonitoringEntitlement,
   normalizeAuditUrl,
-  normalizeCadenceMode,
-  normalizeCadenceValue,
-  normalizeMonitoringProfile
+  normalizeMonitoringProfile,
+  normalizeMonitoringTier,
+  normalizeMonitoringUrlForCompare
 } from './monitoring-core'
 
 type ActivateBody = {
@@ -73,25 +73,43 @@ export const handler: Handler = async (event) => {
     const body = parseBody(event.body)
     const now = new Date()
 
-    const targetResult = await getMonitoringTarget(supabase, auth.userId)
-    if (targetResult.error) {
+    const targetsResult = await getMonitoringTargets(supabase, auth.userId)
+    if (targetsResult.error) {
       return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
     }
+    const targets = targetsResult.data || []
 
     const latestAuditUrl = await getLatestAuditUrl(supabase, auth.userId)
     const providedUrl = normalizeAuditUrl(body.defaultUrl)
-    const defaultUrl = providedUrl || latestAuditUrl || targetResult.data?.default_url || null
+    const defaultUrl = providedUrl || latestAuditUrl || targets[0]?.default_url || null
     if (!defaultUrl) {
       return errorResponse(400, 'No URL available. Run at least one audit or provide URL explicitly.')
     }
 
-    const mode = normalizeCadenceMode(body.cadenceMode ?? targetResult.data?.cadence_mode)
-    const value = normalizeCadenceValue(mode, body.cadenceValue ?? targetResult.data?.cadence_value)
-    const profile = normalizeMonitoringProfile(body.profile ?? targetResult.data?.profile)
-    const nextRunAt = computeNextRunAt(now, mode, value).toISOString()
+    const normalizedUrl = normalizeMonitoringUrlForCompare(defaultUrl)
+    const existingTarget = targets.find(
+      (item) => normalizeMonitoringUrlForCompare(item?.default_url) === normalizedUrl
+    )
+    const domainsLimit =
+      entitlement.role === 'admin'
+        ? Number.MAX_SAFE_INTEGER
+        : Math.max(0, Number(entitlement.monitoringDomainsLimit || 0))
+
+    if (!existingTarget && domainsLimit <= 0) {
+      return errorResponse(403, 'Monitoring domains limit is 0 for this account.')
+    }
+    if (!existingTarget && targets.length >= domainsLimit) {
+      return errorResponse(409, `Dosiahli ste limit monitorovanych domen (${domainsLimit}).`)
+    }
+
+    const monitoringTier = normalizeMonitoringTier(entitlement.monitoringTier)
+    const mode = 'monthly_runs'
+    const value = monitoringTier === 'pro' ? 8 : 4
+    const profile = normalizeMonitoringProfile(body.profile ?? existingTarget?.profile)
+    const nextRunAt = computeNextRunAtByTier(now, monitoringTier).toISOString()
     const updatedAt = now.toISOString()
 
-    if (targetResult.data?.id) {
+    if (existingTarget?.id) {
       const { data, error } = await supabase
         .from('monitoring_targets')
         .update({
@@ -104,17 +122,17 @@ export const handler: Handler = async (event) => {
           next_run_at: nextRunAt,
           updated_at: updatedAt
         })
-        .eq('id', targetResult.data.id)
-        .select(
-          'id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at'
-        )
+        .eq('id', existingTarget.id)
+        .eq('user_id', auth.userId)
+        .select('id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at')
         .single()
 
       if (error || !data) {
         return errorResponse(500, 'Monitoring activation failed.')
       }
 
-      return jsonResponse(200, { target: data })
+      const refreshed = await getMonitoringTargets(supabase, auth.userId)
+      return jsonResponse(200, { target: data, targets: refreshed.data || [] })
     }
 
     const { data, error } = await supabase
@@ -130,16 +148,15 @@ export const handler: Handler = async (event) => {
         next_run_at: nextRunAt,
         updated_at: updatedAt
       })
-      .select(
-        'id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at'
-      )
+      .select('id, user_id, default_url, profile, active, cadence_mode, cadence_value, anchor_at, last_run_at, next_run_at, created_at, updated_at')
       .single()
 
     if (error || !data) {
       return errorResponse(500, 'Monitoring activation failed.')
     }
 
-    return jsonResponse(200, { target: data })
+    const refreshed = await getMonitoringTargets(supabase, auth.userId)
+    return jsonResponse(200, { target: data, targets: refreshed.data || [] })
   } catch (error) {
     console.error('Monitoring activate error:', error)
     return errorResponse(500, 'Monitoring activation failed.')

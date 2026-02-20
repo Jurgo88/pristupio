@@ -6,15 +6,18 @@ import {
   getAuthUser,
   getBearerToken,
   getMonitoringTarget,
+  getMonitoringTargetById,
   hasMonitoringAccess,
   hasMonitoringPrerequisite,
   loadMonitoringEntitlement,
   normalizeAuditUrl,
+  normalizeMonitoringUrlForCompare,
   normalizeSummary,
   runStoredAudit
 } from './monitoring-core'
 
 type RunNowBody = {
+  targetId?: unknown
   url?: unknown
 }
 
@@ -68,7 +71,12 @@ export const handler: Handler = async (event) => {
       return errorResponse(403, 'Monitoring plan is not active for this account.')
     }
 
-    const targetResult = await getMonitoringTarget(supabase, auth.userId)
+    const body = parseBody(event.body)
+    const requestedTargetId = typeof body.targetId === 'string' ? body.targetId.trim() : ''
+    const targetResult = requestedTargetId
+      ? await getMonitoringTargetById(supabase, auth.userId, requestedTargetId)
+      : await getMonitoringTarget(supabase, auth.userId)
+
     if (targetResult.error) {
       return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
     }
@@ -76,12 +84,15 @@ export const handler: Handler = async (event) => {
       return errorResponse(404, 'Monitoring target does not exist. Activate monitoring first.')
     }
 
-    const body = parseBody(event.body)
     const overrideUrl = normalizeAuditUrl(body.url)
     if (typeof body.url !== 'undefined' && !overrideUrl) {
       return errorResponse(400, 'Invalid URL.')
     }
     const runUrl = overrideUrl || targetResult.data.default_url
+    const shouldSwitchTargetUrl =
+      !!overrideUrl &&
+      normalizeMonitoringUrlForCompare(overrideUrl) !==
+        normalizeMonitoringUrlForCompare(targetResult.data.default_url)
 
     const { data: previousRun } = await supabase
       .from('monitoring_runs')
@@ -154,13 +165,16 @@ export const handler: Handler = async (event) => {
     await supabase
       .from('monitoring_targets')
       .update({
+        ...(shouldSwitchTargetUrl ? { default_url: runUrl } : {}),
         last_run_at: finishedAt,
         updated_at: finishedAt
       })
       .eq('id', targetResult.data.id)
+      .eq('user_id', auth.userId)
 
     return jsonResponse(200, {
       runId,
+      targetId: targetResult.data.id,
       auditId: auditResult.auditId,
       runUrl,
       summary: auditResult.summary,

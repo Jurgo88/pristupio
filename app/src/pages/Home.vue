@@ -1,20 +1,44 @@
 ﻿<script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 
 const auth = useAuthStore()
 
 const startLink = computed(() => (auth.isLoggedIn ? '/dashboard' : '/login'))
-const auditCheckoutBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL || ''
-const auditCheckoutUrl = computed(() => {
-  if (!auth.user || !auditCheckoutBase) return ''
+const auditCheckoutBasicBase =
+  import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL_BASIC ||
+  import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL ||
+  ''
+const auditCheckoutProBase = import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL_PRO || ''
+const monitoringCheckoutBasicBase =
+  import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL_BASIC ||
+  import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL ||
+  ''
+const monitoringCheckoutProBase = import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL_PRO || ''
+
+const buildCheckout = (baseUrl: string, purchaseType: 'audit' | 'monitoring', tier: 'basic' | 'pro') => {
+  if (!auth.user || !baseUrl) return ''
   return buildLemonCheckoutUrl({
-    baseUrl: auditCheckoutBase,
+    baseUrl,
     userId: auth.user.id,
-    email: auth.user.email
+    email: auth.user.email,
+    customData: {
+      purchase_type: purchaseType,
+      purchase_tier: tier
+    }
   })
-})
+}
+
+const auditCheckoutBasicUrl = computed(() => buildCheckout(auditCheckoutBasicBase, 'audit', 'basic'))
+const auditCheckoutProUrl = computed(() => buildCheckout(auditCheckoutProBase, 'audit', 'pro'))
+const monitoringCheckoutBasicUrl = computed(() =>
+  buildCheckout(monitoringCheckoutBasicBase, 'monitoring', 'basic')
+)
+const monitoringCheckoutProUrl = computed(() =>
+  buildCheckout(monitoringCheckoutProBase, 'monitoring', 'pro')
+)
+const pricingMode = ref<'audit' | 'monitoring'>('audit')
 
 let observer: IntersectionObserver | null = null
 
@@ -275,194 +299,351 @@ onBeforeUnmount(() => {
     <section id="pricing" class="pricing reveal">
       <div class="section-head">
         <p class="kicker">Cenník</p>
-        <h2>Vyberte si úroveň detailu podľa vašej potreby.</h2>
+        <h2>Balíky auditu a monitoringu podľa rozsahu.</h2>
         <p class="lead">
-          Začnite free auditom, pokračujte základným auditom a monitoringom podľa potreby.
-          Pri ročnom predplatnom monitoringu je základný audit zdarma.
+          Free audit je jednorazovo pre 1 doménu. Platené balíky fungujú na kreditoch/doménach
+          podľa zvoleného plánu.
         </p>
       </div>
-      <div class="pricing-grid">
+      <div class="pricing-switch" role="tablist" aria-label="Typ cenníka">
+        <button
+          type="button"
+          class="pricing-switch-btn"
+          :class="{ 'is-active': pricingMode === 'audit' }"
+          @click="pricingMode = 'audit'"
+        >
+          Audit
+        </button>
+        <button
+          type="button"
+          class="pricing-switch-btn"
+          :class="{ 'is-active': pricingMode === 'monitoring' }"
+          @click="pricingMode = 'monitoring'"
+        >
+          Monitoring
+        </button>
+      </div>
+
+      <h3 class="pricing-subhead">{{ pricingMode === 'audit' ? 'Audit' : 'Monitoring (po základnom audite)' }}</h3>
+
+      <div v-if="pricingMode === 'audit'" class="pricing-grid pricing-grid--audit">
         <article class="pricing-card">
           <div class="pricing-header">
             <p class="pricing-title">Free audit</p>
             <p class="pricing-price">0 €</p>
-            <p class="pricing-subtitle">Rýchly prehľad</p>
+            <p class="pricing-subtitle">1 audit / 1 doména</p>
           </div>
           <ul class="pricing-list">
             <li>Skóre prístupnosti</li>
-            <li>Počet chýb spolu</li>
-            <li>Rýchly prehľad problémov</li>
+            <li>Top nálezy pre rýchly prehľad</li>
+            <li>Jednorazovo pre 1 doménu</li>
           </ul>
           <router-link :to="startLink" class="btn btn-outline-dark">Spustiť free audit</router-link>
         </article>
 
         <article class="pricing-card">
           <div class="pricing-header">
-            <p class="pricing-title">Základný audit</p>
+            <p class="pricing-title">Audit Basic</p>
             <p class="pricing-price">99 €</p>
-            <p class="pricing-subtitle">Jednorazovo</p>
+            <p class="pricing-subtitle">5 kreditov / 5 domén</p>
           </div>
           <ul class="pricing-list">
-            <li>Plný report s prioritami</li>
-            <li>Odporúčania pre opravy</li>
-            <li>Legislatívne mapovanie</li>
+            <li>Plný report + odporúčania</li>
+            <li>5 audit kreditov</li>
+            <li>Pre 5 domén</li>
           </ul>
           <a
-            v-if="auth.isLoggedIn && auditCheckoutUrl"
-            :href="auditCheckoutUrl"
+            v-if="auth.isLoggedIn && auditCheckoutBasicUrl"
+            :href="auditCheckoutBasicUrl"
             class="btn btn-outline-dark"
           >
-            Objednať audit
+            Objednať Basic
           </a>
-          <router-link v-else :to="startLink" class="btn btn-outline-dark">Objednať audit</router-link>
+          <router-link v-else :to="startLink" class="btn btn-outline-dark">Objednať Basic</router-link>
         </article>
 
         <article class="pricing-card featured">
-          <div class="pricing-badge">Najobľúbenejšie</div>
+          <div class="pricing-badge">Najvýhodnejší</div>
           <div class="pricing-header">
-            <p class="pricing-title">Monitoring + report</p>
-            <p class="pricing-price">29 € / mesiac</p>
-            <p class="pricing-subtitle">Len po základnom audite</p>
+            <p class="pricing-title">Audit Pro</p>
+            <p class="pricing-price">199 €</p>
+            <p class="pricing-subtitle">15 kreditov / 15 domén</p>
           </div>
           <ul class="pricing-list">
-            <li>Monitoring 2× mesačne</li>
-            <li>Upozornenia + priebežné reporty</li>
+            <li>Plný report + odporúčania</li>
+            <li>15 audit kreditov</li>
+            <li>Pre 15 domén</li>
           </ul>
-          <p class="pricing-note">Pri ročnom predplatnom je základný audit zdarma.</p>
-          <router-link :to="startLink" class="btn btn-primary">Spustiť monitoring</router-link>
+          <a v-if="auth.isLoggedIn && auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-primary">
+            Objednať Pro
+          </a>
+          <router-link v-else :to="startLink" class="btn btn-primary">Objednať Pro</router-link>
         </article>
 
         <article class="pricing-card">
           <div class="pricing-header">
-            <p class="pricing-title">Hlbkový audit</p>
+            <p class="pricing-title">Hĺbkový audit</p>
             <p class="pricing-price">od 499 €</p>
-            <p class="pricing-subtitle">Manuálny + expertný</p>
+            <p class="pricing-subtitle">Manuálny + expertný audit</p>
           </div>
           <ul class="pricing-list">
             <li>Detailný manuálny audit</li>
             <li>Checklist povinností</li>
             <li>Konzultácia s expertom</li>
           </ul>
-          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť audit</router-link>
+          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť riešenie</router-link>
+        </article>
+
+        <article class="pricing-card">
+          <div class="pricing-header">
+            <p class="pricing-title">Audit Enterprise</p>
+            <p class="pricing-price">Na dohodu</p>
+            <p class="pricing-subtitle">Individuálne riešenie</p>
+          </div>
+          <ul class="pricing-list">
+            <li>Vlastný rozsah domén</li>
+            <li>SLA a dedikovaná podpora</li>
+            <li>Proces podľa interných požiadaviek</li>
+          </ul>
+          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť riešenie</router-link>
         </article>
       </div>
-      <div class="pricing-compare">
-        <div class="compare-row compare-head">
-          <div class="compare-cell">Funkcia</div>
+
+      <div v-else class="pricing-grid pricing-grid--monitoring">
+        <article class="pricing-card featured">
+          <div class="pricing-badge">Monitoring Basic</div>
+          <div class="pricing-header">
+            <p class="pricing-title">Basic</p>
+            <p class="pricing-price">29 € / mesiac</p>
+            <p class="pricing-subtitle">2 domény / 1× týždenne (pondelok)</p>
+          </div>
+          <ul class="pricing-list">
+            <li>Monitoring pre 2 domény</li>
+            <li>Automatický beh každý pondelok</li>
+            <li>Priebežné porovnanie výsledkov</li>
+          </ul>
+          <a
+            v-if="auth.isLoggedIn && monitoringCheckoutBasicUrl"
+            :href="monitoringCheckoutBasicUrl"
+            class="btn btn-primary"
+          >
+            Objednať Monitoring Basic
+          </a>
+          <router-link v-else :to="startLink" class="btn btn-primary">Objednať Monitoring Basic</router-link>
+        </article>
+
+        <article class="pricing-card">
+          <div class="pricing-header">
+            <p class="pricing-title">Monitoring Pro</p>
+            <p class="pricing-price">59 € / mesiac</p>
+            <p class="pricing-subtitle">8 domén / 2× týždenne (pondelok + štvrtok)</p>
+          </div>
+          <ul class="pricing-list">
+            <li>Monitoring pre 8 domén</li>
+            <li>Automatický beh pondelok + štvrtok</li>
+            <li>Rozšírené kontinuálne sledovanie</li>
+          </ul>
+          <a
+            v-if="auth.isLoggedIn && monitoringCheckoutProUrl"
+            :href="monitoringCheckoutProUrl"
+            class="btn btn-outline-dark"
+          >
+            Objednať Monitoring Pro
+          </a>
+          <router-link v-else :to="startLink" class="btn btn-outline-dark">Objednať Monitoring Pro</router-link>
+        </article>
+
+        <article class="pricing-card">
+          <div class="pricing-header">
+            <p class="pricing-title">Monitoring Enterprise</p>
+            <p class="pricing-price">Na dohodu</p>
+            <p class="pricing-subtitle">Vlastné limity a SLA</p>
+          </div>
+          <ul class="pricing-list">
+            <li>Individuálny počet domén</li>
+            <li>Frekvencia podľa potreby</li>
+            <li>Onboarding a konzultácie</li>
+          </ul>
+          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť riešenie</router-link>
+        </article>
+
+      </div>
+
+      <div v-if="pricingMode === 'audit'" class="pricing-compare">
+        <div class="compare-row compare-row--audit compare-head">
+          <div class="compare-cell">Audit</div>
           <div class="compare-cell">Free</div>
-          <div class="compare-cell">Základný</div>
-          <div class="compare-cell compare-col-featured">Monitoring</div>
-          <div class="compare-cell">Hlbkový</div>
+          <div class="compare-cell">Basic</div>
+          <div class="compare-cell compare-col-featured">Pro</div>
+          <div class="compare-cell">Hĺbkový</div>
+          <div class="compare-cell">Enterprise</div>
         </div>
-        <div class="compare-row">
-          <div class="compare-cell">Skóre prístupnosti</div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
+        <div class="compare-row compare-row--audit">
+          <div class="compare-cell">Cena</div>
+          <div class="compare-cell">0 €</div>
+          <div class="compare-cell">99 €</div>
+          <div class="compare-cell compare-col-featured">199 €</div>
+          <div class="compare-cell">od 499 €</div>
+          <div class="compare-cell">Na dohodu</div>
         </div>
-        <div class="compare-row">
-          <div class="compare-cell">Počet chýb</div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
+        <div class="compare-row compare-row--audit">
+          <div class="compare-cell">Počet domén</div>
+          <div class="compare-cell">1</div>
+          <div class="compare-cell">5</div>
+          <div class="compare-cell compare-col-featured">15</div>
+          <div class="compare-cell">Podľa dohody</div>
+          <div class="compare-cell">Podľa dohody</div>
         </div>
-        <div class="compare-row">
-          <div class="compare-cell">Detailný report</div>
+        <div class="compare-row compare-row--audit">
+          <div class="compare-cell">Plný report + odporúčania</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
           <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-cell">Prioritizácia chýb</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
-        <div class="compare-row">
-          <div class="compare-cell">Odporúčania opráv</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-cell">Legislatívne mapovanie</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-cell">Monitoring 2× mesačne</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-        </div>
-        <div class="compare-row">
-          <div class="compare-cell">Manuálny audit</div>
+        <div class="compare-row compare-row--audit">
+          <div class="compare-cell">Manuálny audit + konzultácia</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell"><span class="compare-no">—</span></div>
         </div>
-        <div class="compare-row">
-          <div class="compare-cell">Konzultácia s expertom</div>
+        <div class="compare-row compare-row--audit">
+          <div class="compare-cell">Podpora / SLA</div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
+          <div class="compare-cell"><span class="compare-no">—</span></div>
           <div class="compare-cell"><span class="compare-yes">✓</span></div>
         </div>
       </div>
-      <div class="pricing-compare-mobile">
+
+      <div v-else class="pricing-compare">
+        <div class="compare-row compare-row--three compare-head">
+          <div class="compare-cell">Monitoring</div>
+          <div class="compare-cell">Basic</div>
+          <div class="compare-cell compare-col-featured">Pro</div>
+          <div class="compare-cell">Enterprise</div>
+        </div>
+        <div class="compare-row compare-row--three">
+          <div class="compare-cell">Cena</div>
+          <div class="compare-cell">29 € / mesiac</div>
+          <div class="compare-cell compare-col-featured">59 € / mesiac</div>
+          <div class="compare-cell">Na dohodu</div>
+        </div>
+        <div class="compare-row compare-row--three">
+          <div class="compare-cell">Počet domén</div>
+          <div class="compare-cell">2</div>
+          <div class="compare-cell compare-col-featured">8</div>
+          <div class="compare-cell">Podľa dohody</div>
+        </div>
+        <div class="compare-row compare-row--three">
+          <div class="compare-cell">Frekvencia</div>
+          <div class="compare-cell">Pondelok</div>
+          <div class="compare-cell compare-col-featured">Pondelok + štvrtok</div>
+          <div class="compare-cell">Podľa dohody</div>
+        </div>
+        <div class="compare-row compare-row--three">
+          <div class="compare-cell">Priebežné porovnanie výsledkov</div>
+          <div class="compare-cell"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
+          <div class="compare-cell"><span class="compare-yes">✓</span></div>
+        </div>
+      </div>
+
+      <div v-if="pricingMode === 'audit'" class="pricing-compare-mobile">
         <article class="compare-plan-card">
           <div class="compare-plan-head">
             <p class="compare-plan-name">Free audit</p>
             <p class="compare-plan-price">0 €</p>
           </div>
           <ul class="compare-plan-list">
-            <li>Skóre prístupnosti</li>
-            <li>Počet chýb</li>
-            <li>Rýchly prehľad problémov</li>
+            <li>1 doména</li>
+            <li>Rýchly prehľad nálezov</li>
           </ul>
         </article>
         <article class="compare-plan-card">
           <div class="compare-plan-head">
-            <p class="compare-plan-name">Základný audit</p>
+            <p class="compare-plan-name">Audit Basic</p>
             <p class="compare-plan-price">99 €</p>
           </div>
           <ul class="compare-plan-list">
-            <li>Automatický WCAG 2.1 AA audit</li>
-            <li>LOW / MED / HIGH chyby + skóre pripravenosti</li>
-            <li>PDF report + mapovanie na EN 301 549 / EAA</li>
+            <li>5 domén / 5 kreditov</li>
+            <li>Plný report + odporúčania</li>
           </ul>
         </article>
         <article class="compare-plan-card featured">
           <div class="compare-plan-head">
-            <p class="compare-plan-name">Monitoring</p>
-            <p class="compare-plan-price">29 € / mesiac</p>
+            <p class="compare-plan-name">Audit Pro</p>
+            <p class="compare-plan-price">199 €</p>
           </div>
           <ul class="compare-plan-list">
-            <li>Všetko zo základného auditu</li>
-            <li>Monitoring 2× mesačne</li>
-            <li>Upozornenia + priebežné reporty</li>
+            <li>15 domén / 15 kreditov</li>
+            <li>Plný report + odporúčania</li>
           </ul>
         </article>
         <article class="compare-plan-card">
           <div class="compare-plan-head">
-            <p class="compare-plan-name">Hlbkový audit</p>
+            <p class="compare-plan-name">Hĺbkový audit</p>
             <p class="compare-plan-price">od 499 €</p>
           </div>
           <ul class="compare-plan-list">
-            <li>Detailný manuálny audit</li>
-            <li>Checklist povinností</li>
+            <li>Manuálny + expertný audit</li>
             <li>Konzultácia s expertom</li>
           </ul>
         </article>
+        <article class="compare-plan-card">
+          <div class="compare-plan-head">
+            <p class="compare-plan-name">Audit Enterprise</p>
+            <p class="compare-plan-price">Na dohodu</p>
+          </div>
+          <ul class="compare-plan-list">
+            <li>Individuálny rozsah</li>
+            <li>Dedikovaná podpora a SLA</li>
+          </ul>
+        </article>
+      </div>
+
+      <div v-else class="pricing-compare-mobile">
+        <article class="compare-plan-card">
+          <div class="compare-plan-head">
+            <p class="compare-plan-name">Monitoring Basic</p>
+            <p class="compare-plan-price">29 € / mesiac</p>
+          </div>
+          <ul class="compare-plan-list">
+            <li>2 domény</li>
+            <li>Pondelok</li>
+          </ul>
+        </article>
+        <article class="compare-plan-card featured">
+          <div class="compare-plan-head">
+            <p class="compare-plan-name">Monitoring Pro</p>
+            <p class="compare-plan-price">59 € / mesiac</p>
+          </div>
+          <ul class="compare-plan-list">
+            <li>8 domén</li>
+            <li>Pondelok + štvrtok</li>
+          </ul>
+        </article>
+        <article class="compare-plan-card">
+          <div class="compare-plan-head">
+            <p class="compare-plan-name">Monitoring Enterprise</p>
+            <p class="compare-plan-price">Na dohodu</p>
+          </div>
+          <ul class="compare-plan-list">
+            <li>Vlastné limity</li>
+            <li>Frekvencia podľa dohody</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="pricing-summary">
+        <p>
+          Audit kredity sa odpočítavajú za každý nový audit domény. Monitoring plány sú dostupné po
+          základnom audite a limity/frekvencia sa riadia zvoleným tierom.
+        </p>
       </div>
     </section>
 
@@ -518,9 +699,10 @@ onBeforeUnmount(() => {
           <summary>Aký je rozdiel medzi základným auditom a monitoringom?</summary>
           <p>
             Základný audit je jednorazový detailný report s odporúčaniami. Monitoring opakuje sken
-            2× mesačne, sleduje zmeny, porovnáva trend a upozorňuje na nové chyby po úpravách webu
-            alebo nasadení nových funkcií. Vďaka tomu máte prehľad, či sa dostupnosť zlepšuje alebo
-            zhoršuje, a nemusíte robiť audit od nuly po každej zmene.
+            podľa zvoleného plánu (Basic pondelok, Pro pondelok + štvrtok), sleduje zmeny, porovnáva
+            trend a upozorňuje na nové chyby po úpravách webu alebo nasadení nových funkcií.
+            Vďaka tomu máte prehľad, či sa dostupnosť zlepšuje alebo zhoršuje, a nemusíte robiť
+            audit od nuly po každej zmene.
           </p>
         </details>
         <details class="faq-item">
@@ -1079,6 +1261,58 @@ onBeforeUnmount(() => {
   gap: 1.5rem;
 }
 
+.pricing-grid--audit {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.pricing-grid--monitoring {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pricing-switch {
+  display: inline-flex;
+  gap: 0.45rem;
+  background: var(--surface-2);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  padding: 0.38rem;
+  justify-self: center;
+  margin: 0 auto;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+}
+
+.pricing-switch-btn {
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.98rem;
+  border-radius: 999px;
+  padding: 0.58rem 1.2rem;
+  min-width: 140px;
+}
+
+.pricing-switch-btn.is-active {
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.28);
+}
+
+.pricing-subhead {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pricing-summary {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 1rem 1.1rem;
+  color: var(--text-muted);
+}
+
 .pricing-compare {
   margin-top: 1.8rem;
   border: 1px solid var(--border);
@@ -1093,6 +1327,14 @@ onBeforeUnmount(() => {
   grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
   align-items: center;
   border-top: 1px solid var(--border);
+}
+
+.compare-row--audit {
+  grid-template-columns: 1.4fr repeat(5, minmax(0, 1fr));
+}
+
+.compare-row--three {
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
 }
 
 .compare-row:first-child {
@@ -1290,6 +1532,24 @@ onBeforeUnmount(() => {
 }
 
 [data-theme='dark'] .pricing-card .btn-primary {
+  color: #f8fafc;
+}
+
+[data-theme='dark'] .pricing-subhead {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .pricing-switch {
+  background: #0f1c31;
+  border-color: #334862;
+}
+
+[data-theme='dark'] .pricing-switch-btn {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .pricing-switch-btn.is-active {
+  background: #1d4ed8;
   color: #f8fafc;
 }
 

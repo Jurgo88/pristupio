@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="audit-page">
     <section class="page-hero">
       <div class="page-hero__content">
@@ -82,8 +82,11 @@
         </p>
       </div>
       <div class="upgrade-actions">
-        <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-primary">
-          Objednať audit (99 €)
+        <a v-if="auditCheckoutBasicUrl" :href="auditCheckoutBasicUrl" class="btn btn-primary">
+          Audit Basic (99 €)
+        </a>
+        <a v-if="auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-outline">
+          Audit Pro (199 €)
         </a>
         <button class="btn btn-outline" @click="refreshPlan" :disabled="refreshPlanLoading">
           {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
@@ -114,8 +117,15 @@
           <strong>{{ paidCredits }}</strong>
         </div>
         <div class="paid-banner__actions">
-          <a v-if="auditCheckoutUrl" :href="auditCheckoutUrl" class="btn btn-primary paid-banner__cta">
-            Objednať ďalší audit
+          <a
+            v-if="auditCheckoutBasicUrl"
+            :href="auditCheckoutBasicUrl"
+            class="btn btn-primary paid-banner__cta"
+          >
+            Audit Basic
+          </a>
+          <a v-if="auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-outline paid-banner__cta">
+            Audit Pro
           </a>
         </div>
       </div>
@@ -125,11 +135,14 @@
       <div class="panel-head panel-head--tight">
         <div>
           <p class="kicker">Monitoring</p>
-          <h2>Automatické kontroly dostupnosti</h2>
+          <h2>Automatické kontroly viacerých domén</h2>
         </div>
         <div class="monitoring-head-status">
           <span class="status-badge" :class="monitoringIsActive ? 'status-badge--success' : 'status-badge--warning'">
             {{ monitoringIsActive ? 'Aktívny' : 'Pozastavený' }}
+          </span>
+          <span class="monitoring-head-usage">
+            {{ auth.isAdmin ? `${monitoringConfiguredCount} domén` : `${monitoringConfiguredCount}/${monitoringDomainsLimit} domén` }}
           </span>
         </div>
       </div>
@@ -141,41 +154,46 @@
       <template v-else>
         <div v-if="monitoringHasAccess" class="monitoring-grid">
           <div class="monitoring-summary">
-            <span class="monitoring-summary__label">URL monitoringu:</span>
-            <a
-              v-if="monitoringTarget?.default_url"
-              :href="monitoringTarget.default_url"
-              target="_blank"
-              rel="noopener noreferrer"
-              :title="monitoringTarget.default_url"
+            <span class="monitoring-summary__label">Frekvencia:</span>
+            <strong>{{ monitoringDefaultCadenceLabel }}</strong>
+          </div>
+
+          <div v-if="monitoringTargets.length === 0" class="status-state">
+            Zatiaľ nemáte monitorovanú doménu. V histórii auditov kliknite na „Monitoruj“.
+          </div>
+
+          <div v-else class="monitoring-targets">
+            <article
+              v-for="target in monitoringTargets"
+              :key="target.id"
+              class="monitoring-target-card"
+              :class="{ 'is-inactive': !target.active }"
             >
-              {{ monitoringTarget.default_url }}
-            </a>
-            <strong v-else>Nie je nastavená</strong>
-          </div>
-
-          <div class="monitoring-metrics">
-            <article class="metric-card">
-              <span>Frekvencia</span>
-              <strong>{{ monitoringDefaultCadenceLabel }}</strong>
+              <div class="monitoring-target-card__main">
+                <a
+                  :href="target.default_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :title="target.default_url"
+                >
+                  {{ target.default_url }}
+                </a>
+                <div class="monitoring-target-card__meta">
+                  <span class="pill">{{ target.active ? 'Aktívny' : 'Pozastavený' }}</span>
+                  <span>Ďalší audit: {{ formatDateTime(target.next_run_at) || '--' }}</span>
+                  <span>Posledný audit: {{ formatDateTime(target.last_run_at) || '--' }}</span>
+                </div>
+              </div>
+              <div class="monitoring-target-card__actions">
+                <button
+                  class="btn btn-sm btn-outline"
+                  @click="removeMonitoringTarget(target.id)"
+                  :disabled="monitoringLoadingAction"
+                >
+                  {{ monitoringLoadingAction ? 'Ruším...' : 'Zrušiť monitoring' }}
+                </button>
+              </div>
             </article>
-            <article class="metric-card">
-              <span>Ďalší beh</span>
-              <strong>{{ formatDateTime(monitoringTarget?.next_run_at) || '--' }}</strong>
-            </article>
-            <article class="metric-card">
-              <span>Posledný beh</span>
-              <strong>{{ formatDateTime(monitoringLatestRun?.finished_at || monitoringTarget?.last_run_at) || '--' }}</strong>
-            </article>
-          </div>
-
-          <div class="monitoring-actions">
-            <button class="btn btn-outline" @click="toggleMonitoringActive" :disabled="monitoringLoadingAction || !monitoringTarget">
-              {{ monitoringIsActive ? 'Pozastaviť' : 'Obnoviť' }}
-            </button>
-            <button class="btn btn-primary" @click="runMonitoringNow" :disabled="monitoringLoadingAction || !monitoringIsActive">
-              {{ monitoringLoadingAction ? 'Spúšťam...' : 'Spustiť teraz' }}
-            </button>
           </div>
         </div>
 
@@ -186,12 +204,29 @@
           <p class="status-state" v-else>
             Monitoring je dostupný až po základnom audite.
           </p>
-          <a v-if="canBuyMonitoring && monitoringCheckoutUrl" :href="monitoringCheckoutUrl" class="btn btn-primary">
-            Objednať monitoring
-          </a>
-          <button v-else-if="canBuyMonitoring" class="btn btn-outline" disabled>
-            Monitoring checkout URL nie je nastavená
-          </button>
+          <div v-if="canBuyMonitoring" class="monitoring-buy-actions">
+            <a
+              v-if="monitoringCheckoutBasicUrl"
+              :href="monitoringCheckoutBasicUrl"
+              class="btn btn-primary"
+            >
+              Monitoring Basic (29 €)
+            </a>
+            <a
+              v-if="monitoringCheckoutProUrl"
+              :href="monitoringCheckoutProUrl"
+              class="btn btn-outline"
+            >
+              Monitoring Pro
+            </a>
+            <button
+              v-if="!monitoringCheckoutBasicUrl && !monitoringCheckoutProUrl"
+              class="btn btn-outline"
+              disabled
+            >
+              Monitoring checkout URL nie je nastavená
+            </button>
+          </div>
         </div>
       </template>
 
@@ -281,8 +316,9 @@
               :history-loading-more="historyLoadingMore"
               :monitoring-loading-action="monitoringLoadingAction"
               :monitoring-has-access="monitoringHasAccess"
-              :monitoring-is-active="monitoringIsActive"
-              :monitoring-target-url="monitoringTarget?.default_url || ''"
+              :monitoring-active-target-urls="monitoringActiveTargetUrls"
+              :monitoring-can-add-target="monitoringCanAddTarget"
+              :monitoring-domains-limit="monitoringDomainsLimit"
               :history-has-more="historyHasMore"
               :audit-history="auditHistory"
               :selected-audit-id="selectedAuditId"
@@ -380,7 +416,6 @@
     <!-- <ManualChecklist :profile="selectedProfile" /> -->
   </div>
 </template>
-
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
@@ -404,8 +439,10 @@ const {
   auth,
   refreshPlanLoading,
   paymentNotice,
-  auditCheckoutUrl,
-  monitoringCheckoutUrl,
+  auditCheckoutBasicUrl,
+  auditCheckoutProUrl,
+  monitoringCheckoutBasicUrl,
+  monitoringCheckoutProUrl,
   isPreview,
   auditLocked,
   auditLockedMessage,
@@ -415,11 +452,14 @@ const {
   monitoringStore,
   monitoringHasAccess,
   canBuyMonitoring,
-  monitoringTarget,
-  monitoringLatestRun,
+  monitoringTargets,
   monitoringLoadingStatus,
   monitoringLoadingAction,
+  monitoringDomainsLimit,
+  monitoringConfiguredCount,
+  monitoringCanAddTarget,
   monitoringIsActive,
+  monitoringActiveTargetUrls,
   monitoringDefaultCadenceLabel,
   monitoringMessage,
   monitoringError,
@@ -440,8 +480,7 @@ const {
   formatDateTime,
   selectAudit,
   openLatestAudit,
-  toggleMonitoringActive,
-  runMonitoringNow,
+  removeMonitoringTarget,
   runMonitoringForAudit
 } = useDashboardCore()
 
@@ -566,6 +605,14 @@ const lastAuditLabel = computed(() => {
 .monitoring-head-status {
   display: flex;
   align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.monitoring-head-usage {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .monitoring-grid {
@@ -586,7 +633,6 @@ const lastAuditLabel = computed(() => {
   white-space: nowrap;
 }
 
-.monitoring-summary a,
 .monitoring-summary strong {
   color: #0f172a;
   font-size: 0.88rem;
@@ -594,21 +640,75 @@ const lastAuditLabel = computed(() => {
   word-break: break-word;
 }
 
-.monitoring-metrics {
+.monitoring-targets {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.7rem;
 }
 
-.monitoring-actions {
+.monitoring-target-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem;
+}
+
+.monitoring-target-card.is-inactive {
+  opacity: 0.9;
+}
+
+.monitoring-target-card__main {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.monitoring-target-card__main a {
+  color: #0f172a;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.monitoring-target-card__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.monitoring-target-card__meta .pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.52rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.monitoring-target-card__actions {
+  display: grid;
+  gap: 0.45rem;
+  width: 128px;
 }
 
 .monitoring-empty {
   display: grid;
   gap: 0.7rem;
+}
+
+.monitoring-buy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .workspace-rail {
@@ -920,6 +1020,7 @@ const lastAuditLabel = computed(() => {
 
 .paid-banner__actions {
   display: flex;
+  gap: 0.5rem;
   justify-content: flex-end;
 }
 
@@ -1000,9 +1101,24 @@ const lastAuditLabel = computed(() => {
   border-color: #5476a3;
 }
 
-[data-theme='dark'] .monitoring-summary a,
+[data-theme='dark'] .monitoring-target-card {
+  background: #13233c;
+  border-color: #2b3d5a;
+}
+
+[data-theme='dark'] .monitoring-target-card__main a,
 [data-theme='dark'] .monitoring-summary strong {
   color: #dbe7fb;
+}
+
+[data-theme='dark'] .monitoring-target-card__meta {
+  color: #a7b6cb;
+}
+
+[data-theme='dark'] .monitoring-target-card__meta .pill {
+  background: #0f1c31;
+  border-color: #334862;
+  color: #bfdbfe;
 }
 
 .panel-head {
@@ -1036,8 +1152,8 @@ const lastAuditLabel = computed(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .monitoring-metrics {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+  .monitoring-target-card {
+    grid-template-columns: 1fr;
   }
 
   .page-hero {
@@ -1110,8 +1226,9 @@ const lastAuditLabel = computed(() => {
     padding-bottom: 0;
   }
 
-  .monitoring-actions {
+  .monitoring-target-card__actions {
     width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dashboard-workspace.is-tab-overview .mobile-pane--overview {

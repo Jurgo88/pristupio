@@ -28,18 +28,17 @@
           Zobraziť audit
         </button>
         <span
-          v-if="!monitoringLoadingAction || pendingMonitoringAuditId === audit.id"
           class="history-card-btn-wrap"
-          :class="{ 'has-tooltip': !monitoringHasAccess }"
-          :title="!monitoringHasAccess ? 'Pre monitoring si treba zakúpiť predplatné.' : ''"
+          :class="{ 'has-tooltip': !!monitorButtonTitle(audit) }"
+          :title="monitorButtonTitle(audit)"
         >
           <button
             class="btn btn-sm history-card-btn"
             :class="isMonitoringAudit(audit) ? 'btn-success' : 'btn-primary'"
-            :disabled="monitoringLoadingAction || !monitoringHasAccess"
+            :disabled="monitoringLoadingAction || !canMonitorAudit(audit)"
             @click="handleRunMonitoringForAudit(audit)"
           >
-            {{ monitoringLoadingAction ? 'Nastavujem...' : isMonitoringAudit(audit) ? 'Monitorujem' : 'Monitoruj' }}
+            {{ isPendingAudit(audit) ? 'Nastavujem...' : isMonitoringAudit(audit) ? 'Monitorujem' : 'Monitoruj' }}
           </button>
         </span>
       </div>
@@ -69,8 +68,9 @@ const props = defineProps<{
   historyLoadingMore: boolean
   monitoringLoadingAction: boolean
   monitoringHasAccess: boolean
-  monitoringIsActive: boolean
-  monitoringTargetUrl: string
+  monitoringActiveTargetUrls: string[]
+  monitoringCanAddTarget: boolean
+  monitoringDomainsLimit: number
   historyHasMore: boolean
   auditHistory: AuditHistoryItem[]
   selectedAuditId: string | null
@@ -86,11 +86,32 @@ const historySentinel = ref<HTMLElement | null>(null)
 const pendingMonitoringAuditId = ref<string | null>(null)
 let observer: IntersectionObserver | null = null
 
-const normalizeUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '')
+const normalizeUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '').toLowerCase()
+
 const isMonitoringAudit = (audit: AuditHistoryItem) => {
-  if (!props.monitoringIsActive) return false
-  if (!props.monitoringTargetUrl) return false
-  return normalizeUrl(audit.url) === normalizeUrl(props.monitoringTargetUrl)
+  const normalizedAuditUrl = normalizeUrl(audit.url)
+  if (!normalizedAuditUrl) return false
+  return (props.monitoringActiveTargetUrls || [])
+    .map((value) => normalizeUrl(value))
+    .includes(normalizedAuditUrl)
+}
+
+const canMonitorAudit = (audit: AuditHistoryItem) => {
+  if (!props.monitoringHasAccess) return false
+  if (isMonitoringAudit(audit)) return true
+  return props.monitoringCanAddTarget
+}
+
+const monitorButtonTitle = (audit: AuditHistoryItem) => {
+  if (!props.monitoringHasAccess) return 'Pre monitoring si treba zakupit predplatne.'
+  if (!isMonitoringAudit(audit) && !props.monitoringCanAddTarget) {
+    return `Dosiahli ste limit monitorovanych domen (${props.monitoringDomainsLimit}).`
+  }
+  return ''
+}
+
+const isPendingAudit = (audit: AuditHistoryItem) => {
+  return props.monitoringLoadingAction && pendingMonitoringAuditId.value === audit.id
 }
 
 const handleRunMonitoringForAudit = async (audit: AuditHistoryItem) => {

@@ -1,11 +1,10 @@
 import type { Handler } from '@netlify/functions'
 import {
   buildMonitoringDiff,
-  computeNextRunAt,
+  computeNextRunAtByTier,
   createSupabaseAdminClient,
   extractIssueIds,
-  normalizeCadenceMode,
-  normalizeCadenceValue,
+  normalizeMonitoringTier,
   normalizeSummary,
   runStoredAudit
 } from './monitoring-core'
@@ -42,6 +41,27 @@ export const handler: Handler = async () => {
   }
 
   const safeTargets = Array.isArray(dueTargets) ? dueTargets : []
+  const userIds: string[] = []
+  safeTargets.forEach((target) => {
+    if (!target?.user_id) return
+    if (!userIds.includes(target.user_id)) {
+      userIds.push(target.user_id)
+    }
+  })
+  const tierByUser = new Map<string, 'none' | 'basic' | 'pro'>()
+
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, monitoring_tier')
+      .in('id', userIds)
+
+    ;(profiles || []).forEach((profile: any) => {
+      if (!profile?.id) return
+      tierByUser.set(profile.id, normalizeMonitoringTier(profile.monitoring_tier))
+    })
+  }
+
   let processed = 0
   let failed = 0
   let skipped = 0
@@ -51,9 +71,8 @@ export const handler: Handler = async () => {
 
     try {
       const claimTime = new Date()
-      const mode = normalizeCadenceMode(target.cadence_mode)
-      const value = normalizeCadenceValue(mode, target.cadence_value)
-      const claimedNextRunAt = computeNextRunAt(claimTime, mode, value).toISOString()
+      const userTier = tierByUser.get(target.user_id) || 'basic'
+      const claimedNextRunAt = computeNextRunAtByTier(claimTime, userTier).toISOString()
 
       const { data: claimedTarget, error: claimError } = await supabase
         .from('monitoring_targets')
