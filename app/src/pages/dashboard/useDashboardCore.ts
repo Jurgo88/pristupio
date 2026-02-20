@@ -108,11 +108,27 @@ export const useDashboardCore = () => {
     if (tier === 'pro') return 'Pondelok a štvrtok'
     return 'Každý pondelok'
   })
+  const monitoringTier = computed(() => {
+    const tier = monitoringStore.entitlement?.monitoringTier
+    if (tier === 'pro' || tier === 'basic') return tier
+    return 'none'
+  })
 
   const refreshPlan = async () => {
     refreshPlanLoading.value = true
     try {
       await auth.fetchUserProfile()
+      const openedAuditId = auditStore.currentAudit?.auditId || selectedAuditId.value
+      if (openedAuditId) {
+        await auditStore.loadAuditById(openedAuditId)
+      } else {
+        const latest = await auditStore.fetchLatestAudit()
+        if (latest?.auditId) {
+          selectedAuditId.value = latest.auditId
+        }
+      }
+      await loadAuditHistory()
+      await loadMonitoringStatus()
     } finally {
       refreshPlanLoading.value = false
     }
@@ -354,6 +370,7 @@ export const useDashboardCore = () => {
     monitoringIsActive,
     monitoringActiveTargetUrls,
     monitoringDefaultCadenceLabel,
+    monitoringTier,
     monitoringMessage,
     monitoringError,
     refreshPlan,

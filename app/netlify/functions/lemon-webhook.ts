@@ -144,6 +144,33 @@ const loadProfileByUser = async (userId?: string, userEmail?: string) => {
   return { data: null, error: null } as any
 }
 
+const unlockLatestFreeAudit = async (userId: string) => {
+  if (!supabase || !userId) return false
+
+  const { data: freeAudit, error: freeAuditError } = await supabase
+    .from('audits')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('audit_kind', 'free')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (freeAuditError || !freeAudit?.id) return false
+
+  const { error: upgradeError } = await supabase
+    .from('audits')
+    .update({ audit_kind: 'paid' })
+    .eq('id', freeAudit.id)
+
+  if (upgradeError) {
+    console.error('Lemon webhook free-audit upgrade error:', upgradeError)
+    return false
+  }
+
+  return true
+}
+
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'POST') {
@@ -280,6 +307,21 @@ export const handler: Handler = async (event) => {
     if (updateResult.error) {
       console.error('Lemon webhook update error:', updateResult.error)
       return { statusCode: 500, body: 'Profile update failed.' }
+    }
+
+    if (purchaseType === 'audit') {
+      const unlocked = await unlockLatestFreeAudit(profileResult.data.id)
+      if (unlocked) {
+        const { error: paidAuditCompletedError } = await supabase
+          .from('profiles')
+          .update({ paid_audit_completed: true })
+          .eq('id', profileResult.data.id)
+          .eq('paid_audit_completed', false)
+
+        if (paidAuditCompletedError) {
+          console.error('Lemon webhook paid_audit_completed update error:', paidAuditCompletedError)
+        }
+      }
     }
 
     return { statusCode: 200, body: 'OK' }

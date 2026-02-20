@@ -77,8 +77,8 @@
         <p class="kicker">Základný audit</p>
         <h2>Odomknite celý report a odporúčania.</h2>
         <p class="lead">
-          Po platbe sa vám odomkne plný výstup a export PDF. Po zaplatení stačí spustiť audit ešte
-          raz.
+          Po platbe sa vám odomkne plný výstup a export PDF. Posledný free audit sa po potvrdení
+          platby automaticky odomkne.
         </p>
       </div>
       <div class="upgrade-actions">
@@ -122,10 +122,10 @@
             :href="auditCheckoutBasicUrl"
             class="btn btn-primary paid-banner__cta"
           >
-            Audit Basic
+            Pridať 5 kreditov
           </a>
           <a v-if="auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-outline paid-banner__cta">
-            Audit Pro
+            Pridať 15 kreditov
           </a>
         </div>
       </div>
@@ -153,9 +153,23 @@
 
       <template v-else>
         <div v-if="monitoringHasAccess" class="monitoring-grid">
-          <div class="monitoring-summary">
-            <span class="monitoring-summary__label">Frekvencia:</span>
-            <strong>{{ monitoringDefaultCadenceLabel }}</strong>
+          <div class="monitoring-topline">
+            <div class="monitoring-summary">
+              <span class="monitoring-summary__label">Frekvencia:</span>
+              <strong>{{ monitoringDefaultCadenceLabel }}</strong>
+            </div>
+            <div
+              v-if="canBuyMonitoring && monitoringTier === 'basic'"
+              class="monitoring-buy-actions monitoring-buy-actions--inline"
+            >
+              <a
+                v-if="monitoringCheckoutProUrl"
+                :href="monitoringCheckoutProUrl"
+                class="btn btn-outline"
+              >
+                Upgrade na Monitoring Pro
+              </a>
+            </div>
           </div>
 
           <div v-if="monitoringTargets.length === 0" class="status-state">
@@ -468,6 +482,7 @@ const {
   monitoringActiveTargetUrls,
   monitoringLatestSuccessRunByTarget,
   monitoringDefaultCadenceLabel,
+  monitoringTier,
   monitoringMessage,
   monitoringError,
   auditHistory,
@@ -682,6 +697,14 @@ const monitoringWorseningNotice = computed(() => {
   gap: 0.6rem;
 }
 
+.monitoring-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .monitoring-summary {
   display: flex;
   align-items: baseline;
@@ -808,6 +831,11 @@ const monitoringWorseningNotice = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.monitoring-buy-actions--inline {
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 .workspace-rail {
@@ -1356,6 +1384,17 @@ const monitoringWorseningNotice = computed(() => {
   .monitoring-target-card__actions {
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .monitoring-topline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .monitoring-buy-actions--inline {
+    margin-left: 0;
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .dashboard-workspace.is-tab-overview .mobile-pane--overview {
