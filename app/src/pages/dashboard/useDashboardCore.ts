@@ -224,6 +224,9 @@ export const useDashboardCore = () => {
   }
 
   const runMonitoringForAudit = async (audit: AuditHistoryItem) => {
+    monitoringError.value = ''
+    monitoringMessage.value = ''
+
     const url = typeof audit?.url === 'string' ? audit.url.trim() : ''
     if (!url) {
       monitoringError.value = 'Vybrany audit nema URL pre monitoring.'
@@ -243,13 +246,29 @@ export const useDashboardCore = () => {
           cadenceMode: 'interval_days',
           cadenceValue: 14
         })
+        monitoringMessage.value = 'Monitoring URL bola nastavená podľa vybraného auditu.'
       } catch (error: any) {
         monitoringError.value = error?.message || 'Monitoring target sa nepodarilo inicializovat.'
         return
       }
+    } else {
+      const currentUrl = (monitoringTarget.value.default_url || '').trim()
+      if (currentUrl !== url || !monitoringTarget.value.active) {
+        try {
+          await monitoringStore.updateConfig({
+            defaultUrl: url,
+            active: true
+          })
+          monitoringMessage.value = 'Monitoring URL bola nastavená podľa vybraného auditu.'
+        } catch (error: any) {
+          monitoringError.value = error?.message || 'Monitoring URL sa nepodarilo aktualizovat.'
+          return
+        }
+      } else {
+        monitoringMessage.value = 'Tento audit je už nastavený pre monitoring.'
+      }
     }
-
-    await runMonitoringNow(url)
+    void loadMonitoringStatus()
   }
 
   const formatDateTime = (value?: string | null) => {

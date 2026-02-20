@@ -23,7 +23,26 @@
           <span>Kritické: {{ issueHigh(audit.summary) }}</span>
         </div>
       </div>
-      <button class="btn btn-sm btn-outline" @click="selectAudit(audit.id)">Zobraziť audit</button>
+      <div class="history-card-actions">
+        <button class="btn btn-sm btn-outline history-card-btn" @click="selectAudit(audit.id)">
+          Zobraziť audit
+        </button>
+        <span
+          v-if="!monitoringLoadingAction || pendingMonitoringAuditId === audit.id"
+          class="history-card-btn-wrap"
+          :class="{ 'has-tooltip': !monitoringHasAccess }"
+          :title="!monitoringHasAccess ? 'Pre monitoring si treba zakúpiť predplatné.' : ''"
+        >
+          <button
+            class="btn btn-sm history-card-btn"
+            :class="isMonitoringAudit(audit) ? 'btn-success' : 'btn-primary'"
+            :disabled="monitoringLoadingAction || !monitoringHasAccess"
+            @click="handleRunMonitoringForAudit(audit)"
+          >
+            {{ monitoringLoadingAction ? 'Nastavujem...' : isMonitoringAudit(audit) ? 'Monitorujem' : 'Monitoruj' }}
+          </button>
+        </span>
+      </div>
     </article>
 
     <div v-if="historyHasMore" class="history-load-more">
@@ -42,11 +61,16 @@ import type { AuditHistoryItem, DashboardReportSummary } from './dashboard.types
 type FormatDateFn = (value?: string) => string
 type IssueSummaryFn = (summary: DashboardReportSummary | null | undefined) => number
 type SelectAuditFn = (auditId: string) => void | Promise<void>
+type RunMonitoringFn = (audit: AuditHistoryItem) => void | Promise<void>
 
 const props = defineProps<{
   historyError: string
   historyLoading: boolean
   historyLoadingMore: boolean
+  monitoringLoadingAction: boolean
+  monitoringHasAccess: boolean
+  monitoringIsActive: boolean
+  monitoringTargetUrl: string
   historyHasMore: boolean
   auditHistory: AuditHistoryItem[]
   selectedAuditId: string | null
@@ -54,11 +78,29 @@ const props = defineProps<{
   issueTotal: IssueSummaryFn
   issueHigh: IssueSummaryFn
   selectAudit: SelectAuditFn
+  runMonitoringForAudit: RunMonitoringFn
   loadMoreHistory: () => void | Promise<void>
 }>()
 
 const historySentinel = ref<HTMLElement | null>(null)
+const pendingMonitoringAuditId = ref<string | null>(null)
 let observer: IntersectionObserver | null = null
+
+const normalizeUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '')
+const isMonitoringAudit = (audit: AuditHistoryItem) => {
+  if (!props.monitoringIsActive) return false
+  if (!props.monitoringTargetUrl) return false
+  return normalizeUrl(audit.url) === normalizeUrl(props.monitoringTargetUrl)
+}
+
+const handleRunMonitoringForAudit = async (audit: AuditHistoryItem) => {
+  pendingMonitoringAuditId.value = audit.id
+  try {
+    await props.runMonitoringForAudit(audit)
+  } finally {
+    pendingMonitoringAuditId.value = null
+  }
+}
 
 const tryLoadMore = () => {
   if (!props.historyHasMore || props.historyLoading || props.historyLoadingMore) return
@@ -155,6 +197,29 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
+.history-card-actions {
+  display: grid;
+  gap: 0.45rem;
+  align-items: start;
+  justify-items: stretch;
+  width: 150px;
+  flex: 0 0 150px;
+}
+
+.history-card-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.history-card-btn-wrap {
+  display: block;
+  width: 100%;
+}
+
+.history-card-btn-wrap.has-tooltip {
+  cursor: help;
+}
+
 .history-load-more {
   display: flex;
   flex-direction: column;
@@ -202,6 +267,11 @@ onBeforeUnmount(() => {
   .history-card {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .history-card-actions {
+    width: 100%;
+    flex-basis: auto;
   }
 }
 </style>

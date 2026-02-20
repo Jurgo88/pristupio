@@ -279,6 +279,10 @@
               :history-error="historyError"
               :history-loading="historyLoading"
               :history-loading-more="historyLoadingMore"
+              :monitoring-loading-action="monitoringLoadingAction"
+              :monitoring-has-access="monitoringHasAccess"
+              :monitoring-is-active="monitoringIsActive"
+              :monitoring-target-url="monitoringTarget?.default_url || ''"
               :history-has-more="historyHasMore"
               :audit-history="auditHistory"
               :selected-audit-id="selectedAuditId"
@@ -286,6 +290,7 @@
               :issue-total="issueTotal"
               :issue-high="issueHigh"
               :select-audit="selectAudit"
+              :run-monitoring-for-audit="runMonitoringForAudit"
               :load-more-history="() => loadAuditHistory({ loadMore: true })"
             />
           </div>
@@ -436,7 +441,8 @@ const {
   selectAudit,
   openLatestAudit,
   toggleMonitoringActive,
-  runMonitoringNow
+  runMonitoringNow,
+  runMonitoringForAudit
 } = useDashboardCore()
 
 const {
