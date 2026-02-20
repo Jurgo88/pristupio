@@ -103,9 +103,9 @@ const canMonitorAudit = (audit: AuditHistoryItem) => {
 }
 
 const monitorButtonTitle = (audit: AuditHistoryItem) => {
-  if (!props.monitoringHasAccess) return 'Pre monitoring si treba zakupit predplatne.'
+  if (!props.monitoringHasAccess) return 'Pre monitoring si treba zakúpiť predplatné.'
   if (!isMonitoringAudit(audit) && !props.monitoringCanAddTarget) {
-    return `Dosiahli ste limit monitorovanych domen (${props.monitoringDomainsLimit}).`
+    return `Dosiahli ste limit monitorovaných domén (${props.monitoringDomainsLimit}).`
   }
   return ''
 }

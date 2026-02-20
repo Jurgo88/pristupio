@@ -8,6 +8,7 @@ import {
   normalizeSummary,
   runStoredAudit
 } from './monitoring-core'
+import { sendMonitoringWorseningEmail } from './monitoring-notify'
 
 export const config = {
   schedule: '0 */6 * * *'
@@ -49,16 +50,20 @@ export const handler: Handler = async () => {
     }
   })
   const tierByUser = new Map<string, 'none' | 'basic' | 'pro'>()
+  const emailByUser = new Map<string, string>()
 
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, monitoring_tier')
+      .select('id, monitoring_tier, email')
       .in('id', userIds)
 
     ;(profiles || []).forEach((profile: any) => {
       if (!profile?.id) return
       tierByUser.set(profile.id, normalizeMonitoringTier(profile.monitoring_tier))
+      if (profile.email) {
+        emailByUser.set(profile.id, String(profile.email))
+      }
     })
   }
 
@@ -162,6 +167,17 @@ export const handler: Handler = async () => {
           updated_at: finishedAt
         })
         .eq('id', target.id)
+
+      const recipientEmail = emailByUser.get(claimedTarget.user_id)
+      if (recipientEmail) {
+        await sendMonitoringWorseningEmail({
+          to: recipientEmail,
+          runUrl: claimedTarget.default_url,
+          trigger: 'scheduled',
+          diff,
+          summary: auditResult.summary
+        })
+      }
 
       processed += 1
     } catch (error: any) {

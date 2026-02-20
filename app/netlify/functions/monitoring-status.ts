@@ -52,6 +52,7 @@ export const handler: Handler = async (event) => {
     const primaryTarget = targets[0] || null
 
     let latestRun: Record<string, unknown> | null = null
+    const latestSuccessRunByTarget: Record<string, Record<string, unknown>> = {}
     if (primaryTarget?.id) {
       const { data: runData } = await supabase
         .from('monitoring_runs')
@@ -64,6 +65,23 @@ export const handler: Handler = async (event) => {
       latestRun = runData || null
     }
 
+    if (targets.length > 0) {
+      const targetIds = targets.map((target: any) => target?.id).filter(Boolean)
+      const { data: runs } = await supabase
+        .from('monitoring_runs')
+        .select('id, target_id, trigger, run_url, status, audit_id, summary_json, diff_json, error_message, started_at, finished_at')
+        .in('target_id', targetIds)
+        .eq('status', 'success')
+        .order('started_at', { ascending: false })
+        .limit(Math.max(20, targetIds.length * 4))
+
+      ;(runs || []).forEach((run: any) => {
+        const targetId = typeof run?.target_id === 'string' ? run.target_id : ''
+        if (!targetId || latestSuccessRunByTarget[targetId]) return
+        latestSuccessRunByTarget[targetId] = run
+      })
+    }
+
     return jsonResponse(200, {
       entitlement: {
         ...entitlement,
@@ -72,7 +90,8 @@ export const handler: Handler = async (event) => {
       latestAuditUrl,
       target: primaryTarget,
       targets,
-      latestRun
+      latestRun,
+      latestSuccessRunByTarget
     })
   } catch (error) {
     console.error('Monitoring status error:', error)

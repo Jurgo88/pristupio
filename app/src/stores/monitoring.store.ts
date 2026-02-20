@@ -91,6 +91,7 @@ export const useMonitoringStore = defineStore('monitoring', {
     target: null as MonitoringTarget | null,
     latestAuditUrl: '' as string,
     latestRun: null as MonitoringRun | null,
+    latestSuccessRunByTarget: {} as Record<string, MonitoringRun>,
     history: [] as MonitoringRun[],
     historyHasMore: false,
     historyPage: 1
@@ -129,6 +130,7 @@ export const useMonitoringStore = defineStore('monitoring', {
         this.targets = []
         this.target = null
         this.latestRun = null
+        this.latestSuccessRunByTarget = {}
         this.latestAuditUrl = ''
         return null
       }
@@ -148,6 +150,10 @@ export const useMonitoringStore = defineStore('monitoring', {
         this.targets = targets
         this.target = data?.target || targets[0] || null
         this.latestRun = data?.latestRun || null
+        this.latestSuccessRunByTarget =
+          data?.latestSuccessRunByTarget && typeof data.latestSuccessRunByTarget === 'object'
+            ? data.latestSuccessRunByTarget
+            : {}
         this.latestAuditUrl = data?.latestAuditUrl || ''
         return data
       } catch (error: any) {

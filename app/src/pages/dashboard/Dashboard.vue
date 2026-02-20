@@ -183,6 +183,9 @@
                   <span>Ďalší audit: {{ formatDateTime(target.next_run_at) || '--' }}</span>
                   <span>Posledný audit: {{ formatDateTime(target.last_run_at) || '--' }}</span>
                 </div>
+                <div class="monitoring-target-card__diff" v-if="monitoringDiffLabel(target.id)">
+                  <span :class="monitoringDiffClass(target.id)">{{ monitoringDiffLabel(target.id) }}</span>
+                </div>
               </div>
               <div class="monitoring-target-card__actions">
                 <button
@@ -231,6 +234,9 @@
       </template>
 
       <p v-if="monitoringMessage" class="status-alert status-alert--success">{{ monitoringMessage }}</p>
+      <p v-if="monitoringWorseningNotice" class="status-alert status-alert--warning">
+        {{ monitoringWorseningNotice }}
+      </p>
       <p v-if="monitoringError || monitoringStore.error" class="status-alert status-alert--danger">
         {{ monitoringError || monitoringStore.error }}
       </p>
@@ -460,6 +466,7 @@ const {
   monitoringCanAddTarget,
   monitoringIsActive,
   monitoringActiveTargetUrls,
+  monitoringLatestSuccessRunByTarget,
   monitoringDefaultCadenceLabel,
   monitoringMessage,
   monitoringError,
@@ -538,6 +545,61 @@ const scoreStateLabel = computed(() => {
 const lastAuditLabel = computed(() => {
   if (!latestAudit.value?.created_at) return ''
   return formatDate(latestAudit.value.created_at)
+})
+
+const signedDelta = (value: number) => {
+  if (!Number.isFinite(value) || value === 0) return '0'
+  return value > 0 ? `+${value}` : String(value)
+}
+
+const monitoringDiffMeta = (targetId: string) => {
+  const run = monitoringLatestSuccessRunByTarget.value?.[targetId]
+  const diff = run?.diff_json || {}
+  if (!diff || typeof diff !== 'object') return null
+
+  const totalDelta = Number((diff as any).totalDelta || 0)
+  const newIssues = Number((diff as any).newIssues || 0)
+  const resolvedIssues = Number((diff as any).resolvedIssues || 0)
+  const byImpactDelta = ((diff as any).byImpactDelta || {}) as Record<string, number>
+  const criticalDelta = Number(byImpactDelta.critical || 0)
+
+  return {
+    totalDelta,
+    newIssues: Math.max(0, newIssues),
+    resolvedIssues: Math.max(0, resolvedIssues),
+    criticalDelta,
+    worsening: totalDelta > 0 || criticalDelta > 0,
+    improving: totalDelta < 0
+  }
+}
+
+const monitoringDiffLabel = (targetId: string) => {
+  const meta = monitoringDiffMeta(targetId)
+  if (!meta) {
+    return ''
+  }
+
+  return `Zmena: ${signedDelta(meta.totalDelta)} | Nové: +${meta.newIssues} | Vyriešené: -${meta.resolvedIssues}`
+}
+
+const monitoringDiffClass = (targetId: string) => {
+  const meta = monitoringDiffMeta(targetId)
+  if (!meta) return ''
+  if (meta.worsening) return 'diff-pill diff-pill--worsening'
+  if (meta.improving) return 'diff-pill diff-pill--improving'
+  return 'diff-pill diff-pill--neutral'
+}
+
+const monitoringWorseningNotice = computed(() => {
+  const ids = Object.keys(monitoringLatestSuccessRunByTarget.value || {})
+  let worsenedCount = 0
+  ids.forEach((id) => {
+    const meta = monitoringDiffMeta(id)
+    if (meta?.worsening) worsenedCount += 1
+  })
+  if (worsenedCount === 0) return ''
+  if (worsenedCount === 1) return 'Upozornenie: pri 1 doméne sa monitoring zhoršil oproti minulému auditu.'
+  return `Upozornenie: pri ${worsenedCount} doménach sa monitoring zhoršil oproti minulému auditu.`
 })
 </script>
 
@@ -692,6 +754,43 @@ const lastAuditLabel = computed(() => {
   font-size: 0.68rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.monitoring-target-card__diff {
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.diff-pill {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+
+.diff-pill--worsening {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+.diff-pill--improving {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+  border-color: rgba(22, 163, 74, 0.24);
+}
+
+.diff-pill--neutral {
+  background: rgba(71, 85, 105, 0.1);
+  color: #334155;
+  border-color: rgba(100, 116, 139, 0.3);
+}
+
+.status-alert--warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(217, 119, 6, 0.38);
+  color: #92400e;
 }
 
 .monitoring-target-card__actions {
@@ -1119,6 +1218,34 @@ const lastAuditLabel = computed(() => {
   background: #0f1c31;
   border-color: #334862;
   color: #bfdbfe;
+}
+
+[data-theme='dark'] .monitoring-target-card__diff {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .diff-pill--worsening {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+[data-theme='dark'] .diff-pill--improving {
+  background: rgba(22, 163, 74, 0.22);
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+[data-theme='dark'] .diff-pill--neutral {
+  background: rgba(51, 65, 85, 0.45);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.36);
+}
+
+[data-theme='dark'] .status-alert--warning {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fde68a;
 }
 
 .panel-head {

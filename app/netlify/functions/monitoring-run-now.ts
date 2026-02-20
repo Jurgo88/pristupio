@@ -15,6 +15,7 @@ import {
   normalizeSummary,
   runStoredAudit
 } from './monitoring-core'
+import { sendMonitoringWorseningEmail } from './monitoring-notify'
 
 type RunNowBody = {
   targetId?: unknown
@@ -171,6 +172,22 @@ export const handler: Handler = async (event) => {
       })
       .eq('id', targetResult.data.id)
       .eq('user_id', auth.userId)
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', auth.userId)
+      .maybeSingle()
+
+    if (profileData?.email) {
+      await sendMonitoringWorseningEmail({
+        to: String(profileData.email),
+        runUrl,
+        trigger: 'manual',
+        diff,
+        summary: auditResult.summary
+      })
+    }
 
     return jsonResponse(200, {
       runId,

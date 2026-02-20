@@ -85,6 +85,9 @@ export const useDashboardCore = () => {
   const monitoringTargets = computed(() => monitoringStore.targets || [])
   const monitoringTarget = computed(() => monitoringStore.target || monitoringTargets.value[0] || null)
   const monitoringLatestRun = computed(() => monitoringStore.latestRun)
+  const monitoringLatestSuccessRunByTarget = computed(
+    () => monitoringStore.latestSuccessRunByTarget || {}
+  )
   const monitoringLoadingStatus = computed(() => monitoringStore.loadingStatus)
   const monitoringLoadingAction = computed(() => monitoringStore.loadingAction)
   const monitoringDomainsLimit = computed(() =>
@@ -226,9 +229,9 @@ export const useDashboardCore = () => {
     monitoringMessage.value = ''
     try {
       await monitoringStore.deleteTarget({ targetId })
-      monitoringMessage.value = 'Monitoring domeny bol zruseny.'
+      monitoringMessage.value = 'Monitoring domény bol zrušený.'
     } catch (error: any) {
-      monitoringError.value = error?.message || 'Monitoring domeny sa nepodarilo zrusit.'
+      monitoringError.value = error?.message || 'Monitoring domény sa nepodarilo zrušiť.'
     }
   }
 
@@ -238,12 +241,12 @@ export const useDashboardCore = () => {
 
     const url = typeof audit?.url === 'string' ? audit.url.trim() : ''
     if (!url) {
-      monitoringError.value = 'Vybrany audit nema URL pre monitoring.'
+      monitoringError.value = 'Vybraný audit nemá URL pre monitoring.'
       return
     }
 
     if (!monitoringHasAccess.value) {
-      monitoringError.value = 'Monitoring plan nie je aktivny pre tento ucet.'
+      monitoringError.value = 'Monitoring plán nie je aktívny pre tento účet.'
       return
     }
 
@@ -253,7 +256,7 @@ export const useDashboardCore = () => {
     )
 
     if (existingTarget?.active) {
-      monitoringMessage.value = 'Tato domena je uz monitorovana.'
+      monitoringMessage.value = 'Táto doména je už monitorovaná.'
       return
     }
 
@@ -265,9 +268,9 @@ export const useDashboardCore = () => {
           profile: selectedProfile.value,
           active: true
         })
-        monitoringMessage.value = 'Monitoring domeny bol obnoveny.'
+        monitoringMessage.value = 'Monitoring domény bol obnovený.'
       } catch (error: any) {
-        monitoringError.value = error?.message || 'Monitoring domeny sa nepodarilo obnovit.'
+        monitoringError.value = error?.message || 'Monitoring domény sa nepodarilo obnoviť.'
         return
       }
     } else {
@@ -275,8 +278,8 @@ export const useDashboardCore = () => {
         const limit = monitoringDomainsLimit.value
         monitoringError.value =
           limit > 0
-            ? `Dosiahli ste limit monitorovanych domen (${limit}).`
-            : 'Monitoring plan pre tento ucet nema dostupne domeny.'
+            ? `Dosiahli ste limit monitorovaných domén (${limit}).`
+            : 'Monitoring plán pre tento účet nemá dostupné domény.'
         return
       }
 
@@ -285,9 +288,9 @@ export const useDashboardCore = () => {
           defaultUrl: url,
           profile: selectedProfile.value
         })
-        monitoringMessage.value = 'Domena bola pridana do monitoringu.'
+        monitoringMessage.value = 'Doména bola pridaná do monitoringu.'
       } catch (error: any) {
-        monitoringError.value = error?.message || 'Monitoring domeny sa nepodarilo aktivovat.'
+        monitoringError.value = error?.message || 'Monitoring domény sa nepodarilo aktivovať.'
         return
       }
     }
@@ -342,6 +345,7 @@ export const useDashboardCore = () => {
     monitoringTargets,
     monitoringTarget,
     monitoringLatestRun,
+    monitoringLatestSuccessRunByTarget,
     monitoringLoadingStatus,
     monitoringLoadingAction,
     monitoringDomainsLimit,
