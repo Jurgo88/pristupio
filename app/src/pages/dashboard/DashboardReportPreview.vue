@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { DASHBOARD_IMPACT_TEXT, DASHBOARD_REPORT_PREVIEW_TEXT } from './dashboard.constants'
+import { DASHBOARD_IMPACT_TEXT, DASHBOARD_REPORT_PREVIEW_TEXT } from './dashboard.copy'
 
 defineProps<{
   auditScore: number

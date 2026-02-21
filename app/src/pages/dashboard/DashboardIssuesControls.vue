@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { DASHBOARD_ISSUES_TEXT, IMPACT_OPTIONS } from './dashboard.constants'
+import { DASHBOARD_ISSUES_TEXT, IMPACT_OPTIONS } from './dashboard.copy'
 
 defineProps<{
   hasReport: boolean

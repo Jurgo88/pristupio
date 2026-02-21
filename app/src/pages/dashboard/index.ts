@@ -25,13 +25,11 @@ export {
   DASHBOARD_METRICS_TEXT,
   DASHBOARD_AUDIT_FORM_TEXT,
   DASHBOARD_HISTORY_TEXT,
-  getDashboardScoreStateLabel
-} from './dashboard.copy'
-
-export {
   DASHBOARD_ISSUES_TEXT,
   DASHBOARD_IMPACT_TEXT,
   DASHBOARD_STATS_TEXT,
   DASHBOARD_REPORT_PREVIEW_TEXT,
-  IMPACT_OPTIONS
-} from './dashboard.constants'
+  IMPACT_OPTIONS,
+  IMPACT_LABELS,
+  getDashboardScoreStateLabel
+} from './dashboard.copy'

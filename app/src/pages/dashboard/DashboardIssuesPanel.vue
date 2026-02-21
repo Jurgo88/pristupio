@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import type { DashboardIssue } from './dashboard.types'
-import { DASHBOARD_ISSUES_TEXT } from './dashboard.constants'
+import { DASHBOARD_ISSUES_TEXT } from './dashboard.copy'
 import DashboardIssueList from './DashboardIssueList.vue'
 import DashboardIssuesControls from './DashboardIssuesControls.vue'
 

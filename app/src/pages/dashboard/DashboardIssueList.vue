@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import type { DashboardIssue } from './dashboard.types'
-import { IMPACT_LABELS } from './dashboard.constants'
+import { IMPACT_LABELS } from './dashboard.copy'
 import { describeTarget, formatTarget } from './useDashboardTargets'
 
 type ImpactClassFn = (impact: string) => string

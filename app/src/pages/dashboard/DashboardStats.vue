@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { DASHBOARD_IMPACT_TEXT, DASHBOARD_STATS_TEXT } from './dashboard.constants'
+import { DASHBOARD_IMPACT_TEXT, DASHBOARD_STATS_TEXT } from './dashboard.copy'
 
 defineProps<{
   highCount: number
