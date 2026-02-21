@@ -24,22 +24,22 @@ const parsePositiveInt = (value: string | undefined, fallback: number) => {
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'GET') {
-      return errorResponse(405, 'Method not allowed.')
+      return errorResponse(405, 'Metoda nie je povolena.')
     }
 
     const supabase = createSupabaseAdminClient()
     if (!supabase) {
-      return errorResponse(500, 'Supabase config missing.')
+      return errorResponse(500, 'Chyba konfiguracia Supabase.')
     }
 
     const token = getBearerToken(event)
     if (!token) {
-      return errorResponse(401, 'Authorization missing.')
+      return errorResponse(401, 'Chyba autorizacia.')
     }
 
     const auth = await getAuthUser(supabase, token)
     if (!auth.userId) {
-      return errorResponse(401, auth.error || 'Invalid login.')
+      return errorResponse(401, auth.error || 'Neplatne prihlasenie.')
     }
 
     const requestedTargetId = (event.queryStringParameters?.targetId || '').trim()
@@ -48,13 +48,13 @@ export const handler: Handler = async (event) => {
     if (requestedTargetId) {
       const targetResult = await getMonitoringTargetById(supabase, auth.userId, requestedTargetId)
       if (targetResult.error) {
-        return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+        return errorResponse(500, 'Nacitanie ciela monitoringu zlyhalo. Najprv aplikujte monitoring migraciu.')
       }
       if (targetResult.data?.id) targetIds.push(targetResult.data.id)
     } else {
       const targetsResult = await getMonitoringTargets(supabase, auth.userId)
       if (targetsResult.error) {
-        return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+        return errorResponse(500, 'Nacitanie cielov monitoringu zlyhalo. Najprv aplikujte monitoring migraciu.')
       }
       ;(targetsResult.data || []).forEach((target: any) => {
         if (target?.id) targetIds.push(target.id)
@@ -84,7 +84,7 @@ export const handler: Handler = async (event) => {
       .range(from, to)
 
     if (error) {
-      return errorResponse(500, 'Monitoring history load failed.')
+      return errorResponse(500, 'Nacitanie historie monitoringu zlyhalo.')
     }
 
     const safeRuns = Array.isArray(data) ? data : []
@@ -97,6 +97,6 @@ export const handler: Handler = async (event) => {
     })
   } catch (error) {
     console.error('Monitoring history error:', error)
-    return errorResponse(500, 'Monitoring history load failed.')
+    return errorResponse(500, 'Nacitanie historie monitoringu zlyhalo.')
   }
 }

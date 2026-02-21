@@ -33,36 +33,36 @@ const parseBody = (rawBody?: string | null): DeleteBody => {
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'DELETE') {
-      return errorResponse(405, 'Method not allowed.')
+      return errorResponse(405, 'Metoda nie je povolena.')
     }
 
     const supabase = createSupabaseAdminClient()
     if (!supabase) {
-      return errorResponse(500, 'Supabase config missing.')
+      return errorResponse(500, 'Chyba konfiguracia Supabase.')
     }
 
     const token = getBearerToken(event)
     if (!token) {
-      return errorResponse(401, 'Authorization missing.')
+      return errorResponse(401, 'Chyba autorizacia.')
     }
 
     const auth = await getAuthUser(supabase, token)
     if (!auth.userId) {
-      return errorResponse(401, auth.error || 'Invalid login.')
+      return errorResponse(401, auth.error || 'Neplatne prihlasenie.')
     }
 
     const body = parseBody(event.body)
     const targetId = typeof body.targetId === 'string' ? body.targetId.trim() : ''
     if (!targetId) {
-      return errorResponse(400, 'Target id is required.')
+      return errorResponse(400, 'Target ID je povinne.')
     }
 
     const targetResult = await getMonitoringTargetById(supabase, auth.userId, targetId)
     if (targetResult.error) {
-      return errorResponse(500, 'Monitoring target load failed.')
+      return errorResponse(500, 'Nacitanie ciela monitoringu zlyhalo.')
     }
     if (!targetResult.data?.id) {
-      return errorResponse(404, 'Monitoring target does not exist.')
+      return errorResponse(404, 'Ciel monitoringu neexistuje.')
     }
 
     const { error } = await supabase
@@ -72,18 +72,17 @@ export const handler: Handler = async (event) => {
       .eq('user_id', auth.userId)
 
     if (error) {
-      return errorResponse(500, 'Monitoring target delete failed.')
+      return errorResponse(500, 'Zmazanie ciela monitoringu zlyhalo.')
     }
 
     const refreshed = await getMonitoringTargets(supabase, auth.userId)
     if (refreshed.error) {
-      return errorResponse(500, 'Monitoring targets refresh failed.')
+      return errorResponse(500, 'Obnovenie cielov monitoringu zlyhalo.')
     }
 
     return jsonResponse(200, { targets: refreshed.data || [] })
   } catch (error) {
     console.error('Monitoring delete error:', error)
-    return errorResponse(500, 'Monitoring target delete failed.')
+    return errorResponse(500, 'Zmazanie ciela monitoringu zlyhalo.')
   }
 }
-

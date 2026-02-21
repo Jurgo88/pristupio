@@ -20,22 +20,22 @@ const errorResponse = (statusCode: number, message: string) => jsonResponse(stat
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'GET') {
-      return errorResponse(405, 'Method not allowed.')
+      return errorResponse(405, 'Metoda nie je povolena.')
     }
 
     const supabase = createSupabaseAdminClient()
     if (!supabase) {
-      return errorResponse(500, 'Supabase config missing.')
+      return errorResponse(500, 'Chyba konfiguracia Supabase.')
     }
 
     const token = getBearerToken(event)
     if (!token) {
-      return errorResponse(401, 'Authorization missing.')
+      return errorResponse(401, 'Chyba autorizacia.')
     }
 
     const auth = await getAuthUser(supabase, token)
     if (!auth.userId) {
-      return errorResponse(401, auth.error || 'Invalid login.')
+      return errorResponse(401, auth.error || 'Neplatne prihlasenie.')
     }
 
     const [entitlement, targetsResult, latestAuditUrl] = await Promise.all([
@@ -45,7 +45,7 @@ export const handler: Handler = async (event) => {
     ])
 
     if (targetsResult.error) {
-      return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+      return errorResponse(500, 'Nacitanie cielov monitoringu zlyhalo. Najprv aplikujte monitoring migraciu.')
     }
 
     const targets = targetsResult.data || []
@@ -95,6 +95,6 @@ export const handler: Handler = async (event) => {
     })
   } catch (error) {
     console.error('Monitoring status error:', error)
-    return errorResponse(500, 'Monitoring status failed.')
+    return errorResponse(500, 'Nacitanie stavu monitoringu zlyhalo.')
   }
 }

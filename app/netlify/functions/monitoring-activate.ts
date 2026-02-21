@@ -44,22 +44,22 @@ const parseBody = (rawBody?: string | null): ActivateBody => {
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'POST') {
-      return errorResponse(405, 'Method not allowed.')
+      return errorResponse(405, 'Metoda nie je povolena.')
     }
 
     const supabase = createSupabaseAdminClient()
     if (!supabase) {
-      return errorResponse(500, 'Supabase config missing.')
+      return errorResponse(500, 'Chyba konfiguracia Supabase.')
     }
 
     const token = getBearerToken(event)
     if (!token) {
-      return errorResponse(401, 'Authorization missing.')
+      return errorResponse(401, 'Chyba autorizacia.')
     }
 
     const auth = await getAuthUser(supabase, token)
     if (!auth.userId) {
-      return errorResponse(401, auth.error || 'Invalid login.')
+      return errorResponse(401, auth.error || 'Neplatne prihlasenie.')
     }
 
     const entitlement = await loadMonitoringEntitlement(supabase, auth.userId)
@@ -67,7 +67,7 @@ export const handler: Handler = async (event) => {
       return errorResponse(403, 'Monitoring je dostupny az po zakladnom audite.')
     }
     if (!hasMonitoringAccess(entitlement)) {
-      return errorResponse(403, 'Monitoring plan is not active for this account.')
+      return errorResponse(403, 'Monitoring plan nie je aktivny pre tento ucet.')
     }
 
     const body = parseBody(event.body)
@@ -75,7 +75,7 @@ export const handler: Handler = async (event) => {
 
     const targetsResult = await getMonitoringTargets(supabase, auth.userId)
     if (targetsResult.error) {
-      return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+      return errorResponse(500, 'Nacitanie cielov monitoringu zlyhalo. Najprv aplikujte monitoring migraciu.')
     }
     const targets = targetsResult.data || []
 
@@ -83,7 +83,7 @@ export const handler: Handler = async (event) => {
     const providedUrl = normalizeAuditUrl(body.defaultUrl)
     const defaultUrl = providedUrl || latestAuditUrl || targets[0]?.default_url || null
     if (!defaultUrl) {
-      return errorResponse(400, 'No URL available. Run at least one audit or provide URL explicitly.')
+      return errorResponse(400, 'URL nie je dostupna. Spustite aspon jeden audit alebo zadajte URL rucne.')
     }
 
     const normalizedUrl = normalizeMonitoringUrlForCompare(defaultUrl)
@@ -96,7 +96,7 @@ export const handler: Handler = async (event) => {
         : Math.max(0, Number(entitlement.monitoringDomainsLimit || 0))
 
     if (!existingTarget && domainsLimit <= 0) {
-      return errorResponse(403, 'Monitoring domains limit is 0 for this account.')
+      return errorResponse(403, 'Limit monitorovanych domen je pre tento ucet 0.')
     }
     if (!existingTarget && targets.length >= domainsLimit) {
       return errorResponse(409, `Dosiahli ste limit monitorovanych domen (${domainsLimit}).`)
@@ -128,7 +128,7 @@ export const handler: Handler = async (event) => {
         .single()
 
       if (error || !data) {
-        return errorResponse(500, 'Monitoring activation failed.')
+        return errorResponse(500, 'Aktivacia monitoringu zlyhala.')
       }
 
       const refreshed = await getMonitoringTargets(supabase, auth.userId)
@@ -152,13 +152,13 @@ export const handler: Handler = async (event) => {
       .single()
 
     if (error || !data) {
-      return errorResponse(500, 'Monitoring activation failed.')
+      return errorResponse(500, 'Aktivacia monitoringu zlyhala.')
     }
 
     const refreshed = await getMonitoringTargets(supabase, auth.userId)
     return jsonResponse(200, { target: data, targets: refreshed.data || [] })
   } catch (error) {
     console.error('Monitoring activate error:', error)
-    return errorResponse(500, 'Monitoring activation failed.')
+    return errorResponse(500, 'Aktivacia monitoringu zlyhala.')
   }
 }

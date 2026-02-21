@@ -42,22 +42,22 @@ const parseBody = (rawBody?: string | null): ConfigBody => {
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'PUT') {
-      return errorResponse(405, 'Method not allowed.')
+      return errorResponse(405, 'Metoda nie je povolena.')
     }
 
     const supabase = createSupabaseAdminClient()
     if (!supabase) {
-      return errorResponse(500, 'Supabase config missing.')
+      return errorResponse(500, 'Chyba konfiguracia Supabase.')
     }
 
     const token = getBearerToken(event)
     if (!token) {
-      return errorResponse(401, 'Authorization missing.')
+      return errorResponse(401, 'Chyba autorizacia.')
     }
 
     const auth = await getAuthUser(supabase, token)
     if (!auth.userId) {
-      return errorResponse(401, auth.error || 'Invalid login.')
+      return errorResponse(401, auth.error || 'Neplatne prihlasenie.')
     }
 
     const body = parseBody(event.body)
@@ -68,10 +68,10 @@ export const handler: Handler = async (event) => {
       : await getMonitoringTarget(supabase, auth.userId)
 
     if (targetResult.error) {
-      return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+      return errorResponse(500, 'Nacitanie ciela monitoringu zlyhalo. Najprv aplikujte monitoring migraciu.')
     }
     if (!targetResult.data?.id) {
-      return errorResponse(404, 'Monitoring target does not exist.')
+      return errorResponse(404, 'Ciel monitoringu neexistuje.')
     }
     const entitlement = await loadMonitoringEntitlement(supabase, auth.userId)
     const monitoringTier = normalizeMonitoringTier(entitlement.monitoringTier)
@@ -86,7 +86,7 @@ export const handler: Handler = async (event) => {
     if (typeof body.defaultUrl !== 'undefined') {
       const parsedUrl = normalizeAuditUrl(body.defaultUrl)
       if (!parsedUrl) {
-        return errorResponse(400, 'Invalid URL.')
+        return errorResponse(400, 'Neplatna URL.')
       }
       updates.default_url = parsedUrl
     }
@@ -117,13 +117,13 @@ export const handler: Handler = async (event) => {
       .single()
 
     if (error || !data) {
-      return errorResponse(500, 'Monitoring config update failed.')
+      return errorResponse(500, 'Aktualizacia konfiguracie monitoringu zlyhala.')
     }
 
     const refreshed = await getMonitoringTargets(supabase, auth.userId)
     return jsonResponse(200, { target: data, targets: refreshed.data || [] })
   } catch (error) {
     console.error('Monitoring config error:', error)
-    return errorResponse(500, 'Monitoring config update failed.')
+    return errorResponse(500, 'Aktualizacia konfiguracie monitoringu zlyhala.')
   }
 }

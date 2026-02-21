@@ -118,7 +118,7 @@ const gotoWithRetry = async (page: any, url: string) => {
     }
   }
 
-  throw new Error(`Page load failed: ${getErrorMessage(lastError)}`)
+  throw new Error(`Nacitanie stranky zlyhalo: ${getErrorMessage(lastError)}`)
 }
 
 export const emptySummary = (): Summary => ({
@@ -143,10 +143,10 @@ export const getBearerToken = (event: HandlerEvent) => {
 }
 
 export const getAuthUser = async (supabase: SupabaseAdminClient, token: string) => {
-  if (!supabase) return { userId: null, error: 'Supabase config missing.' }
+  if (!supabase) return { userId: null, error: 'Chyba konfiguracia Supabase.' }
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data?.user?.id) {
-    return { userId: null, error: 'Invalid login.' }
+    return { userId: null, error: 'Neplatne prihlasenie.' }
   }
   return { userId: data.user.id, error: null }
 }
@@ -551,7 +551,7 @@ export const runStoredAudit = async ({ supabase, userId, url, auditKind = 'paid'
       .single()
 
     if (auditError || !auditInsert?.id) {
-      throw new Error('Audit insert failed.')
+      throw new Error('Ulozenie auditu zlyhalo.')
     }
 
     const { error: fullError } = await supabase.from('audit_full').insert({
@@ -563,7 +563,7 @@ export const runStoredAudit = async ({ supabase, userId, url, auditKind = 'paid'
 
     if (fullError) {
       await supabase.from('audits').delete().eq('id', auditInsert.id)
-      throw new Error('Audit detail insert failed.')
+      throw new Error('Ulozenie detailu auditu zlyhalo.')
     }
 
     return {

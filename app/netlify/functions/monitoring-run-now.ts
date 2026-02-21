@@ -46,22 +46,22 @@ export const handler: Handler = async (event) => {
 
   try {
     if (event.httpMethod !== 'POST') {
-      return errorResponse(405, 'Method not allowed.')
+      return errorResponse(405, 'Metoda nie je povolena.')
     }
 
     const supabase = createSupabaseAdminClient()
     if (!supabase) {
-      return errorResponse(500, 'Supabase config missing.')
+      return errorResponse(500, 'Chyba konfiguracia Supabase.')
     }
 
     const token = getBearerToken(event)
     if (!token) {
-      return errorResponse(401, 'Authorization missing.')
+      return errorResponse(401, 'Chyba autorizacia.')
     }
 
     const auth = await getAuthUser(supabase, token)
     if (!auth.userId) {
-      return errorResponse(401, auth.error || 'Invalid login.')
+      return errorResponse(401, auth.error || 'Neplatne prihlasenie.')
     }
 
     const entitlement = await loadMonitoringEntitlement(supabase, auth.userId)
@@ -69,7 +69,7 @@ export const handler: Handler = async (event) => {
       return errorResponse(403, 'Monitoring je dostupny az po zakladnom audite.')
     }
     if (!hasMonitoringAccess(entitlement)) {
-      return errorResponse(403, 'Monitoring plan is not active for this account.')
+      return errorResponse(403, 'Monitoring plan nie je aktivny pre tento ucet.')
     }
 
     const body = parseBody(event.body)
@@ -79,15 +79,15 @@ export const handler: Handler = async (event) => {
       : await getMonitoringTarget(supabase, auth.userId)
 
     if (targetResult.error) {
-      return errorResponse(500, 'Monitoring target load failed. Apply monitoring migration first.')
+      return errorResponse(500, 'Nacitanie ciela monitoringu zlyhalo. Najprv aplikujte monitoring migraciu.')
     }
     if (!targetResult.data?.id) {
-      return errorResponse(404, 'Monitoring target does not exist. Activate monitoring first.')
+      return errorResponse(404, 'Ciel monitoringu neexistuje. Najprv aktivujte monitoring.')
     }
 
     const overrideUrl = normalizeAuditUrl(body.url)
     if (typeof body.url !== 'undefined' && !overrideUrl) {
-      return errorResponse(400, 'Invalid URL.')
+      return errorResponse(400, 'Neplatna URL.')
     }
     const runUrl = overrideUrl || targetResult.data.default_url
     const shouldSwitchTargetUrl =
@@ -118,7 +118,7 @@ export const handler: Handler = async (event) => {
       .single()
 
     if (runInsert.error || !runInsert.data?.id) {
-      return errorResponse(500, 'Monitoring run creation failed.')
+      return errorResponse(500, 'Vytvorenie monitoring behu zlyhalo.')
     }
     runId = runInsert.data.id
 
@@ -160,7 +160,7 @@ export const handler: Handler = async (event) => {
       .eq('id', runId)
 
     if (updateRunError) {
-      return errorResponse(500, 'Monitoring run finalization failed.')
+      return errorResponse(500, 'Dokoncenie monitoring behu zlyhalo.')
     }
 
     await supabase
@@ -206,7 +206,7 @@ export const handler: Handler = async (event) => {
           ?.from('monitoring_runs')
           .update({
             status: 'failed',
-            error_message: error?.message || 'Monitoring run failed.',
+            error_message: error?.message || 'Monitoring beh zlyhal.',
             finished_at: new Date().toISOString()
           })
           .eq('id', runId)
@@ -215,6 +215,6 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    return errorResponse(500, error?.message || 'Monitoring run failed.')
+    return errorResponse(500, error?.message || 'Monitoring beh zlyhal.')
   }
 }

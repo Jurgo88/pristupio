@@ -23,7 +23,7 @@ const jsonResponse = (statusCode: number, payload: Record<string, unknown>) => (
 export const handler: Handler = async () => {
   const supabase = createSupabaseAdminClient()
   if (!supabase) {
-    return jsonResponse(500, { error: 'Supabase config missing.' })
+    return jsonResponse(500, { error: 'Chyba konfiguracia Supabase.' })
   }
 
   const now = new Date()
@@ -38,7 +38,7 @@ export const handler: Handler = async () => {
     .limit(10)
 
   if (dueError) {
-    return jsonResponse(500, { error: 'Monitoring due-target lookup failed.' })
+    return jsonResponse(500, { error: 'Nacitanie naplanovanych cielov monitoringu zlyhalo.' })
   }
 
   const safeTargets = Array.isArray(dueTargets) ? dueTargets : []
@@ -187,7 +187,7 @@ export const handler: Handler = async () => {
           .from('monitoring_runs')
           .update({
             status: 'failed',
-            error_message: error?.message || 'Monitoring scheduled run failed.',
+            error_message: error?.message || 'Planovany monitoring beh zlyhal.',
             finished_at: new Date().toISOString()
           })
           .eq('id', runId)
