@@ -6,12 +6,24 @@ export type DashboardIssueNode = {
   html?: string
 }
 
+export type DashboardIssueCopy = {
+  title?: string
+  description?: string
+  recommendation?: string
+  source?: 'static' | 'ai' | string
+  promptVersion?: string
+  generatedAt?: string
+}
+
+export type DashboardIssueCopyByLocale = Record<string, DashboardIssueCopy>
+
 export type DashboardIssue = {
   id?: string
   impact?: ImpactLevel | string
   title?: string
   description?: string
   recommendation?: string
+  copy?: DashboardIssueCopyByLocale
   wcag?: string
   wcagLevel?: string
   principle?: string

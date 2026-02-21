@@ -2,6 +2,7 @@ import { Handler } from '@netlify/functions'
 import chromium from '@sparticuz/chromium-min'
 import { chromium as playwright } from 'playwright-core'
 import { createClient } from '@supabase/supabase-js'
+import { DEFAULT_ISSUE_LOCALE, localizeIssue, normalizeIssueLocale } from './audit-copy'
 
 process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 
@@ -14,12 +15,123 @@ const supabase =
 
 type Impact = 'critical' | 'serious' | 'moderate' | 'minor'
 
+type ExportLocale = 'sk' | 'en'
+
+type ExportText = {
+  reportTitle: string
+  noIssues: string
+  findingsSuffix: string
+  issueFallback: string
+  wcagLabel: string
+  levelLabel: string
+  principleLabel: string
+  recommendationLabel: string
+  affectedElementsLabel: string
+  guidanceLabel: string
+  filtersNone: string
+  filterPrinciple: string
+  filterImpact: string
+  filterSearch: string
+  profileLabel: string
+  dateLabel: string
+  standardLabel: string
+  readinessLabel: string
+  scoreCaption: string
+  highSeverityLabel: string
+  moderateLabel: string
+  minorLabel: string
+  identifiedIssuesLabel: string
+  issuesIntro: string
+  noteAutomated: string
+  noteGenerated: string
+  pageLabel: string
+  impactCritical: string
+  impactSerious: string
+  impactModerate: string
+  impactMinor: string
+  profileFallback: string
+}
+
+const EXPORT_TEXTS: Record<ExportLocale, ExportText> = {
+  sk: {
+    reportTitle: 'WCAG audit report',
+    noIssues: 'Nenasli sa ziadne problemy pristupnosti.',
+    findingsSuffix: 'nalezy',
+    issueFallback: 'Problem',
+    wcagLabel: 'WCAG',
+    levelLabel: 'Uroven',
+    principleLabel: 'Princip',
+    recommendationLabel: 'Odporucanie',
+    affectedElementsLabel: 'Zasiahnute elementy',
+    guidanceLabel: 'Napoveda',
+    filtersNone: 'Filtre: ziadne',
+    filterPrinciple: 'Princip',
+    filterImpact: 'Dopad',
+    filterSearch: 'Vyhladavanie',
+    profileLabel: 'Profil',
+    dateLabel: 'Datum',
+    standardLabel: 'Standard',
+    readinessLabel: 'Index pripravenosti',
+    scoreCaption: 'Skore vychadza z exportovanych nalezov a ich zavaznosti.',
+    highSeverityLabel: 'Kriticke + Vazne',
+    moderateLabel: 'Stredne',
+    minorLabel: 'Mierne',
+    identifiedIssuesLabel: 'Identifikovane problemy',
+    issuesIntro: 'Nalezy su zoskupene podla zavaznosti pre prioritizaciu oprav.',
+    noteAutomated: 'Automatizovane testy nepokryvaju vsetky WCAG kriteria. Manualna kontrola je potrebna.',
+    noteGenerated: 'Generovane cez Playwright na Netlify Functions.',
+    pageLabel: 'Strana',
+    impactCritical: 'Kriticke',
+    impactSerious: 'Vazne',
+    impactModerate: 'Stredne',
+    impactMinor: 'Mierne',
+    profileFallback: 'WCAG profil'
+  },
+  en: {
+    reportTitle: 'WCAG audit report',
+    noIssues: 'No accessibility issues were found.',
+    findingsSuffix: 'findings',
+    issueFallback: 'Issue',
+    wcagLabel: 'WCAG',
+    levelLabel: 'Level',
+    principleLabel: 'Principle',
+    recommendationLabel: 'Recommendation',
+    affectedElementsLabel: 'Affected elements',
+    guidanceLabel: 'Guidance',
+    filtersNone: 'Filters: none',
+    filterPrinciple: 'Principle',
+    filterImpact: 'Impact',
+    filterSearch: 'Search',
+    profileLabel: 'Profile',
+    dateLabel: 'Date',
+    standardLabel: 'Standard',
+    readinessLabel: 'Readiness index',
+    scoreCaption: 'The score is based on the exported findings and the issue severity mix.',
+    highSeverityLabel: 'Critical + Serious',
+    moderateLabel: 'Moderate',
+    minorLabel: 'Minor',
+    identifiedIssuesLabel: 'Identified issues',
+    issuesIntro: 'Findings are grouped by severity to prioritize remediation and sprint planning.',
+    noteAutomated: 'Automated checks do not cover all WCAG criteria. Manual review is required.',
+    noteGenerated: 'Generated with Playwright on Netlify Functions.',
+    pageLabel: 'Page',
+    impactCritical: 'Critical',
+    impactSerious: 'Serious',
+    impactModerate: 'Moderate',
+    impactMinor: 'Minor',
+    profileFallback: 'WCAG profile'
+  }
+}
+
+const getExportText = (locale: ExportLocale): ExportText => EXPORT_TEXTS[locale]
+
 type ReportIssue = {
   id?: string
   title?: string
   impact?: Impact
   description?: string
   recommendation?: string
+  copy?: Record<string, unknown>
   wcag?: string
   wcagLevel?: string
   principle?: string
@@ -36,6 +148,7 @@ type ReportPayload = {
 }
 
 type ExportPayload = {
+  lang?: string
   url?: string
   profile?: string
   profileLabel?: string
@@ -107,27 +220,27 @@ const formatDate = (iso?: string) => {
   return new Date().toISOString().slice(0, 10)
 }
 
-const buildFiltersLine = (filters?: ExportPayload['filters']) => {
-  if (!filters) return 'Filters: none'
+const buildFiltersLine = (filters: ExportPayload['filters'] | undefined, copy: ExportText) => {
+  if (!filters) return copy.filtersNone
   const entries: string[] = []
-  if (filters.principle) entries.push(`Principle: ${safeText(filters.principle)}`)
-  if (filters.impact) entries.push(`Impact: ${safeText(filters.impact)}`)
-  if (filters.search) entries.push(`Search: ${safeText(filters.search)}`)
-  return entries.length ? entries.join(' | ') : 'Filters: none'
+  if (filters.principle) entries.push(`${copy.filterPrinciple}: ${safeText(filters.principle)}`)
+  if (filters.impact) entries.push(`${copy.filterImpact}: ${safeText(filters.impact)}`)
+  if (filters.search) entries.push(`${copy.filterSearch}: ${safeText(filters.search)}`)
+  return entries.length ? entries.join(' | ') : copy.filtersNone
 }
 
 const IMPACT_ORDER: Impact[] = ['critical', 'serious', 'moderate', 'minor']
 
-const impactLabel = (impact: Impact) => {
-  if (impact === 'critical') return 'Critical'
-  if (impact === 'serious') return 'Serious'
-  if (impact === 'moderate') return 'Moderate'
-  return 'Minor'
+const impactLabel = (impact: Impact, copy: ExportText) => {
+  if (impact === 'critical') return copy.impactCritical
+  if (impact === 'serious') return copy.impactSerious
+  if (impact === 'moderate') return copy.impactModerate
+  return copy.impactMinor
 }
 
-const buildIssuesHtml = (issues: ReportIssue[]) => {
+const buildIssuesHtml = (issues: ReportIssue[], copy: ExportText) => {
   if (!issues.length) {
-    return `<div class="empty">No accessibility issues were found.</div>`
+    return `<div class="empty">${copy.noIssues}</div>`
   }
 
   const grouped: Record<Impact, ReportIssue[]> = {
@@ -147,7 +260,7 @@ const buildIssuesHtml = (issues: ReportIssue[]) => {
       return `
         <section class="issue-group issue-group-${impact}">
           <div class="issue-group-head">
-            <h3>${impactLabel(impact)} findings</h3>
+            <h3>${impactLabel(impact, copy)} ${copy.findingsSuffix}</h3>
             <span>${groupIssues.length}</span>
           </div>
           <div class="issue-group-list">
@@ -156,22 +269,22 @@ const buildIssuesHtml = (issues: ReportIssue[]) => {
                 return `
                   <div class="issue">
                     <div class="issue-head">
-                      <span class="pill pill-${impact}">${impactLabel(impact).toUpperCase()}</span>
-                      <div class="issue-title">${safeText(issue.title || 'Issue')}</div>
+                      <span class="pill pill-${impact}">${impactLabel(impact, copy).toUpperCase()}</span>
+                      <div class="issue-title">${safeText(issue.title || copy.issueFallback)}</div>
                     </div>
                     <div class="issue-meta">
-                      <span><strong>WCAG:</strong> ${safeText(issue.wcag || 'N/A')}</span>
-                      <span><strong>Level:</strong> ${safeText(issue.wcagLevel || 'N/A')}</span>
-                      <span><strong>Principle:</strong> ${safeText(issue.principle || 'N/A')}</span>
+                      <span><strong>${copy.wcagLabel}:</strong> ${safeText(issue.wcag || 'N/A')}</span>
+                      <span><strong>${copy.levelLabel}:</strong> ${safeText(issue.wcagLevel || 'N/A')}</span>
+                      <span><strong>${copy.principleLabel}:</strong> ${safeText(issue.principle || 'N/A')}</span>
                     </div>
                     <div class="issue-desc">${safeText(issue.description || '')}</div>
-                    <div class="issue-rec"><strong>Recommendation:</strong> ${safeText(
+                    <div class="issue-rec"><strong>${copy.recommendationLabel}:</strong> ${safeText(
                       issue.recommendation || ''
                     )}</div>
-                    <div class="issue-count">Affected elements: ${Number(issue.nodesCount || 0)}</div>
+                    <div class="issue-count">${copy.affectedElementsLabel}: ${Number(issue.nodesCount || 0)}</div>
                     ${
                       issue.helpUrl
-                        ? `<div class="issue-link">Guidance: ${safeText(issue.helpUrl)}</div>`
+                        ? `<div class="issue-link">${copy.guidanceLabel}: ${safeText(issue.helpUrl)}</div>`
                         : ''
                     }
                   </div>
@@ -213,8 +326,12 @@ export const handler: Handler = async (event) => {
     }
 
     const body = JSON.parse(event.body || '{}') as ExportPayload
+    const locale = normalizeIssueLocale(body.lang, DEFAULT_ISSUE_LOCALE) as ExportLocale
+    const text = getExportText(locale)
     const report = body.report
-    const issues = Array.isArray(report?.issues) ? report!.issues! : []
+    const issues: ReportIssue[] = Array.isArray(report?.issues)
+      ? report!.issues!.map((issue) => localizeIssue(issue, locale, DEFAULT_ISSUE_LOCALE))
+      : []
     const summary = report?.summary?.byImpact ? report!.summary! : buildSummary(issues)
 
     if (!issues.length && (!summary.total || summary.total === 0)) {
@@ -237,17 +354,17 @@ export const handler: Handler = async (event) => {
     const highCount = normalizedSummary.byImpact.critical + normalizedSummary.byImpact.serious
     const score = computeScore(normalizedSummary)
     const total = normalizedSummary.total
-    const filtersLine = buildFiltersLine(body.filters)
-    const issuesHtml = buildIssuesHtml(issues)
+    const filtersLine = buildFiltersLine(body.filters, text)
+    const issuesHtml = buildIssuesHtml(issues, text)
     const urlText = body.url ? safeText(body.url) : 'N/A'
-    const profileText = safeText(body.profileLabel || body.profile || 'WCAG profile')
+    const profileText = safeText(body.profileLabel || body.profile || text.profileFallback)
     const generatedAt = formatDate()
 
     const html = `<!doctype html>
-      <html lang="en">
+      <html lang="${locale}">
         <head>
           <meta charset="utf-8" />
-          <title>WCAG audit report</title>
+          <title>${text.reportTitle}</title>
           <style>
             :root {
               --text: #0f172a;
@@ -627,20 +744,20 @@ export const handler: Handler = async (event) => {
           <div class="page">
             <header class="hero">
               <div>
-                <div class="hero-title">WCAG audit report</div>
+                <div class="hero-title">${text.reportTitle}</div>
                 <p class="hero-subtitle">${urlText}</p>
               </div>
               <div class="hero-meta">
                 <div class="meta-card">
-                  <span>Profile</span>
+                  <span>${text.profileLabel}</span>
                   <strong>${profileText}</strong>
                 </div>
                 <div class="meta-card">
-                  <span>Date</span>
+                  <span>${text.dateLabel}</span>
                   <strong>${generatedAt}</strong>
                 </div>
                 <div class="meta-card">
-                  <span>Standard</span>
+                  <span>${text.standardLabel}</span>
                   <strong>EN 301 549 (WCAG 2.1 AA)</strong>
                 </div>
               </div>
@@ -651,23 +768,21 @@ export const handler: Handler = async (event) => {
                 <div class="score">
                   <div class="score-circle">${score}</div>
                   <div>
-                    <div><strong>Readiness index</strong></div>
-                    <p class="score-caption">
-                      The score is based on the exported findings and the issue severity mix.
-                    </p>
+                    <div><strong>${text.readinessLabel}</strong></div>
+                    <p class="score-caption">${text.scoreCaption}</p>
                   </div>
                 </div>
                 <div class="summary-grid">
                   <div class="stat-card stat-card-critical">
-                    <span>Critical + Serious</span>
+                    <span>${text.highSeverityLabel}</span>
                     <strong>${highCount}</strong>
                   </div>
                   <div class="stat-card stat-card-moderate">
-                    <span>Moderate</span>
+                    <span>${text.moderateLabel}</span>
                     <strong>${normalizedSummary.byImpact.moderate}</strong>
                   </div>
                   <div class="stat-card stat-card-minor">
-                    <span>Minor</span>
+                    <span>${text.minorLabel}</span>
                     <strong>${normalizedSummary.byImpact.minor}</strong>
                   </div>
                 </div>
@@ -675,7 +790,7 @@ export const handler: Handler = async (event) => {
               <div class="summary-panel">
                 <div class="bars">
                   <div class="bar">
-                    <div>Critical + Serious (${percent(highCount, total)}%)</div>
+                    <div>${text.highSeverityLabel} (${percent(highCount, total)}%)</div>
                     <div class="bar-track">
                       <div class="bar-fill critical" style="width: ${percent(
                         highCount,
@@ -684,7 +799,7 @@ export const handler: Handler = async (event) => {
                     </div>
                   </div>
                   <div class="bar">
-                    <div>Moderate (${percent(normalizedSummary.byImpact.moderate, total)}%)</div>
+                    <div>${text.moderateLabel} (${percent(normalizedSummary.byImpact.moderate, total)}%)</div>
                     <div class="bar-track">
                       <div class="bar-fill moderate" style="width: ${percent(
                         normalizedSummary.byImpact.moderate,
@@ -693,7 +808,7 @@ export const handler: Handler = async (event) => {
                     </div>
                   </div>
                   <div class="bar">
-                    <div>Minor (${percent(normalizedSummary.byImpact.minor, total)}%)</div>
+                    <div>${text.minorLabel} (${percent(normalizedSummary.byImpact.minor, total)}%)</div>
                     <div class="bar-track">
                       <div class="bar-fill minor" style="width: ${percent(
                         normalizedSummary.byImpact.minor,
@@ -708,16 +823,14 @@ export const handler: Handler = async (event) => {
             <section class="filters">${filtersLine}</section>
 
             <section class="issues">
-              <h2>Identified issues (${total})</h2>
-              <p class="issues-intro">
-                Findings are grouped by severity to prioritize remediation and sprint planning.
-              </p>
+              <h2>${text.identifiedIssuesLabel} (${total})</h2>
+              <p class="issues-intro">${text.issuesIntro}</p>
               ${issuesHtml}
             </section>
 
             <section class="notes">
-              <div>Automated checks do not cover all WCAG criteria. Manual review is required.</div>
-              <div>Generated with Playwright on Netlify Functions.</div>
+              <div>${text.noteAutomated}</div>
+              <div>${text.noteGenerated}</div>
             </section>
           </div>
         </body>
@@ -739,13 +852,13 @@ export const handler: Handler = async (event) => {
 
     const headerTemplate = `
       <div style="width:100%; font-size:9px; color:#64748b; padding:0 14mm; font-family: Manrope, Arial, sans-serif;">
-        WCAG audit report
+        ${text.reportTitle}
       </div>
     `
     const footerTemplate = `
       <div style="width:100%; font-size:9px; color:#64748b; padding:0 14mm; font-family: Manrope, Arial, sans-serif; display:flex; justify-content:space-between;">
         <span>${urlText}</span>
-        <span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span>
+        <span>${text.pageLabel} <span class="pageNumber"></span> / <span class="totalPages"></span></span>
       </div>
     `
 

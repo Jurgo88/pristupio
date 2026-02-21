@@ -115,6 +115,7 @@ export const useDashboardExport = ({
         impact: issue.impact,
         description: issue.description,
         recommendation: issue.recommendation,
+        copy: issue.copy,
         wcag: issue.wcag,
         wcagLevel: issue.wcagLevel,
         principle: issue.principle,
@@ -123,6 +124,7 @@ export const useDashboardExport = ({
       }))
 
       const payload = {
+        lang: 'sk',
         url: trimmedTargetUrl.value,
         profile: selectedProfile.value,
         profileLabel: profileLabel.value,

@@ -14,7 +14,7 @@ It provides automated WCAG checks, weekly monitoring, and clear issue severity r
 ## Project structure
 app/ - frontend application
 app/netlify/ - Netlify Functions (backend)
-docs/ - product and technical documentation
+app/docs/ - product and technical documentation
 
 ## MVP scope
 - One-time accessibility audit via axe-core

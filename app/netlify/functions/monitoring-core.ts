@@ -4,6 +4,12 @@ import { chromium as playwright } from 'playwright-core'
 import axe from 'axe-core'
 import { createClient } from '@supabase/supabase-js'
 import { getGuidance, getWcagLevel } from './audit-guidance'
+import {
+  DEFAULT_ISSUE_LOCALE,
+  createIssueCopyMap,
+  redactIssueRecommendation,
+  type IssueCopyMap
+} from './audit-copy'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -27,6 +33,7 @@ export type ReportIssue = {
   impact: Impact
   description: string
   recommendation: string
+  copy: IssueCopyMap
   wcag: string
   wcagLevel: string
   principle: string
@@ -442,8 +449,7 @@ const buildSummary = (issues: ReportIssue[]): Summary => {
 }
 
 const stripIssueForFree = (issue: ReportIssue): ReportIssue => ({
-  ...issue,
-  recommendation: '',
+  ...redactIssueRecommendation(issue, DEFAULT_ISSUE_LOCALE),
   nodes: []
 })
 
@@ -472,12 +478,19 @@ function normalizeAuditResults(results: any): ReportIssue[] {
       : []
 
     const guidance = getGuidance(v.id, v.description, v.help)
+    const copy = createIssueCopyMap(DEFAULT_ISSUE_LOCALE, {
+      title: guidance.title,
+      description: guidance.description,
+      recommendation: guidance.recommendation
+    })
+
     return {
       id: v.id || v.help || 'unknown',
       title: guidance.title,
       impact,
       description: guidance.description,
       recommendation: guidance.recommendation,
+      copy,
       wcag: guidance.wcag,
       wcagLevel: getWcagLevel(v.id, guidance.wcag),
       principle: guidance.principle,
