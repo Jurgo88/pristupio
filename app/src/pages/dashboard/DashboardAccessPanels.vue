@@ -262,5 +262,17 @@ defineEmits<{
   .panel {
     padding: 1.4rem;
   }
+
+  .upgrade-actions,
+  .paid-banner__actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .upgrade-actions .btn,
+  .paid-banner__actions .btn {
+    width: 100%;
+  }
 }
 </style>

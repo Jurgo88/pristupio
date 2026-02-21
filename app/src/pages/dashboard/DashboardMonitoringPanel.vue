@@ -458,6 +458,30 @@ const emit = defineEmits<{
   }
 }
 
+@media (max-width: 720px) {
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+  }
+
+  .monitoring-head-status {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 520px) {
+  .monitoring-buy-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .monitoring-buy-actions .btn {
+    width: 100%;
+  }
+}
+
 @media (max-width: 640px) {
   .panel {
     padding: 1.4rem;
