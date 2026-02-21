@@ -1,29 +1,35 @@
 <template>
-  <section class="metrics-strip" aria-label="Klucove metriky">
+  <section class="metrics-strip" :aria-label="copy.ariaLabel">
     <article class="metric-card">
-      <span>Skore pripravenosti</span>
+      <span>{{ copy.scoreTitle }}</span>
       <strong>{{ hasReport ? `${auditScore}%` : '--' }}</strong>
       <small>{{ scoreStateLabel }}</small>
     </article>
     <article class="metric-card">
-      <span>Kriticke nalezy</span>
+      <span>{{ copy.highIssuesTitle }}</span>
       <strong>{{ hasReport ? highCount : '--' }}</strong>
-      <small>Priorita pre najblizsi sprint</small>
+      <small>{{ copy.highIssuesMeta }}</small>
     </article>
     <article class="metric-card">
-      <span>Vsetky nalezy</span>
+      <span>{{ copy.allIssuesTitle }}</span>
       <strong>{{ hasReport ? totalIssuesCount : '--' }}</strong>
-      <small>{{ hasReport ? `Filtrovatelnych: ${filteredIssuesCount}` : 'Po audite sa doplni' }}</small>
+      <small>
+        {{ hasReport ? `${copy.filteredIssuesPrefix}: ${filteredIssuesCount}` : copy.allIssuesFallback }}
+      </small>
     </article>
     <article class="metric-card">
-      <span>Posledny audit</span>
+      <span>{{ copy.latestAuditTitle }}</span>
       <strong>{{ lastAuditLabel || '--' }}</strong>
-      <small>{{ hasLatestAudit ? 'Audit historia je aktivna' : 'Po prvom audite uvidite historiu' }}</small>
+      <small>{{ hasLatestAudit ? copy.latestAuditWithHistory : copy.latestAuditEmpty }}</small>
     </article>
   </section>
 </template>
 
 <script setup lang="ts">
+import { DASHBOARD_METRICS_TEXT } from './dashboard.copy'
+
+const copy = DASHBOARD_METRICS_TEXT
+
 defineProps<{
   hasReport: boolean
   auditScore: number

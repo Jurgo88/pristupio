@@ -58,6 +58,37 @@ export const DASHBOARD_MONITORING_TEXT = {
   badgePaused: 'Pozastavený'
 } as const
 
+export const DASHBOARD_HERO_TEXT = {
+  kicker: 'Dashboard',
+  title: 'WCAG cockpit pre produktový tím',
+  lead: 'Spustite audit, prioritizujte bariéry a odovzdajte report bez chaosu.',
+  tags: ['WCAG 2.1 AA', 'EN 301 549', 'EAA / WAD'],
+  workflowTitle: 'Rýchly workflow',
+  workflowSteps: [
+    'Vložte URL a vyberte profil legislatívy',
+    'Spustite audit a vyriešte najkritickejšie nálezy',
+    'Zdieľajte report pre vývoj, produkt a compliance'
+  ],
+  workflowMeta: 'Automatický audit + manuálny checklist'
+} as const
+
+export const DASHBOARD_OVERVIEW_TEXT = {
+  emptyState: 'Spustite audit a po dokončení sa tu zobrazí prehľad skóre a rozdelenie nálezov.'
+} as const
+
+export const DASHBOARD_METRICS_TEXT = {
+  ariaLabel: 'Kľúčové metriky',
+  scoreTitle: 'Skóre pripravenosti',
+  highIssuesTitle: 'Kritické nálezy',
+  highIssuesMeta: 'Priorita pre najbližší sprint',
+  allIssuesTitle: 'Všetky nálezy',
+  filteredIssuesPrefix: 'Filtrovateľných',
+  allIssuesFallback: 'Po audite sa doplní',
+  latestAuditTitle: 'Posledný audit',
+  latestAuditWithHistory: 'Audit história je aktívna',
+  latestAuditEmpty: 'Po prvom audite uvidíte históriu'
+} as const
+
 export const getDashboardScoreStateLabel = (hasReport: boolean, score: number) => {
   if (!hasReport) return 'Spustite audit'
   if (score >= 90) return 'Vysoká pripravenosť'

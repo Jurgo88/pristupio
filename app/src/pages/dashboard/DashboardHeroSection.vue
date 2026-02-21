@@ -1,30 +1,30 @@
 <template>
   <section class="page-hero">
     <div class="page-hero__content">
-      <span class="kicker">Dashboard</span>
-      <h1>WCAG cockpit pre produktovy tim</h1>
-      <p class="lead">
-        Spustite audit, prioritizujte bariery a odovzdajte report bez chaosu.
-      </p>
+      <span class="kicker">{{ copy.kicker }}</span>
+      <h1>{{ copy.title }}</h1>
+      <p class="lead">{{ copy.lead }}</p>
       <div class="hero-tags">
-        <span>WCAG 2.1 AA</span>
-        <span>EN 301 549</span>
-        <span>EAA / WAD</span>
+        <span v-for="tag in copy.tags" :key="tag">{{ tag }}</span>
       </div>
     </div>
     <div class="page-hero__aside">
       <div class="page-hero__card">
-        <div class="hero-card-title">Rychly workflow</div>
+        <div class="hero-card-title">{{ copy.workflowTitle }}</div>
         <ul>
-          <li>Vlozte URL a vyberte profil legislativy</li>
-          <li>Spustite audit a vyriesite najkritickejsie nalezy</li>
-          <li>Zdielajte report pre vyvoj, produkt a compliance</li>
+          <li v-for="step in copy.workflowSteps" :key="step">{{ step }}</li>
         </ul>
-        <div class="hero-card-meta">Automaticky audit + manualny checklist</div>
+        <div class="hero-card-meta">{{ copy.workflowMeta }}</div>
       </div>
     </div>
   </section>
 </template>
+
+<script setup lang="ts">
+import { DASHBOARD_HERO_TEXT } from './dashboard.copy'
+
+const copy = DASHBOARD_HERO_TEXT
+</script>
 
 <style scoped>
 .page-hero {

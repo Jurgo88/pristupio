@@ -19,7 +19,7 @@
     />
 
     <section v-if="!hasReport" class="panel overview-empty">
-      Spustite audit a po dokončení sa tu zobrazí prehľad skóre a rozdelenie nálezov.
+      {{ copy.emptyState }}
     </section>
   </section>
 </template>
@@ -27,6 +27,9 @@
 <script setup lang="ts">
 import DashboardReportPreview from './DashboardReportPreview.vue'
 import DashboardStats from './DashboardStats.vue'
+import { DASHBOARD_OVERVIEW_TEXT } from './dashboard.copy'
+
+const copy = DASHBOARD_OVERVIEW_TEXT
 
 defineProps<{
   hasReport: boolean
