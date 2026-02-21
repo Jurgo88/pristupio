@@ -143,59 +143,32 @@
             Spustite audit a po dokončení sa tu zobrazí prehľad skóre a rozdelenie nálezov.
           </section>
         </section>
-
-        <section class="panel issues-panel mobile-pane mobile-pane--issues">
-          <div class="issues-toolbar">
-            <DashboardIssuesControls
-              :has-report="!!auditStore.report"
-              :is-preview="isPreview"
-              :is-exporting="isExporting"
-              :export-progress="exportProgress"
-              :export-status="exportStatus"
-              :selected-principle="selectedPrinciple"
-              :selected-impact="selectedImpact"
-              :search-text="searchText"
-              :principle-options="principleOptions"
-              :export-error="exportError"
-              @update:selected-principle="selectedPrinciple = $event"
-              @update:selected-impact="selectedImpact = $event"
-              @update:search-text="searchText = $event"
-              @clear-filters="clearFilters"
-              @export-pdf="exportPdf"
-            />
-          </div>
-
-          <p v-if="auditStore.report" class="issues-meta">
-            Zobrazené nálezy: <strong>{{ visibleIssues.length }}</strong> / {{ filteredIssues.length }}
-            <span class="issues-meta-total"> (celkovo {{ auditStore.report.issues.length }})</span>
-          </p>
-
-          <div v-if="!auditStore.report" class="status-state">
-            {{ DASHBOARD_ISSUES_TEXT.emptyNoReport }}
-          </div>
-
-          <div v-else-if="auditStore.report.issues.length === 0" class="status-state">
-            {{ DASHBOARD_ISSUES_TEXT.emptyNoIssues }}
-          </div>
-
-          <div v-else-if="filteredIssues.length === 0" class="status-state">
-            {{ DASHBOARD_ISSUES_TEXT.emptyNoFilteredIssues }}
-          </div>
-
-          <DashboardIssueList
-            v-else
-            :filtered-issues="visibleIssues"
-            :is-preview="isPreview"
-            :impact-class="impactClass"
-            :violation-key="violationKey"
-            :is-open="isOpen"
-            :toggle-details="toggleDetails"
-          />
-
-          <div v-if="hasMoreIssues" class="issues-load-more">
-            <button class="btn btn-outline" @click="loadMoreIssues">Načítať ďalšie nálezy</button>
-          </div>
-        </section>
+        <DashboardIssuesPanel
+          :has-report="!!auditStore.report"
+          :is-preview="isPreview"
+          :is-exporting="isExporting"
+          :export-progress="exportProgress"
+          :export-status="exportStatus"
+          :selected-principle="selectedPrinciple"
+          :selected-impact="selectedImpact"
+          :search-text="searchText"
+          :principle-options="principleOptions"
+          :export-error="exportError"
+          :visible-issues="visibleIssues"
+          :filtered-issues="filteredIssues"
+          :report-issues-count="totalIssuesCount"
+          :has-more-issues="hasMoreIssues"
+          :impact-class="impactClass"
+          :violation-key="violationKey"
+          :is-open="isOpen"
+          :toggle-details="toggleDetails"
+          @update:selected-principle="selectedPrinciple = $event"
+          @update:selected-impact="selectedImpact = $event"
+          @update:search-text="searchText = $event"
+          @clear-filters="clearFilters"
+          @export-pdf="exportPdf"
+          @load-more-issues="loadMoreIssues"
+        />
       </div>
     </section>
 
@@ -209,13 +182,11 @@ import {
   DashboardAuditForm,
   DashboardHeroSection,
   DashboardHistoryRail,
-  DashboardIssueList,
-  DashboardIssuesControls,
+  DashboardIssuesPanel,
   DashboardMetricsStrip,
   DashboardMonitoringPanel,
   DashboardReportPreview,
   DashboardStats,
-  DASHBOARD_ISSUES_TEXT,
   useDashboardIssues,
   useDashboardExport,
   useDashboardCore
@@ -442,37 +413,6 @@ const monitoringWorseningNotice = computed(() => {
   background: #ffffff;
 }
 
-.issues-panel {
-  display: grid;
-  gap: 0.8rem;
-  align-content: start;
-}
-
-.issues-toolbar {
-  position: sticky;
-  top: var(--dashboard-sticky-offset);
-  z-index: 4;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.75rem;
-}
-
-.issues-meta {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.88rem;
-}
-
-.issues-meta-total {
-  color: #64748b;
-}
-
-.issues-load-more {
-  display: flex;
-  justify-content: center;
-  padding-top: 0.35rem;
-}
-
 /* Panel Shell */
 .panel {
   background: var(--surface);
@@ -506,12 +446,6 @@ const monitoringWorseningNotice = computed(() => {
 
   .mobile-pane {
     display: none;
-  }
-
-  .issues-toolbar {
-    position: static;
-    border-bottom: 0;
-    padding-bottom: 0;
   }
 
   .dashboard-workspace.is-tab-overview .mobile-pane--overview {
