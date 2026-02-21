@@ -21,8 +21,8 @@
     </div>
 
     <p v-if="hasReport" class="issues-meta">
-      Zobrazené nálezy: <strong>{{ visibleIssues.length }}</strong> / {{ filteredIssues.length }}
-      <span class="issues-meta-total"> (celkovo {{ reportIssuesCount }})</span>
+      {{ DASHBOARD_ISSUES_TEXT.shownFindings }}: <strong>{{ visibleIssues.length }}</strong> / {{ filteredIssues.length }}
+      <span class="issues-meta-total"> ({{ DASHBOARD_ISSUES_TEXT.totalPrefix }} {{ reportIssuesCount }})</span>
     </p>
 
     <div v-if="!hasReport" class="status-state">
@@ -48,7 +48,7 @@
     />
 
     <div v-if="hasMoreIssues" class="issues-load-more">
-      <button class="btn btn-outline" @click="emit('loadMoreIssues')">Načítať ďalšie nálezy</button>
+      <button class="btn btn-outline" @click="emit('loadMoreIssues')">{{ DASHBOARD_ISSUES_TEXT.loadMoreFindings }}</button>
     </div>
   </section>
 </template>

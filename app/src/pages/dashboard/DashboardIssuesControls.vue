@@ -13,7 +13,7 @@
 
     <div v-if="isExporting || exportProgress > 0" class="export-progress" role="status" aria-live="polite">
       <div class="export-progress__meta">
-        <span>{{ exportStatus || 'Generujem PDF...' }}</span>
+        <span>{{ exportStatus || DASHBOARD_ISSUES_TEXT.exportGenerating }}</span>
         <strong>{{ Math.round(exportProgress) }}%</strong>
       </div>
       <div class="export-progress__track">
