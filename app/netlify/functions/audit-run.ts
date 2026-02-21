@@ -12,6 +12,7 @@ import {
   redactIssueRecommendation,
   type IssueCopyMap
 } from './audit-copy'
+import { enrichIssuesWithAiCopy } from './audit-ai-copy'
 
 process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 
@@ -311,7 +312,7 @@ export const handler: Handler = async (event) => {
         : await chromium.executablePath(
             'https://github.com/sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar'
           ),
-      headless: chromium.headless
+      headless: (chromium as any).headless
     })
 
     const page = await browser.newPage()
@@ -344,7 +345,15 @@ export const handler: Handler = async (event) => {
       ERROR_MESSAGES.axeTimeout
     )
 
-    const issues = normalizeAuditResults(results)
+    let issues = normalizeAuditResults(results)
+    if (isPaid) {
+      issues = await enrichIssuesWithAiCopy({
+        issues,
+        locale,
+        context: 'audit-run'
+      })
+    }
+
     const summary = buildSummary(issues)
     const topIssues = pickTopIssues(issues, 3)
 
