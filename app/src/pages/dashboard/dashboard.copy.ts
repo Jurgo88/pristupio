@@ -129,6 +129,25 @@ export const DASHBOARD_HISTORY_TEXT = {
   monitorTooltipLimit: (limit: number) => `Dosiahli ste limit monitorovaných domén (${limit}).`
 } as const
 
+export const DASHBOARD_CORE_TEXT = {
+  auditLockedNoCredits: 'Nemáte kredit na základný audit. Objednajte ďalší audit.',
+  auditLockedFreeUsed: 'Bezplatný audit už bol použitý. Pre plný report si objednajte základný audit.',
+  historyLoadError: 'Históriu auditov sa nepodarilo načítať.',
+  profileFallback: 'WCAG audit',
+  targetUrlInvalid: 'Zadajte platnú URL (napr. https://priklad.sk).',
+  monitoringRemoveSuccess: 'Monitoring domény bol zrušený.',
+  monitoringRemoveError: 'Monitoring domény sa nepodarilo zrušiť.',
+  monitoringMissingUrl: 'Vybraný audit nemá URL pre monitoring.',
+  monitoringNoAccess: 'Monitoring plán nie je aktívny pre tento účet.',
+  monitoringAlreadyActive: 'Táto doména je už monitorovaná.',
+  monitoringRestoreSuccess: 'Monitoring domény bol obnovený.',
+  monitoringRestoreError: 'Monitoring domény sa nepodarilo obnoviť.',
+  monitoringNoDomains: 'Monitoring plán pre tento účet nemá dostupné domény.',
+  monitoringAddSuccess: 'Doména bola pridaná do monitoringu.',
+  monitoringAddError: 'Monitoring domény sa nepodarilo aktivovať.',
+  monitoringLimitReached: (limit: number) => `Dosiahli ste limit monitorovaných domén (${limit}).`
+} as const
+
 export const getDashboardScoreStateLabel = (hasReport: boolean, score: number) => {
   if (!hasReport) return 'Spustite audit'
   if (score >= 90) return 'Vysoká pripravenosť'

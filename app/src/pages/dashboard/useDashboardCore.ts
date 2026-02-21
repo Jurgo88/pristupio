@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useMonitoringStore } from '@/stores/monitoring.store'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
 import type { AuditHistoryItem, ProfileOption } from './dashboard.types'
+import { DASHBOARD_CORE_TEXT } from './dashboard.copy'
 
 const normalizeMonitoringUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '').toLowerCase()
 const normalizeAuditUrlInput = (rawUrl: unknown): string | null => {
@@ -81,9 +82,9 @@ export const useDashboardCore = () => {
   )
   const auditLocked = computed(() => freeLimitReached.value || paidLimitReached.value)
   const auditLockedMessage = computed(() => {
-    if (paidLimitReached.value) return 'Nemáte kredit na základný audit. Objednajte ďalší audit.'
+    if (paidLimitReached.value) return DASHBOARD_CORE_TEXT.auditLockedNoCredits
     if (freeLimitReached.value) {
-      return 'Bezplatný audit už bol použitý. Pre plný report si objednajte základný audit.'
+      return DASHBOARD_CORE_TEXT.auditLockedFreeUsed
     }
     return ''
   })
@@ -186,7 +187,7 @@ export const useDashboardCore = () => {
       historyPage.value = result?.page || nextPage
       historyHasMore.value = !!result?.hasMore
     } catch (_error) {
-      historyError.value = 'Históriu auditov sa nepodarilo načítať.'
+      historyError.value = DASHBOARD_CORE_TEXT.historyLoadError
     } finally {
       if (loadMore) {
         historyLoadingMore.value = false
@@ -232,7 +233,7 @@ export const useDashboardCore = () => {
     const raw = targetUrl.value.trim()
     if (!raw) return ''
     const normalized = normalizeAuditUrlInput(raw)
-    if (!normalized) return 'Zadajte platnú URL (napr. https://priklad.sk).'
+    if (!normalized) return DASHBOARD_CORE_TEXT.targetUrlInvalid
     return ''
   })
 
@@ -249,7 +250,9 @@ export const useDashboardCore = () => {
       !auditLocked.value
   )
   const profileLabel = computed(
-    () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
+    () =>
+      profileOptions.find((option) => option.value === selectedProfile.value)?.title ||
+      DASHBOARD_CORE_TEXT.profileFallback
   )
 
   const handleStartAudit = async () => {
@@ -297,9 +300,9 @@ export const useDashboardCore = () => {
     monitoringMessage.value = ''
     try {
       await monitoringStore.deleteTarget({ targetId })
-      monitoringMessage.value = 'Monitoring domény bol zrušený.'
+      monitoringMessage.value = DASHBOARD_CORE_TEXT.monitoringRemoveSuccess
     } catch (error: any) {
-      monitoringError.value = error?.message || 'Monitoring domény sa nepodarilo zrušiť.'
+      monitoringError.value = error?.message || DASHBOARD_CORE_TEXT.monitoringRemoveError
     }
   }
 
@@ -309,12 +312,12 @@ export const useDashboardCore = () => {
 
     const url = typeof audit?.url === 'string' ? audit.url.trim() : ''
     if (!url) {
-      monitoringError.value = 'Vybraný audit nemá URL pre monitoring.'
+      monitoringError.value = DASHBOARD_CORE_TEXT.monitoringMissingUrl
       return
     }
 
     if (!monitoringHasAccess.value) {
-      monitoringError.value = 'Monitoring plán nie je aktívny pre tento účet.'
+      monitoringError.value = DASHBOARD_CORE_TEXT.monitoringNoAccess
       return
     }
 
@@ -324,7 +327,7 @@ export const useDashboardCore = () => {
     )
 
     if (existingTarget?.active) {
-      monitoringMessage.value = 'Táto doména je už monitorovaná.'
+      monitoringMessage.value = DASHBOARD_CORE_TEXT.monitoringAlreadyActive
       return
     }
 
@@ -336,18 +339,16 @@ export const useDashboardCore = () => {
           profile: selectedProfile.value,
           active: true
         })
-        monitoringMessage.value = 'Monitoring domény bol obnovený.'
+        monitoringMessage.value = DASHBOARD_CORE_TEXT.monitoringRestoreSuccess
       } catch (error: any) {
-        monitoringError.value = error?.message || 'Monitoring domény sa nepodarilo obnoviť.'
+        monitoringError.value = error?.message || DASHBOARD_CORE_TEXT.monitoringRestoreError
         return
       }
     } else {
       if (!monitoringCanAddTarget.value) {
         const limit = monitoringDomainsLimit.value
         monitoringError.value =
-          limit > 0
-            ? `Dosiahli ste limit monitorovaných domén (${limit}).`
-            : 'Monitoring plán pre tento účet nemá dostupné domény.'
+          limit > 0 ? DASHBOARD_CORE_TEXT.monitoringLimitReached(limit) : DASHBOARD_CORE_TEXT.monitoringNoDomains
         return
       }
 
@@ -356,9 +357,9 @@ export const useDashboardCore = () => {
           defaultUrl: url,
           profile: selectedProfile.value
         })
-        monitoringMessage.value = 'Doména bola pridaná do monitoringu.'
+        monitoringMessage.value = DASHBOARD_CORE_TEXT.monitoringAddSuccess
       } catch (error: any) {
-        monitoringError.value = error?.message || 'Monitoring domény sa nepodarilo aktivovať.'
+        monitoringError.value = error?.message || DASHBOARD_CORE_TEXT.monitoringAddError
         return
       }
     }
