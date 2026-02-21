@@ -71,32 +71,7 @@
         'is-tab-history': activeMobileTab === 'history'
       }"
     >
-      <nav class="mobile-tabs" aria-label="Sekcie dashboardu">
-        <button
-          type="button"
-          class="mobile-tab"
-          :class="{ 'is-active': activeMobileTab === 'overview' }"
-          @click="activeMobileTab = 'overview'"
-        >
-          Prehľad
-        </button>
-        <button
-          type="button"
-          class="mobile-tab"
-          :class="{ 'is-active': activeMobileTab === 'issues' }"
-          @click="activeMobileTab = 'issues'"
-        >
-          Nálezy
-        </button>
-        <button
-          type="button"
-          class="mobile-tab"
-          :class="{ 'is-active': activeMobileTab === 'history' }"
-          @click="activeMobileTab = 'history'"
-        >
-          História
-        </button>
-      </nav>
+      <DashboardMobileTabs :active-tab="activeMobileTab" @update:active-tab="activeMobileTab = $event" />
       <DashboardHistoryRail
         :history-loading="historyLoading"
         :history-loading-more="historyLoadingMore"
@@ -170,6 +145,7 @@ import {
   DashboardHeroSection,
   DashboardHistoryRail,
   DashboardIssuesPanel,
+  DashboardMobileTabs,
   DashboardOverviewPane,
   DashboardMetricsStrip,
   DashboardMonitoringPanel,
@@ -322,28 +298,7 @@ const lastAuditLabel = computed(() => {
   display: grid;
   gap: 1.4rem;
 }
-
-.mobile-tabs {
-  display: none;
-}
-
-.mobile-tab {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: #0f172a;
-  border-radius: var(--radius);
-  padding: 0.65rem 0.8rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.mobile-tab.is-active {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  background: #ffffff;
-}
-
+`r`n
 /* Responsive */
 @media (max-width: 980px) {
   .audit-page {
@@ -353,19 +308,7 @@ const lastAuditLabel = computed(() => {
   .dashboard-workspace {
     grid-template-columns: 1fr;
     gap: 1rem;
-  }
-
-  .mobile-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.6rem;
-    position: sticky;
-    top: var(--dashboard-sticky-offset);
-    z-index: 2;
-    background: #f8fafc;
-    padding-bottom: 0.35rem;
-  }
-
+  }`r`n
   .mobile-pane {
     display: none;
   }
