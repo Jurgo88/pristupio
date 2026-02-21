@@ -17,6 +17,7 @@ export { useDashboardCore } from './useDashboardCore'
 export { useDashboardExport } from './useDashboardExport'
 export { useDashboardIssues } from './useDashboardIssues'
 export { useMonitoringDiff } from './useMonitoringDiff'
+export { DASHBOARD_ACCESS_TEXT, DASHBOARD_MONITORING_TEXT, getDashboardScoreStateLabel } from './dashboard.copy'
 
 export {
   DASHBOARD_ISSUES_TEXT,

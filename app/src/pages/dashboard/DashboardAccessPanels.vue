@@ -1,44 +1,36 @@
 <template>
   <section v-if="showPreview" class="panel preview-banner">
-    <p class="kicker">Free audit preview</p>
-    <h2>Vidíš len rýchly prehľad problémov</h2>
-    <p class="lead">
-      Free audit ukazuje skóre, počty a top 3 nálezy. Detailné odporúčania a plný report sú
-      dostupné v základnom audite.
-    </p>
+    <p class="kicker">{{ copy.preview.kicker }}</p>
+    <h2>{{ copy.preview.title }}</h2>
+    <p class="lead">{{ copy.preview.lead }}</p>
   </section>
 
   <section v-if="paymentNotice" class="panel payment-banner">
-    <p class="kicker">Platba</p>
-    <h2>Ďakujeme, platba prebehla.</h2>
-    <p class="lead">
-      Ak sa prístup ešte neodomkol, kliknite na “Už som zaplatil” a obnovíme stav z Lemon Squeezy.
-    </p>
+    <p class="kicker">{{ copy.payment.kicker }}</p>
+    <h2>{{ copy.payment.title }}</h2>
+    <p class="lead">{{ copy.payment.lead }}</p>
     <div class="upgrade-actions">
       <button class="btn btn-outline" @click="$emit('refreshPlan')" :disabled="refreshPlanLoading">
-        {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
+        {{ refreshPlanLoading ? copy.payment.refreshLoading : copy.payment.refreshIdle }}
       </button>
     </div>
   </section>
 
   <section v-if="showUpgrade" class="panel upgrade-panel">
     <div>
-      <p class="kicker">Základný audit</p>
-      <h2>Odomknite celý report a odporúčania.</h2>
-      <p class="lead">
-        Po platbe sa vám odomkne plný výstup a export PDF. Posledný free audit sa po potvrdení
-        platby automaticky odomkne.
-      </p>
+      <p class="kicker">{{ copy.upgrade.kicker }}</p>
+      <h2>{{ copy.upgrade.title }}</h2>
+      <p class="lead">{{ copy.upgrade.lead }}</p>
     </div>
     <div class="upgrade-actions">
       <a v-if="auditCheckoutBasicUrl" :href="auditCheckoutBasicUrl" class="btn btn-primary">
-        Audit Basic (99 €)
+        {{ copy.upgrade.basicCta }}
       </a>
       <a v-if="auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-outline">
-        Audit Pro (199 €)
+        {{ copy.upgrade.proCta }}
       </a>
       <button class="btn btn-outline" @click="$emit('refreshPlan')" :disabled="refreshPlanLoading">
-        {{ refreshPlanLoading ? 'Overujem...' : 'Už som zaplatil' }}
+        {{ refreshPlanLoading ? copy.payment.refreshLoading : copy.payment.refreshIdle }}
       </button>
     </div>
   </section>
@@ -49,20 +41,16 @@
     :class="{ 'is-empty-credit': paidCredits <= 0 }"
   >
     <div class="paid-banner__copy">
-      <p class="kicker">Základný audit</p>
-      <h2 v-if="paidCredits <= 0">Nemáte dostupný kredit.</h2>
-      <h2 v-else>Máte dostupný kredit na audit.</h2>
-      <p class="lead" v-if="paidCredits <= 0">
-        Objednajte ďalší audit a spravte nový report.
-      </p>
-      <p class="lead" v-else>
-        Môžete spustiť audit a získať plný report, odporúčania a export PDF.
-      </p>
+      <p class="kicker">{{ copy.paid.kicker }}</p>
+      <h2 v-if="paidCredits <= 0">{{ copy.paid.titleNoCredits }}</h2>
+      <h2 v-else>{{ copy.paid.titleWithCredits }}</h2>
+      <p class="lead" v-if="paidCredits <= 0">{{ copy.paid.leadNoCredits }}</p>
+      <p class="lead" v-else>{{ copy.paid.leadWithCredits }}</p>
     </div>
 
     <div class="paid-banner__meta">
       <div class="paid-banner__credits">
-        <span>Kredity</span>
+        <span>{{ copy.paid.creditsLabel }}</span>
         <strong>{{ paidCredits }}</strong>
       </div>
       <div class="paid-banner__actions">
@@ -71,10 +59,10 @@
           :href="auditCheckoutBasicUrl"
           class="btn btn-primary paid-banner__cta"
         >
-          Pridať 5 kreditov
+          {{ copy.paid.addFiveCredits }}
         </a>
         <a v-if="auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-outline paid-banner__cta">
-          Pridať 15 kreditov
+          {{ copy.paid.addFifteenCredits }}
         </a>
       </div>
     </div>
@@ -82,6 +70,10 @@
 </template>
 
 <script setup lang="ts">
+import { DASHBOARD_ACCESS_TEXT } from './dashboard.copy'
+
+const copy = DASHBOARD_ACCESS_TEXT
+
 defineProps<{
   showPreview: boolean
   paymentNotice: boolean

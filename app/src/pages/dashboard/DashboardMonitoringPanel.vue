@@ -2,8 +2,8 @@
   <section v-if="isLoggedIn" class="panel monitoring-panel">
     <div class="panel-head panel-head--tight">
       <div>
-        <p class="kicker">Monitoring</p>
-        <h2>Automatické kontroly viacerých domén</h2>
+        <p class="kicker">{{ copy.kicker }}</p>
+        <h2>{{ copy.title }}</h2>
       </div>
       <div class="monitoring-head-status">
         <span class="status-badge" :class="monitoringStatusBadgeClass">
@@ -16,25 +16,25 @@
     </div>
 
     <div v-if="monitoringPanelState === 'loading'" class="status-state status-state--loading">
-      Načítavam monitoring...
+      {{ copy.loading }}
     </div>
 
     <template v-else-if="monitoringPanelState === 'active' || monitoringPanelState === 'empty'">
       <div class="monitoring-grid">
         <div class="monitoring-topline">
           <div class="monitoring-summary">
-            <span class="monitoring-summary__label">Frekvencia:</span>
+            <span class="monitoring-summary__label">{{ copy.summaryFrequency }}</span>
             <strong>{{ monitoringDefaultCadenceLabel }}</strong>
           </div>
           <div v-if="showInlineUpgrade" class="monitoring-buy-actions monitoring-buy-actions--inline">
             <a :href="monitoringCheckoutProUrl" class="btn btn-outline">
-              Upgrade na Monitoring Pro
+              {{ copy.upgradeToPro }}
             </a>
           </div>
         </div>
 
         <div v-if="monitoringPanelState === 'empty'" class="status-state">
-          Zatiaľ nemáte monitorovanú doménu. V histórii auditov kliknite na „Monitoruj“.
+          {{ copy.emptyWithAccess }}
         </div>
 
         <div v-else class="monitoring-targets">
@@ -54,9 +54,9 @@
                 {{ target.default_url }}
               </a>
               <div class="monitoring-target-card__meta">
-                <span class="pill">{{ target.active ? 'Aktívny' : 'Pozastavený' }}</span>
-                <span>Ďalší audit: {{ formatDateTime(target.next_run_at) || '--' }}</span>
-                <span>Posledný audit: {{ formatDateTime(target.last_run_at) || '--' }}</span>
+                <span class="pill">{{ target.active ? copy.targetStatusActive : copy.targetStatusPaused }}</span>
+                <span>{{ copy.nextAudit }}: {{ formatDateTime(target.next_run_at) || '--' }}</span>
+                <span>{{ copy.lastAudit }}: {{ formatDateTime(target.last_run_at) || '--' }}</span>
               </div>
               <div class="monitoring-target-card__diff" v-if="monitoringDiffLabel(target.id)">
                 <span :class="monitoringDiffClass(target.id)">{{ monitoringDiffLabel(target.id) }}</span>
@@ -68,7 +68,7 @@
                 @click="emit('remove-target', target.id)"
                 :disabled="monitoringLoadingAction"
               >
-                {{ monitoringLoadingAction ? 'Ruším...' : 'Zrušiť monitoring' }}
+                {{ monitoringLoadingAction ? copy.removeLoading : copy.removeTarget }}
               </button>
             </div>
           </article>
@@ -79,20 +79,20 @@
 
     <div v-else class="monitoring-empty">
       <p v-if="monitoringPanelState === 'upsell'" class="status-state">
-        Monitoring plán nie je aktívny.
+        {{ copy.upsellNotice }}
       </p>
       <p v-else class="status-state">
-        Monitoring je dostupný až po základnom audite.
+        {{ copy.blockedNotice }}
       </p>
       <div v-if="monitoringPanelState === 'upsell'" class="monitoring-buy-actions">
         <a v-if="monitoringCheckoutBasicUrl" :href="monitoringCheckoutBasicUrl" class="btn btn-primary">
-          Monitoring Basic (29 €)
+          {{ copy.basicCta }}
         </a>
         <a v-if="monitoringCheckoutProUrl" :href="monitoringCheckoutProUrl" class="btn btn-outline">
-          Monitoring Pro
+          {{ copy.proCta }}
         </a>
         <button v-if="!hasMonitoringCheckoutOptions" class="btn btn-outline" disabled>
-          Monitoring checkout URL nie je nastavená
+          {{ copy.missingCheckout }}
         </button>
       </div>
     </div>
@@ -111,6 +111,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { DASHBOARD_MONITORING_TEXT } from './dashboard.copy'
 
 type MonitoringTargetItem = {
   id: string
@@ -123,6 +124,8 @@ type MonitoringTargetItem = {
 type FormatDateTimeFn = (value?: string | null) => string
 type MonitoringDiffFn = (targetId: string) => string
 type MonitoringPanelState = 'loading' | 'upsell' | 'blocked' | 'empty' | 'active'
+
+const copy = DASHBOARD_MONITORING_TEXT
 
 const props = defineProps<{
   isLoggedIn: boolean
@@ -163,10 +166,10 @@ const monitoringStatusBadgeClass = computed(() => {
 })
 
 const monitoringStatusLabel = computed(() => {
-  if (monitoringPanelState.value === 'loading') return 'Načítavam'
-  if (monitoringPanelState.value === 'upsell') return 'Bez plánu'
-  if (monitoringPanelState.value === 'blocked') return 'Nedostupné'
-  return props.monitoringIsActive ? 'Aktívny' : 'Pozastavený'
+  if (monitoringPanelState.value === 'loading') return copy.badgeLoading
+  if (monitoringPanelState.value === 'upsell') return copy.badgeUpsell
+  if (monitoringPanelState.value === 'blocked') return copy.badgeBlocked
+  return props.monitoringIsActive ? copy.badgeActive : copy.badgePaused
 })
 
 const hasMonitoringCheckoutOptions = computed(

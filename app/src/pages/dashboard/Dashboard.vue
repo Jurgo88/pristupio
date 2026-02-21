@@ -149,6 +149,7 @@ import {
   DashboardOverviewPane,
   DashboardMetricsStrip,
   DashboardMonitoringPanel,
+  getDashboardScoreStateLabel,
   useDashboardIssues,
   useDashboardExport,
   useDashboardCore,
@@ -262,13 +263,7 @@ const {
 
 const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 const totalIssuesCount = computed(() => auditStore.report?.issues?.length || 0)
-const scoreStateLabel = computed(() => {
-  if (!auditStore.report) return 'Spustite audit'
-  if (auditScore.value >= 90) return 'Vysoka pripravenost'
-  if (auditScore.value >= 75) return 'Solidny zaklad'
-  if (auditScore.value >= 60) return 'Treba dorobit klucove opravy'
-  return 'Rizikovy stav'
-})
+const scoreStateLabel = computed(() => getDashboardScoreStateLabel(!!auditStore.report, auditScore.value))
 const lastAuditLabel = computed(() => {
   if (!latestAudit.value?.created_at) return ''
   return formatDate(latestAudit.value.created_at)
