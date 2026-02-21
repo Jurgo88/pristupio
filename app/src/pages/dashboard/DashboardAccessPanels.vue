@@ -99,6 +99,14 @@ defineEmits<{
 </script>
 
 <style scoped>
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.8rem;
+  box-shadow: var(--shadow-sm);
+}
+
 .kicker {
   text-transform: uppercase;
   letter-spacing: 0.18em;
@@ -255,6 +263,12 @@ defineEmits<{
   .paid-banner__actions {
     justify-items: start;
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 1.4rem;
   }
 }
 </style>

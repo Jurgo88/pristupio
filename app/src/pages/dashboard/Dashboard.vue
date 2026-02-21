@@ -283,8 +283,8 @@ const lastAuditLabel = computed(() => {
   width: 100%;
   margin: 0 auto;
   display: grid;
-  gap: 2.5rem;
-  padding: 0.5rem 0 4rem;
+  gap: 2.15rem;
+  padding: 0.5rem 0 3.4rem;
 }
 
 .dashboard-workspace {
@@ -296,19 +296,21 @@ const lastAuditLabel = computed(() => {
 
 .workspace-main {
   display: grid;
-  gap: 1.4rem;
+  gap: 1.15rem;
 }
-`r`n
 /* Responsive */
 @media (max-width: 980px) {
   .audit-page {
     --dashboard-sticky-offset: calc(4.8rem + env(safe-area-inset-top));
+    gap: 1.4rem;
+    padding-bottom: 2.2rem;
   }
 
   .dashboard-workspace {
     grid-template-columns: 1fr;
     gap: 1rem;
-  }`r`n
+  }
+
   .mobile-pane {
     display: none;
   }
