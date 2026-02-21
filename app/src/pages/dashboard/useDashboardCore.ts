@@ -7,6 +7,21 @@ import { buildLemonCheckoutUrl } from '@/utils/lemon'
 import type { AuditHistoryItem, ProfileOption } from './dashboard.types'
 
 const normalizeMonitoringUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '').toLowerCase()
+const normalizeAuditUrlInput = (rawUrl: unknown): string | null => {
+  if (typeof rawUrl !== 'string') return null
+
+  const trimmed = rawUrl.trim()
+  if (!trimmed) return null
+
+  const withProtocol = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
+  try {
+    const parsed = new URL(withProtocol)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
 
 export const useDashboardCore = () => {
   const targetUrl = ref('')
@@ -114,21 +129,34 @@ export const useDashboardCore = () => {
     return 'none'
   })
 
+  const syncOpenedOrLatestAudit = async () => {
+    const openedAuditId = auditStore.currentAudit?.auditId || selectedAuditId.value
+    if (openedAuditId) {
+      const opened = await auditStore.loadAuditById(openedAuditId)
+      if (opened?.auditId) {
+        selectedAuditId.value = opened.auditId
+        if (opened.url) {
+          targetUrl.value = opened.url
+        }
+        return
+      }
+    }
+
+    await loadLatestAudit()
+  }
+
+  const syncDashboardData = async () => {
+    await syncOpenedOrLatestAudit()
+    await loadAuditHistory()
+    await loadMonitoringStatus()
+  }
+
   const refreshPlan = async () => {
+    if (refreshPlanLoading.value) return
     refreshPlanLoading.value = true
     try {
       await auth.fetchUserProfile()
-      const openedAuditId = auditStore.currentAudit?.auditId || selectedAuditId.value
-      if (openedAuditId) {
-        await auditStore.loadAuditById(openedAuditId)
-      } else {
-        const latest = await auditStore.fetchLatestAudit()
-        if (latest?.auditId) {
-          selectedAuditId.value = latest.auditId
-        }
-      }
-      await loadAuditHistory()
-      await loadMonitoringStatus()
+      await syncDashboardData()
     } finally {
       refreshPlanLoading.value = false
     }
@@ -197,17 +225,38 @@ export const useDashboardCore = () => {
     }
   ]
 
+  const targetUrlValidationMessage = computed(() => {
+    const raw = targetUrl.value.trim()
+    if (!raw) return ''
+    const normalized = normalizeAuditUrlInput(raw)
+    if (!normalized) return 'Zadajte platnú URL (napr. https://priklad.sk).'
+    return ''
+  })
+
+  const auditFormErrorMessage = computed(() => {
+    if (targetUrlValidationMessage.value) return targetUrlValidationMessage.value
+    return auditStore.error || ''
+  })
+
   const canRunAudit = computed(
-    () => targetUrl.value.trim().length > 0 && !auditStore.loading && !auditLocked.value
+    () =>
+      targetUrl.value.trim().length > 0 &&
+      !targetUrlValidationMessage.value &&
+      !auditStore.loading &&
+      !auditLocked.value
   )
   const profileLabel = computed(
     () => profileOptions.find((option) => option.value === selectedProfile.value)?.title || 'WCAG audit'
   )
 
   const handleStartAudit = async () => {
-    const url = targetUrl.value.trim()
-    if (!url) return
-    await auditStore.runManualAudit(url)
+    const raw = targetUrl.value.trim()
+    if (!raw) return
+
+    const normalizedUrl = normalizeAuditUrlInput(raw)
+    if (!normalizedUrl) return
+
+    await auditStore.runManualAudit(normalizedUrl)
     if (auditStore.currentAudit?.auditId) {
       selectedAuditId.value = auditStore.currentAudit.auditId
     }
@@ -325,10 +374,9 @@ export const useDashboardCore = () => {
     if (route.query.paid === '1') {
       paymentNotice.value = true
       void refreshPlan()
+      return
     }
-    void loadLatestAudit()
-    void loadAuditHistory()
-    void loadMonitoringStatus()
+    void syncDashboardData()
   })
 
   return {
@@ -377,6 +425,8 @@ export const useDashboardCore = () => {
     loadAuditHistory,
     loadMonitoringStatus,
     profileOptions,
+    auditFormErrorMessage,
+    targetUrlValidationMessage,
     canRunAudit,
     profileLabel,
     handleStartAudit,

@@ -38,7 +38,7 @@
             :disabled="monitoringLoadingAction || !canMonitorAudit(audit)"
             @click="handleRunMonitoringForAudit(audit)"
           >
-            {{ isPendingAudit(audit) ? 'Nastavujem...' : isMonitoringAudit(audit) ? 'Monitorujem' : 'Monitoruj' }}
+            {{ isPendingAudit(audit) ? 'Nastavujem...' : isMonitoringAudit(audit) ? 'Monitorované' : 'Monitoruj' }}
           </button>
         </span>
       </div>
@@ -98,12 +98,13 @@ const isMonitoringAudit = (audit: AuditHistoryItem) => {
 
 const canMonitorAudit = (audit: AuditHistoryItem) => {
   if (!props.monitoringHasAccess) return false
-  if (isMonitoringAudit(audit)) return true
+  if (isMonitoringAudit(audit)) return false
   return props.monitoringCanAddTarget
 }
 
 const monitorButtonTitle = (audit: AuditHistoryItem) => {
   if (!props.monitoringHasAccess) return 'Pre monitoring si treba zakúpiť predplatné.'
+  if (isMonitoringAudit(audit)) return 'Táto doména je už monitorovaná.'
   if (!isMonitoringAudit(audit) && !props.monitoringCanAddTarget) {
     return `Dosiahli ste limit monitorovaných domén (${props.monitoringDomainsLimit}).`
   }
