@@ -175,7 +175,8 @@ import {
   DashboardMonitoringPanel,
   useDashboardIssues,
   useDashboardExport,
-  useDashboardCore
+  useDashboardCore,
+  useMonitoringDiff
 } from './index'
 import './dashboard.shared.css'
 
@@ -260,6 +261,13 @@ const {
 } = useDashboardIssues(computed(() => auditStore.report))
 
 const {
+  monitoringDiffLabel,
+  monitoringDiffClass,
+  monitoringWorseningNotice
+} = useMonitoringDiff(monitoringLatestSuccessRunByTarget)
+
+
+const {
   exporting: isExporting,
   exportError,
   exportProgress,
@@ -290,60 +298,6 @@ const lastAuditLabel = computed(() => {
   return formatDate(latestAudit.value.created_at)
 })
 
-const signedDelta = (value: number) => {
-  if (!Number.isFinite(value) || value === 0) return '0'
-  return value > 0 ? `+${value}` : String(value)
-}
-
-const monitoringDiffMeta = (targetId: string) => {
-  const run = monitoringLatestSuccessRunByTarget.value?.[targetId]
-  const diff = run?.diff_json || {}
-  if (!diff || typeof diff !== 'object') return null
-
-  const totalDelta = Number((diff as any).totalDelta || 0)
-  const newIssues = Number((diff as any).newIssues || 0)
-  const resolvedIssues = Number((diff as any).resolvedIssues || 0)
-  const byImpactDelta = ((diff as any).byImpactDelta || {}) as Record<string, number>
-  const criticalDelta = Number(byImpactDelta.critical || 0)
-
-  return {
-    totalDelta,
-    newIssues: Math.max(0, newIssues),
-    resolvedIssues: Math.max(0, resolvedIssues),
-    criticalDelta,
-    worsening: totalDelta > 0 || criticalDelta > 0,
-    improving: totalDelta < 0
-  }
-}
-
-const monitoringDiffLabel = (targetId: string) => {
-  const meta = monitoringDiffMeta(targetId)
-  if (!meta) {
-    return ''
-  }
-
-  return `Zmena: ${signedDelta(meta.totalDelta)} | Nové: +${meta.newIssues} | Vyriešené: -${meta.resolvedIssues}`
-}
-
-const monitoringDiffClass = (targetId: string) => {
-  const meta = monitoringDiffMeta(targetId)
-  if (!meta) return ''
-  if (meta.worsening) return 'diff-pill diff-pill--worsening'
-  if (meta.improving) return 'diff-pill diff-pill--improving'
-  return 'diff-pill diff-pill--neutral'
-}
-
-const monitoringWorseningNotice = computed(() => {
-  const ids = Object.keys(monitoringLatestSuccessRunByTarget.value || {})
-  let worsenedCount = 0
-  ids.forEach((id) => {
-    const meta = monitoringDiffMeta(id)
-    if (meta?.worsening) worsenedCount += 1
-  })
-  if (worsenedCount === 0) return ''
-  if (worsenedCount === 1) return 'Upozornenie: pri 1 doméne sa monitoring zhoršil oproti minulému auditu.'
-  return `Upozornenie: pri ${worsenedCount} doménach sa monitoring zhoršil oproti minulému auditu.`
-})
 </script>
 
 <style scoped>
