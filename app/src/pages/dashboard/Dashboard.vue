@@ -120,29 +120,16 @@
         @refresh-history="loadAuditHistory"
       />
       <div class="workspace-main">
-        <section class="workspace-overview mobile-pane mobile-pane--overview">
-          <DashboardStats
-            v-if="auditStore.report"
-            :high-count="highCount"
-            :med-count="medCount"
-            :low-count="lowCount"
-          />
-
-          <DashboardReportPreview
-            v-if="auditStore.report"
-            :audit-score="auditScore"
-            :high-count="highCount"
-            :med-count="medCount"
-            :low-count="lowCount"
-            :critical-percent="criticalPercent"
-            :moderate-percent="moderatePercent"
-            :minor-percent="minorPercent"
-          />
-
-          <section v-if="!auditStore.report" class="panel overview-empty">
-            Spustite audit a po dokončení sa tu zobrazí prehľad skóre a rozdelenie nálezov.
-          </section>
-        </section>
+        <DashboardOverviewPane
+          :has-report="!!auditStore.report"
+          :high-count="highCount"
+          :med-count="medCount"
+          :low-count="lowCount"
+          :audit-score="auditScore"
+          :critical-percent="criticalPercent"
+          :moderate-percent="moderatePercent"
+          :minor-percent="minorPercent"
+        />
         <DashboardIssuesPanel
           :has-report="!!auditStore.report"
           :is-preview="isPreview"
@@ -183,10 +170,9 @@ import {
   DashboardHeroSection,
   DashboardHistoryRail,
   DashboardIssuesPanel,
+  DashboardOverviewPane,
   DashboardMetricsStrip,
   DashboardMonitoringPanel,
-  DashboardReportPreview,
-  DashboardStats,
   useDashboardIssues,
   useDashboardExport,
   useDashboardCore
@@ -383,15 +369,6 @@ const monitoringWorseningNotice = computed(() => {
   gap: 1.4rem;
 }
 
-.workspace-overview {
-  display: grid;
-  gap: 1rem;
-}
-
-.overview-empty {
-  color: var(--text-muted);
-}
-
 .mobile-tabs {
   display: none;
 }
@@ -411,15 +388,6 @@ const monitoringWorseningNotice = computed(() => {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
   background: #ffffff;
-}
-
-/* Panel Shell */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1.8rem;
-  box-shadow: var(--shadow-sm);
 }
 
 /* Responsive */
@@ -456,12 +424,5 @@ const monitoringWorseningNotice = computed(() => {
   .dashboard-workspace.is-tab-history .mobile-pane--history {
     display: block;
   }
-}
-
-@media (max-width: 640px) {
-  .panel {
-    padding: 1.4rem;
-  }
-
 }
 </style>

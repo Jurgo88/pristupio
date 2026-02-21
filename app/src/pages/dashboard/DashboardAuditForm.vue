@@ -199,6 +199,13 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 </script>
 
 <style scoped>
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
 .audit-form {
   padding: 1.35rem 1.4rem;
 }
@@ -406,6 +413,12 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 @media (max-width: 1180px) {
   .audit-flow {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 1.4rem;
   }
 }
 </style>

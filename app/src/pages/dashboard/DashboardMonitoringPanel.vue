@@ -167,6 +167,14 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.8rem;
+  box-shadow: var(--shadow-sm);
+}
+
 .monitoring-panel {
   display: grid;
   gap: 0.75rem;
@@ -426,6 +434,12 @@ const emit = defineEmits<{
     margin-left: 0;
     justify-content: flex-start;
     width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 1.4rem;
   }
 }
 </style>

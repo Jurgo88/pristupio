@@ -181,10 +181,13 @@ defineEmits<{
 
   .audit-history {
     grid-template-rows: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
   }
 
   .history-scroll {
-    overflow: visible;
+    overflow: auto;
     padding-right: 0;
   }
 }
