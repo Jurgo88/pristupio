@@ -6,8 +6,8 @@
         <h2>Automatické kontroly viacerých domén</h2>
       </div>
       <div class="monitoring-head-status">
-        <span class="status-badge" :class="monitoringIsActive ? 'status-badge--success' : 'status-badge--warning'">
-          {{ monitoringIsActive ? 'Aktívny' : 'Pozastavený' }}
+        <span class="status-badge" :class="monitoringStatusBadgeClass">
+          {{ monitoringStatusLabel }}
         </span>
         <span class="monitoring-head-usage">
           {{ isAdmin ? `${monitoringConfiguredCount} domén` : `${monitoringConfiguredCount}/${monitoringDomainsLimit} domén` }}
@@ -15,32 +15,25 @@
       </div>
     </div>
 
-    <div v-if="monitoringLoadingStatus" class="status-state status-state--loading">
+    <div v-if="monitoringPanelState === 'loading'" class="status-state status-state--loading">
       Načítavam monitoring...
     </div>
 
-    <template v-else>
-      <div v-if="monitoringHasAccess" class="monitoring-grid">
+    <template v-else-if="monitoringPanelState === 'active' || monitoringPanelState === 'empty'">
+      <div class="monitoring-grid">
         <div class="monitoring-topline">
           <div class="monitoring-summary">
             <span class="monitoring-summary__label">Frekvencia:</span>
             <strong>{{ monitoringDefaultCadenceLabel }}</strong>
           </div>
-          <div
-            v-if="canBuyMonitoring && monitoringTier === 'basic'"
-            class="monitoring-buy-actions monitoring-buy-actions--inline"
-          >
-            <a
-              v-if="monitoringCheckoutProUrl"
-              :href="monitoringCheckoutProUrl"
-              class="btn btn-outline"
-            >
+          <div v-if="showInlineUpgrade" class="monitoring-buy-actions monitoring-buy-actions--inline">
+            <a :href="monitoringCheckoutProUrl" class="btn btn-outline">
               Upgrade na Monitoring Pro
             </a>
           </div>
         </div>
 
-        <div v-if="monitoringTargets.length === 0" class="status-state">
+        <div v-if="monitoringPanelState === 'empty'" class="status-state">
           Zatiaľ nemáte monitorovanú doménu. V histórii auditov kliknite na „Monitoruj“.
         </div>
 
@@ -82,50 +75,43 @@
         </div>
       </div>
 
-      <div v-else class="monitoring-empty">
-        <p class="status-state" v-if="canBuyMonitoring">
-          Monitoring plán nie je aktívny.
-        </p>
-        <p class="status-state" v-else>
-          Monitoring je dostupný až po základnom audite.
-        </p>
-        <div v-if="canBuyMonitoring" class="monitoring-buy-actions">
-          <a
-            v-if="monitoringCheckoutBasicUrl"
-            :href="monitoringCheckoutBasicUrl"
-            class="btn btn-primary"
-          >
-            Monitoring Basic (29 €)
-          </a>
-          <a
-            v-if="monitoringCheckoutProUrl"
-            :href="monitoringCheckoutProUrl"
-            class="btn btn-outline"
-          >
-            Monitoring Pro
-          </a>
-          <button
-            v-if="!monitoringCheckoutBasicUrl && !monitoringCheckoutProUrl"
-            class="btn btn-outline"
-            disabled
-          >
-            Monitoring checkout URL nie je nastavená
-          </button>
-        </div>
-      </div>
     </template>
 
-    <p v-if="monitoringMessage" class="status-alert status-alert--success">{{ monitoringMessage }}</p>
-    <p v-if="monitoringWorseningNotice" class="status-alert status-alert--warning">
+    <div v-else class="monitoring-empty">
+      <p v-if="monitoringPanelState === 'upsell'" class="status-state">
+        Monitoring plán nie je aktívny.
+      </p>
+      <p v-else class="status-state">
+        Monitoring je dostupný až po základnom audite.
+      </p>
+      <div v-if="monitoringPanelState === 'upsell'" class="monitoring-buy-actions">
+        <a v-if="monitoringCheckoutBasicUrl" :href="monitoringCheckoutBasicUrl" class="btn btn-primary">
+          Monitoring Basic (29 €)
+        </a>
+        <a v-if="monitoringCheckoutProUrl" :href="monitoringCheckoutProUrl" class="btn btn-outline">
+          Monitoring Pro
+        </a>
+        <button v-if="!hasMonitoringCheckoutOptions" class="btn btn-outline" disabled>
+          Monitoring checkout URL nie je nastavená
+        </button>
+      </div>
+    </div>
+
+    <p v-if="showMonitoringAlerts && monitoringMessage" class="status-alert status-alert--success">
+      {{ monitoringMessage }}
+    </p>
+    <p v-if="showMonitoringAlerts && monitoringWorseningNotice" class="status-alert status-alert--warning">
       {{ monitoringWorseningNotice }}
     </p>
-    <p v-if="monitoringError || monitoringStoreError" class="status-alert status-alert--danger">
+    <p v-if="showMonitoringAlerts && (monitoringError || monitoringStoreError)" class="status-alert status-alert--danger">
       {{ monitoringError || monitoringStoreError }}
     </p>
   </section>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 type MonitoringTargetItem = {
   id: string
   default_url: string
@@ -136,8 +122,9 @@ type MonitoringTargetItem = {
 
 type FormatDateTimeFn = (value?: string | null) => string
 type MonitoringDiffFn = (targetId: string) => string
+type MonitoringPanelState = 'loading' | 'upsell' | 'blocked' | 'empty' | 'active'
 
-defineProps<{
+const props = defineProps<{
   isLoggedIn: boolean
   isAdmin: boolean
   monitoringIsActive: boolean
@@ -160,6 +147,37 @@ defineProps<{
   monitoringDiffLabel: MonitoringDiffFn
   monitoringDiffClass: MonitoringDiffFn
 }>()
+
+const monitoringPanelState = computed<MonitoringPanelState>(() => {
+  if (props.monitoringLoadingStatus) return 'loading'
+  if (!props.monitoringHasAccess) return props.canBuyMonitoring ? 'upsell' : 'blocked'
+  if (props.monitoringTargets.length === 0) return 'empty'
+  return 'active'
+})
+
+const monitoringStatusBadgeClass = computed(() => {
+  if (monitoringPanelState.value === 'loading') return 'status-badge--info'
+  if (monitoringPanelState.value === 'upsell') return 'status-badge--warning'
+  if (monitoringPanelState.value === 'blocked') return 'status-badge--info'
+  return props.monitoringIsActive ? 'status-badge--success' : 'status-badge--warning'
+})
+
+const monitoringStatusLabel = computed(() => {
+  if (monitoringPanelState.value === 'loading') return 'Načítavam'
+  if (monitoringPanelState.value === 'upsell') return 'Bez plánu'
+  if (monitoringPanelState.value === 'blocked') return 'Nedostupné'
+  return props.monitoringIsActive ? 'Aktívny' : 'Pozastavený'
+})
+
+const hasMonitoringCheckoutOptions = computed(
+  () => !!props.monitoringCheckoutBasicUrl || !!props.monitoringCheckoutProUrl
+)
+
+const showInlineUpgrade = computed(
+  () => props.monitoringHasAccess && props.monitoringTier === 'basic' && !!props.monitoringCheckoutProUrl
+)
+
+const showMonitoringAlerts = computed(() => monitoringPanelState.value !== 'loading')
 
 const emit = defineEmits<{
   (event: 'remove-target', targetId: string): void

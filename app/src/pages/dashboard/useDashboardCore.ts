@@ -96,7 +96,9 @@ export const useDashboardCore = () => {
   const auditHistory = computed(() => auditStore.history || [])
   const latestAudit = computed(() => auditHistory.value[0] || null)
   const monitoringHasAccess = computed(() => monitoringStore.hasAccess)
-  const canBuyMonitoring = computed(() => auth.isAdmin || auth.paidAuditCompleted)
+  const canBuyMonitoring = computed(
+    () => auth.isAdmin || auth.paidAuditCompleted || monitoringHasAccess.value
+  )
   const monitoringTargets = computed(() => monitoringStore.targets || [])
   const monitoringTarget = computed(() => monitoringStore.target || monitoringTargets.value[0] || null)
   const monitoringLatestRun = computed(() => monitoringStore.latestRun)
@@ -208,6 +210,7 @@ export const useDashboardCore = () => {
   const loadMonitoringStatus = async () => {
     if (!auth.isLoggedIn) return
 
+    monitoringMessage.value = ''
     monitoringError.value = ''
     await monitoringStore.fetchStatus()
   }
