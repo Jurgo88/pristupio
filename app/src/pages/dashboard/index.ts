@@ -23,6 +23,8 @@ export {
   DASHBOARD_HERO_TEXT,
   DASHBOARD_OVERVIEW_TEXT,
   DASHBOARD_METRICS_TEXT,
+  DASHBOARD_AUDIT_FORM_TEXT,
+  DASHBOARD_HISTORY_TEXT,
   getDashboardScoreStateLabel
 } from './dashboard.copy'
 

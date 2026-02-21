@@ -1,9 +1,9 @@
 <template>
   <div v-if="historyError" class="status-alert status-alert--danger">{{ historyError }}</div>
 
-  <div v-if="historyLoading" class="status-state status-state--loading">Načítavam históriu...</div>
+  <div v-if="historyLoading" class="status-state status-state--loading">{{ copy.loading }}</div>
 
-  <div v-else-if="auditHistory.length === 0" class="status-state">Zatiaľ nemáte žiadne audity.</div>
+  <div v-else-if="auditHistory.length === 0" class="status-state">{{ copy.empty }}</div>
 
   <div v-else class="history-list">
     <article
@@ -16,16 +16,16 @@
         <strong>{{ audit.url }}</strong>
         <div class="history-sub">
           <span>{{ formatDate(audit.created_at) }}</span>
-          <span class="pill">{{ audit.audit_kind === 'paid' ? 'Základný audit' : 'Free audit' }}</span>
+          <span class="pill">{{ audit.audit_kind === 'paid' ? copy.pillPaid : copy.pillFree }}</span>
         </div>
         <div class="history-stats">
-          <span>Spolu: {{ issueTotal(audit.summary) }}</span>
-          <span>Kritické: {{ issueHigh(audit.summary) }}</span>
+          <span>{{ copy.statsTotal }}: {{ issueTotal(audit.summary) }}</span>
+          <span>{{ copy.statsHigh }}: {{ issueHigh(audit.summary) }}</span>
         </div>
       </div>
       <div class="history-card-actions">
         <button class="btn btn-sm btn-outline history-card-btn" @click="selectAudit(audit.id)">
-          Zobraziť audit
+          {{ copy.openAudit }}
         </button>
         <span
           class="history-card-btn-wrap"
@@ -38,7 +38,7 @@
             :disabled="monitoringLoadingAction || !canMonitorAudit(audit)"
             @click="handleRunMonitoringForAudit(audit)"
           >
-            {{ isPendingAudit(audit) ? 'Nastavujem...' : isMonitoringAudit(audit) ? 'Monitorované' : 'Monitoruj' }}
+            {{ isPendingAudit(audit) ? copy.monitorPending : isMonitoringAudit(audit) ? copy.monitorActive : copy.monitorIdle }}
           </button>
         </span>
       </div>
@@ -47,7 +47,7 @@
     <div v-if="historyHasMore" class="history-load-more">
       <div ref="historySentinel" class="history-sentinel" aria-hidden="true"></div>
       <button class="btn btn-sm btn-outline" :disabled="historyLoadingMore" @click="loadMoreHistory">
-        {{ historyLoadingMore ? 'Načítavam ďalšie...' : 'Načítať ďalšie' }}
+        {{ historyLoadingMore ? copy.loadMoreLoading : copy.loadMoreIdle }}
       </button>
     </div>
   </div>
@@ -56,6 +56,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { AuditHistoryItem, DashboardReportSummary } from './dashboard.types'
+import { DASHBOARD_HISTORY_TEXT } from './dashboard.copy'
+
+const copy = DASHBOARD_HISTORY_TEXT
 
 type FormatDateFn = (value?: string) => string
 type IssueSummaryFn = (summary: DashboardReportSummary | null | undefined) => number
@@ -103,10 +106,10 @@ const canMonitorAudit = (audit: AuditHistoryItem) => {
 }
 
 const monitorButtonTitle = (audit: AuditHistoryItem) => {
-  if (!props.monitoringHasAccess) return 'Pre monitoring si treba zakúpiť predplatné.'
-  if (isMonitoringAudit(audit)) return 'Táto doména je už monitorovaná.'
+  if (!props.monitoringHasAccess) return copy.monitorTooltipNoAccess
+  if (isMonitoringAudit(audit)) return copy.monitorTooltipAlreadyActive
   if (!isMonitoringAudit(audit) && !props.monitoringCanAddTarget) {
-    return `Dosiahli ste limit monitorovaných domén (${props.monitoringDomainsLimit}).`
+    return copy.monitorTooltipLimit(props.monitoringDomainsLimit)
   }
   return ''
 }

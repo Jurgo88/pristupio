@@ -2,11 +2,9 @@
   <section class="panel audit-form">
     <div class="panel-head">
       <div>
-        <p class="kicker">Spustenie auditu</p>
-        <h2>Spusti novy WCAG audit</h2>
-        <p class="lead">
-          Kratky flow v troch krokoch: ciel, legislativny profil a spustenie analyzy.
-        </p>
+        <p class="kicker">{{ copy.kicker }}</p>
+        <h2>{{ copy.title }}</h2>
+        <p class="lead">{{ copy.lead }}</p>
       </div>
     </div>
 
@@ -15,8 +13,8 @@
         <div class="flow-step__head">
           <span class="flow-index">1</span>
           <div>
-            <label class="field-label" for="audit-url">Webstranka na analyzu</label>
-            <p class="flow-copy">Zadaj URL stranky, ktoru chces otestovat.</p>
+            <label class="field-label" for="audit-url">{{ copy.stepTargetLabel }}</label>
+            <p class="flow-copy">{{ copy.stepTargetCopy }}</p>
           </div>
         </div>
 
@@ -25,21 +23,21 @@
           :value="targetUrl"
           type="url"
           class="field-control"
-          placeholder="https://priklad.sk"
+          :placeholder="copy.targetPlaceholder"
           :disabled="auditLocked"
           @input="onTargetUrlInput"
           @keyup.enter="$emit('startAudit')"
         />
 
-        <p class="field-hint">Vhodne pre weby, aplikacie aj digitalne sluzby.</p>
+        <p class="field-hint">{{ copy.targetHint }}</p>
       </article>
 
       <article class="flow-step" :class="{ 'is-ready': !!selectedProfile }">
         <div class="flow-step__head">
           <span class="flow-index">2</span>
           <div>
-            <label class="field-label">Profil legislativy</label>
-            <p class="flow-copy">Vyberte profil podla typu organizacie a sluzby.</p>
+            <label class="field-label">{{ copy.stepProfileLabel }}</label>
+            <p class="flow-copy">{{ copy.stepProfileCopy }}</p>
           </div>
         </div>
 
@@ -70,17 +68,17 @@
         <div class="flow-step__head">
           <span class="flow-index">3</span>
           <div>
-            <label class="field-label">Spustenie</label>
-            <p class="flow-copy">Klikni a pockaj na vypocet score aj priorizacie problemov.</p>
+            <label class="field-label">{{ copy.stepRunLabel }}</label>
+            <p class="flow-copy">{{ copy.stepRunCopy }}</p>
           </div>
         </div>
 
         <button class="btn btn-primary flow-cta" @click="$emit('startAudit')" :disabled="!canRunAudit">
           <span v-if="loading" class="spinner-border spinner-border-sm"></span>
-          {{ loading ? 'Auditujem...' : 'Analyzovat web' }}
+          {{ loading ? copy.runLoading : copy.runIdle }}
         </button>
 
-        <p class="field-hint">Po dokonceni dostanes score, priority a detailny zoznam nalezov.</p>
+        <p class="field-hint">{{ copy.runHint }}</p>
       </article>
     </div>
 
@@ -108,6 +106,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type { ProfileOption } from './dashboard.types'
+import { DASHBOARD_AUDIT_FORM_TEXT } from './dashboard.copy'
+
+const copy = DASHBOARD_AUDIT_FORM_TEXT
 
 const props = defineProps<{
   targetUrl: string
@@ -168,11 +169,11 @@ const finishProgress = () => {
 }
 
 const progressLabel = computed(() => {
-  if (progress.value < 20) return 'Inicializujem audit...'
-  if (progress.value < 55) return 'Nacitavam stranku...'
-  if (progress.value < 85) return 'Vyhodnocujem pravidla WCAG...'
-  if (progress.value < 100) return 'Ukladam vysledky...'
-  return 'Audit dokonceny'
+  if (progress.value < 20) return copy.progressInit
+  if (progress.value < 55) return copy.progressLoadingPage
+  if (progress.value < 85) return copy.progressRules
+  if (progress.value < 100) return copy.progressSaving
+  return copy.progressDone
 })
 
 watch(

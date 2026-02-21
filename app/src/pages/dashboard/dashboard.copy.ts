@@ -89,6 +89,46 @@ export const DASHBOARD_METRICS_TEXT = {
   latestAuditEmpty: 'Po prvom audite uvidíte históriu'
 } as const
 
+export const DASHBOARD_AUDIT_FORM_TEXT = {
+  kicker: 'Spustenie auditu',
+  title: 'Spusti nový WCAG audit',
+  lead: 'Krátky flow v troch krokoch: cieľ, legislatívny profil a spustenie analýzy.',
+  stepTargetLabel: 'Webstránka na analýzu',
+  stepTargetCopy: 'Zadaj URL stránky, ktorú chceš otestovať.',
+  targetPlaceholder: 'https://priklad.sk',
+  targetHint: 'Vhodné pre weby, aplikácie aj digitálne služby.',
+  stepProfileLabel: 'Profil legislatívy',
+  stepProfileCopy: 'Vyberte profil podľa typu organizácie a služby.',
+  stepRunLabel: 'Spustenie',
+  stepRunCopy: 'Klikni a počkaj na výpočet skóre aj prioritizácie problémov.',
+  runLoading: 'Auditujem...',
+  runIdle: 'Analyzovať web',
+  runHint: 'Po dokončení dostaneš skóre, priority a detailný zoznam nálezov.',
+  progressInit: 'Inicializujem audit...',
+  progressLoadingPage: 'Načítavam stránku...',
+  progressRules: 'Vyhodnocujem pravidlá WCAG...',
+  progressSaving: 'Ukladám výsledky...',
+  progressDone: 'Audit dokončený'
+} as const
+
+export const DASHBOARD_HISTORY_TEXT = {
+  loading: 'Načítavam históriu...',
+  empty: 'Zatiaľ nemáte žiadne audity.',
+  pillPaid: 'Základný audit',
+  pillFree: 'Free audit',
+  statsTotal: 'Spolu',
+  statsHigh: 'Kritické',
+  openAudit: 'Zobraziť audit',
+  monitorPending: 'Nastavujem...',
+  monitorActive: 'Monitorované',
+  monitorIdle: 'Monitoruj',
+  loadMoreLoading: 'Načítavam ďalšie...',
+  loadMoreIdle: 'Načítať ďalšie',
+  monitorTooltipNoAccess: 'Pre monitoring si treba zakúpiť predplatné.',
+  monitorTooltipAlreadyActive: 'Táto doména je už monitorovaná.',
+  monitorTooltipLimit: (limit: number) => `Dosiahli ste limit monitorovaných domén (${limit}).`
+} as const
+
 export const getDashboardScoreStateLabel = (hasReport: boolean, score: number) => {
   if (!hasReport) return 'Spustite audit'
   if (score >= 90) return 'Vysoká pripravenosť'
