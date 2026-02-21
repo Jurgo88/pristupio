@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions'
 import { createClient } from '@supabase/supabase-js'
+import { DEFAULT_ISSUE_LOCALE, localizeIssues, normalizeIssueLocale } from './audit-copy'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -67,10 +68,11 @@ export const handler: Handler = async (event) => {
         issues = fullData.full_issues
       }
     }
+    const locale = normalizeIssueLocale(event.queryStringParameters?.lang, DEFAULT_ISSUE_LOCALE)
 
     const report = {
       summary: audit.summary || emptySummary(),
-      issues
+      issues: localizeIssues(issues, locale, DEFAULT_ISSUE_LOCALE)
     }
 
     return {
@@ -85,7 +87,8 @@ export const handler: Handler = async (event) => {
         meta: {
           standard: 'EN 301 549 (WCAG 2.1 AA)',
           tags: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'],
-          note: 'Automatizovane testy nepokrivaju vsetky kriteria; cast vyzaduje manualnu kontrolu.'
+          note: 'Automatizovane testy nepokrivaju vsetky kriteria; cast vyzaduje manualnu kontrolu.',
+          locale
         }
       })
     }

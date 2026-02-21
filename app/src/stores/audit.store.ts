@@ -15,6 +15,17 @@ type AuditReport = {
     impact: Impact
     description: string
     recommendation?: string
+    copy?: Record<
+      string,
+      {
+        title?: string
+        description?: string
+        recommendation?: string
+        source?: 'static' | 'ai' | string
+        promptVersion?: string
+        generatedAt?: string
+      }
+    >
     wcag: string
     wcagLevel: string
     principle: string
@@ -27,6 +38,8 @@ type AuditReport = {
     }>
   }>
 }
+
+const REPORT_LOCALE = 'sk'
 
 export const useAuditStore = defineStore('audit', {
   state: () => ({
@@ -69,7 +82,7 @@ export const useAuditStore = defineStore('audit', {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`
           },
-          body: JSON.stringify({ url })
+          body: JSON.stringify({ url, lang: REPORT_LOCALE })
         })
 
         if (!response.ok) {
@@ -110,7 +123,7 @@ export const useAuditStore = defineStore('audit', {
         const accessToken = sessionData.session?.access_token
         if (!accessToken) return null
 
-        const response = await fetch('/.netlify/functions/audit-latest', {
+        const response = await fetch(`/.netlify/functions/audit-latest?lang=${REPORT_LOCALE}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`
           }
@@ -187,7 +200,8 @@ export const useAuditStore = defineStore('audit', {
         const accessToken = sessionData.session?.access_token
         if (!accessToken) return null
 
-        const response = await fetch(`/.netlify/functions/audit-detail?id=${auditId}`, {
+        const query = new URLSearchParams({ id: auditId, lang: REPORT_LOCALE })
+        const response = await fetch(`/.netlify/functions/audit-detail?${query.toString()}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`
           }

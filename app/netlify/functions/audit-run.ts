@@ -4,6 +4,14 @@ import { chromium as playwright } from 'playwright-core'
 import axe from 'axe-core'
 import { createClient } from '@supabase/supabase-js'
 import { getGuidance, getWcagLevel } from './audit-guidance'
+import {
+  DEFAULT_ISSUE_LOCALE,
+  createIssueCopyMap,
+  localizeIssues,
+  normalizeIssueLocale,
+  redactIssueRecommendation,
+  type IssueCopyMap
+} from './audit-copy'
 
 process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 
@@ -20,6 +28,7 @@ type ReportIssue = {
   impact: Impact
   description: string
   recommendation: string
+  copy: IssueCopyMap
   wcag: string
   wcagLevel: string
   principle: string
@@ -42,6 +51,7 @@ type ProfileRow = {
 
 type AuditRequestBody = {
   url?: unknown
+  lang?: unknown
 }
 
 const supabaseUrl = process.env.SUPABASE_URL
@@ -190,8 +200,7 @@ const buildSummary = (issues: ReportIssue[]): Summary => {
 }
 
 const stripIssueForFree = (issue: ReportIssue): ReportIssue => ({
-  ...issue,
-  recommendation: '',
+  ...redactIssueRecommendation(issue, DEFAULT_ISSUE_LOCALE),
   nodes: []
 })
 
@@ -234,6 +243,7 @@ export const handler: Handler = async (event) => {
     if (!url) {
       return errorResponse(400, ERROR_MESSAGES.invalidUrl)
     }
+    const locale = normalizeIssueLocale(body.lang, DEFAULT_ISSUE_LOCALE)
 
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
@@ -341,6 +351,10 @@ export const handler: Handler = async (event) => {
     const report = isPaid
       ? { summary, issues }
       : { summary, issues: topIssues.map(stripIssueForFree) }
+    const responseReport = {
+      ...report,
+      issues: localizeIssues(report.issues, locale, DEFAULT_ISSUE_LOCALE) as ReportIssue[]
+    }
 
     const storedTopIssues = isPaid ? topIssues : topIssues.map(stripIssueForFree)
 
@@ -402,9 +416,12 @@ export const handler: Handler = async (event) => {
 
     return jsonResponse(200, {
       accessLevel: isPaid ? 'paid' : 'free',
-      report,
+      report: responseReport,
       auditId: auditInsert.id,
-      meta: RESPONSE_META
+      meta: {
+        ...RESPONSE_META,
+        locale
+      }
     })
   } catch (error: unknown) {
     const message = getErrorMessage(error) || ERROR_MESSAGES.auditFailed
@@ -436,12 +453,19 @@ function normalizeAuditResults(results: any): ReportIssue[] {
       : []
 
     const guidance = getGuidance(v.id, v.description, v.help)
+    const copy = createIssueCopyMap(DEFAULT_ISSUE_LOCALE, {
+      title: guidance.title,
+      description: guidance.description,
+      recommendation: guidance.recommendation
+    })
+
     return {
       id: v.id || v.help || 'unknown',
       title: guidance.title,
       impact,
       description: guidance.description,
       recommendation: guidance.recommendation,
+      copy,
       wcag: guidance.wcag,
       wcagLevel: getWcagLevel(v.id, guidance.wcag),
       principle: guidance.principle,
