@@ -5,6 +5,53 @@ import { TRACKING_QUERY_PARAMS } from './audit-site-types'
 const PRIVATE_HOST_SUFFIXES = ['.local', '.internal', '.localhost', '.home.arpa']
 
 const DEFAULT_ALLOWED_PROTOCOLS = new Set(['http:', 'https:'])
+const KEEP_QUERY_URLS_FOR_CRAWL = process.env.AUDIT_SITE_KEEP_QUERY_URLS === 'true'
+const BLOCKED_CRAWL_EXTENSIONS = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.svg',
+  '.ico',
+  '.pdf',
+  '.zip',
+  '.rar',
+  '.7z',
+  '.tar',
+  '.gz',
+  '.xml',
+  '.rss',
+  '.atom',
+  '.json',
+  '.txt',
+  '.csv',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.ppt',
+  '.pptx',
+  '.mp3',
+  '.wav',
+  '.ogg',
+  '.mp4',
+  '.mov',
+  '.avi',
+  '.wmv',
+  '.webm',
+  '.m4a',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot',
+  '.css',
+  '.js',
+  '.mjs',
+  '.map'
+])
+const INDEX_PATH_SUFFIXES = ['/index.html', '/index.htm', '/index.php', '/index.asp', '/index.aspx']
 
 const isLocalHostname = (hostname: string) => {
   const value = hostname.trim().toLowerCase()
@@ -60,6 +107,15 @@ const isPrivateIpAddress = (ip: string) => {
 const shouldAllowPrivateTargets = () => process.env.AUDIT_SITE_ALLOW_PRIVATE_TARGETS === 'true'
 
 const normalizePathname = (pathname: string) => pathname.replace(/\/{2,}/g, '/')
+const normalizeIndexPath = (pathname: string) => {
+  const lowered = pathname.toLowerCase()
+  for (const suffix of INDEX_PATH_SUFFIXES) {
+    if (!lowered.endsWith(suffix)) continue
+    const cut = pathname.slice(0, Math.max(0, pathname.length - suffix.length))
+    return cut || '/'
+  }
+  return pathname
+}
 
 const stripTrackingParams = (url: URL) => {
   const keys = Array.from(url.searchParams.keys())
@@ -82,7 +138,7 @@ export const normalizeUrlForCompare = (rawUrl: string) => {
   parsed.username = ''
   parsed.password = ''
   parsed.hostname = parsed.hostname.toLowerCase()
-  parsed.pathname = normalizePathname(parsed.pathname).replace(/\/+$/, '') || '/'
+  parsed.pathname = normalizeIndexPath(normalizePathname(parsed.pathname)).replace(/\/+$/, '') || '/'
   normalizeDefaultPort(parsed)
   stripTrackingParams(parsed)
 
@@ -93,6 +149,51 @@ export const normalizeUrlForCompare = (rawUrl: string) => {
   }
 
   return parsed.toString()
+}
+
+export const normalizeUrlForCrawl = (rawUrl: string) => {
+  const parsed = new URL(rawUrl)
+  parsed.hash = ''
+  parsed.username = ''
+  parsed.password = ''
+  parsed.hostname = parsed.hostname.toLowerCase()
+  parsed.pathname = normalizeIndexPath(normalizePathname(parsed.pathname)).replace(/\/+$/, '') || '/'
+  normalizeDefaultPort(parsed)
+  stripTrackingParams(parsed)
+  if (!KEEP_QUERY_URLS_FOR_CRAWL) {
+    parsed.search = ''
+  }
+
+  if (KEEP_QUERY_URLS_FOR_CRAWL) {
+    const sorted = Array.from(parsed.searchParams.entries()).sort(([a], [b]) => a.localeCompare(b))
+    parsed.search = ''
+    for (const [key, value] of sorted) {
+      parsed.searchParams.append(key, value)
+    }
+  }
+
+  return parsed.toString()
+}
+
+const getPathExtension = (pathname: string) => {
+  const filename = pathname.split('/').pop() || ''
+  const dotIndex = filename.lastIndexOf('.')
+  if (dotIndex <= 0) return ''
+  return filename.slice(dotIndex).toLowerCase()
+}
+
+export const isLikelyCrawlableUrl = (rawUrl: string) => {
+  try {
+    const parsed = new URL(rawUrl)
+    if (!DEFAULT_ALLOWED_PROTOCOLS.has(parsed.protocol)) return false
+    if (!KEEP_QUERY_URLS_FOR_CRAWL && parsed.search) return false
+
+    const ext = getPathExtension(parsed.pathname || '')
+    if (ext && BLOCKED_CRAWL_EXTENSIONS.has(ext)) return false
+    return true
+  } catch {
+    return false
+  }
 }
 
 export const normalizeAuditUrl = (rawUrl: unknown): string | null => {

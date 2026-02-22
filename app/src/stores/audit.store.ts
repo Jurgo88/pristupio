@@ -54,6 +54,8 @@ type SiteAuditJob = {
   pagesScanned: number
   pagesFailed: number
   issuesTotal: number
+  currentUrl?: string | null
+  currentDepth?: number | null
   progress: number
   auditId?: string | null
   error?: string | null
@@ -121,6 +123,17 @@ const normalizeSiteAuditJob = (raw: any): SiteAuditJob | null => {
     pagesScanned,
     pagesFailed,
     issuesTotal: Math.max(0, Number(raw.issuesTotal || raw.issues_total || 0)),
+    currentUrl:
+      typeof raw.currentUrl === 'string'
+        ? raw.currentUrl
+        : typeof raw.current_url === 'string'
+        ? raw.current_url
+        : null,
+    currentDepth:
+      Number.isFinite(Number(raw.currentDepth ?? raw.current_depth)) &&
+      Number(raw.currentDepth ?? raw.current_depth) >= 0
+        ? Number(raw.currentDepth ?? raw.current_depth)
+        : null,
     progress,
     auditId: typeof raw.auditId === 'string' ? raw.auditId : typeof raw.audit_id === 'string' ? raw.audit_id : null,
     error: typeof raw.error === 'string' ? raw.error : typeof raw.error_message === 'string' ? raw.error_message : null,

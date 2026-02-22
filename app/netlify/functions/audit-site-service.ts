@@ -92,6 +92,14 @@ export const processQueuedSiteAuditJobs = async (
         continue
       }
 
+      const counters = await syncJobCounters(supabase, claimedJob.id)
+      if (Number(counters.pagesScanned || 0) <= 0) {
+        if (Number(counters.pagesFailed || 0) > 0) {
+          throw new Error('[audit] Site audit nedokazal uspesne naskenovat ziadnu podstranku. Vsetky pokusy zlyhali.')
+        }
+        throw new Error('[audit] Site audit nenasiel ziadnu skenovatelnu podstranku (robots, depth alebo URL filtre).')
+      }
+
       await finalizeSiteAuditJob(supabase, claimedJob)
       processed += 1
     } catch (error) {

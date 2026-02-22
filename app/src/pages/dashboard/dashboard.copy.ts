@@ -131,6 +131,7 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
   progressPages: 'Stranky',
   progressDiscovered: 'Objavene',
   progressProcessed: 'Spracovane',
+  progressCurrent: 'Aktualne',
   progressInQueue: 'Vo fronte',
   progressLimit: 'Limit',
   progressFailed: 'Zlyhania'

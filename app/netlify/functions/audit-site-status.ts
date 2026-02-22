@@ -46,6 +46,14 @@ export const handler: Handler = async (event) => {
     const processed = Number(job.pages_scanned || 0) + Number(job.pages_failed || 0)
     const limit = Number(job.pages_limit || 0)
     const progress = limit > 0 ? Math.min(100, Math.round((processed / limit) * 100)) : 0
+    const { data: runningPage } = await supabase
+      .from('audit_job_pages')
+      .select('url, depth')
+      .eq('job_id', job.id)
+      .eq('status', 'running')
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle()
 
     return jsonResponse(200, {
       job: {
@@ -60,6 +68,8 @@ export const handler: Handler = async (event) => {
         pagesScanned: Number(job.pages_scanned || 0),
         pagesFailed: Number(job.pages_failed || 0),
         issuesTotal: Number(job.issues_total || 0),
+        currentUrl: typeof runningPage?.url === 'string' ? runningPage.url : null,
+        currentDepth: Number.isFinite(Number(runningPage?.depth)) ? Number(runningPage?.depth) : null,
         progress,
         auditId: job.audit_id || null,
         error: job.error_message || null,

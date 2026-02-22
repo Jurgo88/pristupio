@@ -19,7 +19,7 @@ import {
   skipRemainingQueuedPages,
   syncJobCounters
 } from './audit-site-persistence'
-import { isInternalHost, normalizeUrlForCompare } from './audit-site-security'
+import { isInternalHost, isLikelyCrawlableUrl, normalizeUrlForCrawl } from './audit-site-security'
 import {
   classifyAuditError,
   delay,
@@ -46,8 +46,8 @@ process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 
 const NAVIGATION_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_NAVIGATION_TIMEOUT_MS, 5_000, 240_000, 45_000)
 const AXE_RUN_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_AXE_TIMEOUT_MS, 10_000, 300_000, 90_000)
-const PAGE_SCAN_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_PAGE_TIMEOUT_MS, 20_000, 600_000, 180_000)
-const PAGE_SCAN_MAX_ATTEMPTS = clampNumber(process.env.AUDIT_SITE_PAGE_RETRIES, 1, 5, 3)
+const PAGE_SCAN_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_PAGE_TIMEOUT_MS, 20_000, 600_000, 90_000)
+const PAGE_SCAN_MAX_ATTEMPTS = clampNumber(process.env.AUDIT_SITE_PAGE_RETRIES, 1, 5, 2)
 const PAGE_SCAN_BACKOFF_BASE_MS = clampNumber(process.env.AUDIT_SITE_BACKOFF_BASE_MS, 100, 5_000, 700)
 const GLOBAL_PAGE_CONCURRENCY_LIMIT = clampNumber(process.env.AUDIT_SITE_PAGE_CONCURRENCY, 1, 8, 2)
 const JOB_TIMEOUT_MIN_MS = 15 * 60 * 1_000
@@ -271,7 +271,9 @@ const discoverInternalLinks = async (
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue
       if (!isInternalHost(parsed.host, rootHost)) continue
 
-      const normalized = normalizeUrlForCompare(parsed.toString())
+      if (!isLikelyCrawlableUrl(parsed.toString())) continue
+
+      const normalized = normalizeUrlForCrawl(parsed.toString())
       if (!robotsPolicy.isAllowed(normalized)) continue
       discovered.add(normalized)
       if (discovered.size >= maxLinks) break
@@ -296,15 +298,18 @@ const scanSinglePageOnce = async (
   const startedAt = Date.now()
   const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS })
   const finalUrlRaw = page.url()
-  const finalUrl = normalizeUrlForCompare(finalUrlRaw || url)
+  const finalUrl = normalizeUrlForCrawl(finalUrlRaw || url)
   const finalHost = new URL(finalUrl).host.toLowerCase()
   if (!isInternalHost(finalHost, rootHost)) {
     throw new Error('Navigation left the target domain.')
   }
 
-  await page.addScriptTag({ content: axe.source })
   const results = await withTimeout(
     page.evaluate(async (axeTags) => {
+      // @ts-ignore
+      if (!window.axe || typeof window.axe.run !== 'function') {
+        throw new Error('Axe runtime missing on page.')
+      }
       // @ts-ignore
       return await window.axe.run(document, {
         runOnly: {
@@ -321,7 +326,7 @@ const scanSinglePageOnce = async (
   const discoveredUrls = await discoverInternalLinks(page, finalUrl, rootHost, robotsPolicy)
   return {
     url: finalUrl,
-    normalizedUrl: normalizeUrlForCompare(finalUrl),
+    normalizedUrl: normalizeUrlForCrawl(finalUrl),
     httpStatus: response ? Number(response.status()) : null,
     loadMs: Date.now() - startedAt,
     issues: normalizeAuditResults(results),
@@ -416,6 +421,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
       userAgent: 'PristupioAuditBot/1.0 (+https://pristupio.sk)',
       javaScriptEnabled: true
     })
+    await context.addInitScript({ content: axe.source })
 
     await context.route('**/*', (route) => {
       const type = route.request().resourceType()
