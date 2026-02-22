@@ -70,9 +70,12 @@ Feature flags (server-side env):
 - `AUDIT_AI_COPY_MAX_ISSUES` - max issues per run sent to AI (default `30`)
 - `AUDIT_AI_COPY_LOCALES` - comma-separated locale allowlist (default `sk`)
 
+Note: defaults above are code fallbacks used only when env values are missing/invalid. If `.env` provides valid values, those are used.
+
 Behavior:
 
 1. Static guidance is always created first.
-2. AI can overwrite `description` + `recommendation` for allowed locales.
+2. AI can overwrite `title` + `description` + `recommendation` for allowed locales.
 3. On OpenAI timeout/error/invalid response, output safely falls back to static copy.
 4. Free audit recommendation redaction still applies to both top-level and locale `copy`.
+5. AI merge is matched by normalized issue id; diagnostics are logged for missing/duplicate/unexpected ids.

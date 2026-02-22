@@ -7,9 +7,9 @@ import {
 } from './audit-copy'
 
 const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
-const DEFAULT_AI_MODEL = 'gpt-4.1-mini'
-const DEFAULT_AI_TIMEOUT_MS = 8_000
-const DEFAULT_AI_MAX_ISSUES = 30
+const FALLBACK_AI_MODEL = 'gpt-4.1-mini'
+const FALLBACK_AI_TIMEOUT_MS = 8_000
+const FALLBACK_AI_MAX_ISSUES = 30
 const AI_COPY_PROMPT_VERSION = 'ai-copy-sk-v1'
 
 type AiCopyContext = 'audit-run' | 'monitoring-core'
@@ -56,6 +56,7 @@ const IMPACT_ORDER: Record<string, number> = {
 const asString = (value: unknown) => (typeof value === 'string' ? value : '')
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim()
+const normalizeIssueId = (value: unknown) => normalizeWhitespace(asString(value)).toLowerCase()
 
 const clampNumber = (value: unknown, min: number, max: number, fallback: number) => {
   const parsed = Number(value)
@@ -80,14 +81,14 @@ const parseLocaleAllowList = (value: unknown) => {
 
 const getAiModel = () => {
   const raw = asString(process.env.AUDIT_AI_COPY_MODEL).trim()
-  return raw || DEFAULT_AI_MODEL
+  return raw || FALLBACK_AI_MODEL
 }
 
 const getAiTimeoutMs = () =>
-  clampNumber(process.env.AUDIT_AI_COPY_TIMEOUT_MS, 1_500, 30_000, DEFAULT_AI_TIMEOUT_MS)
+  clampNumber(process.env.AUDIT_AI_COPY_TIMEOUT_MS, 1_500, 30_000, FALLBACK_AI_TIMEOUT_MS)
 
 const getAiMaxIssues = () =>
-  clampNumber(process.env.AUDIT_AI_COPY_MAX_ISSUES, 1, 80, DEFAULT_AI_MAX_ISSUES)
+  clampNumber(process.env.AUDIT_AI_COPY_MAX_ISSUES, 1, 80, FALLBACK_AI_MAX_ISSUES)
 
 const isAiCopyEnabled = () => parseBoolean(process.env.AUDIT_AI_COPY_ENABLED)
 
@@ -101,8 +102,7 @@ const truncate = (text: string, limit: number) => {
 const sanitizeGeneratedText = (value: unknown, maxLength: number) =>
   truncate(normalizeWhitespace(asString(value)), maxLength)
 
-const selectIssuesForAi = <TIssue extends AiCopyIssue>(issues: TIssue[]) => {
-  const maxIssues = getAiMaxIssues()
+const selectIssuesForAi = <TIssue extends AiCopyIssue>(issues: TIssue[], maxIssues: number) => {
   return [...issues]
     .sort((a, b) => {
       const aOrder = IMPACT_ORDER[asString(a.impact)] ?? 99
@@ -115,7 +115,7 @@ const selectIssuesForAi = <TIssue extends AiCopyIssue>(issues: TIssue[]) => {
 
 const buildIssuePromptInput = (issues: AiCopyIssue[]) => {
   return issues.map((issue) => ({
-    id: issue.id,
+    id: normalizeIssueId(issue.id),
     impact: asString(issue.impact),
     wcag: asString(issue.wcag),
     wcagLevel: asString(issue.wcagLevel),
@@ -227,7 +227,7 @@ const parseAiItems = (rawContent: unknown): AiIssueOutput[] => {
   const normalized: AiIssueOutput[] = []
 
   rawItems.forEach((item: any) => {
-    const id = normalizeWhitespace(asString(item?.id))
+    const id = normalizeIssueId(item?.id)
     const title = sanitizeGeneratedText(item?.title, 100)
     const description = sanitizeGeneratedText(item?.description, 280)
     const recommendation = sanitizeGeneratedText(item?.recommendation, 420)
@@ -295,14 +295,6 @@ const mergeAiCopyIntoIssue = <TIssue extends AiCopyIssue>(
   if (!generated) return issue
 
   const copyByLocale = normalizeIssueCopyMap(issue.copy)
-  const existingLocaleCopy =
-    copyByLocale[locale] ||
-    createIssueCopy({
-      title: issue.title,
-      description: issue.description,
-      recommendation: issue.recommendation
-    })
-
   const nextCopy = createIssueCopy({
     title: generated.title,
     description: generated.description,
@@ -344,8 +336,11 @@ export const enrichIssuesWithAiCopy = async <TIssue extends AiCopyIssue>({
   const localeAllowList = parseLocaleAllowList(process.env.AUDIT_AI_COPY_LOCALES)
   if (!localeAllowList.has(targetLocale)) return issues
 
-  const aiCandidates = selectIssuesForAi(issues).filter((issue) => !!normalizeWhitespace(issue.id))
+  const maxIssues = getAiMaxIssues()
+  const aiCandidates = selectIssuesForAi(issues, maxIssues).filter((issue) => !!normalizeIssueId(issue.id))
   if (aiCandidates.length === 0) return issues
+  const candidateIds = new Set(aiCandidates.map((issue) => normalizeIssueId(issue.id)).filter(Boolean))
+  const skippedByLimit = Math.max(0, issues.length - aiCandidates.length)
 
   const model = getAiModel()
   const timeoutMs = getAiTimeoutMs()
@@ -360,13 +355,36 @@ export const enrichIssuesWithAiCopy = async <TIssue extends AiCopyIssue>({
     context
   })
 
-  if (aiItems.length === 0) return issues
+  if (aiItems.length === 0) {
+    console.warn('[audit-ai-copy] AI copy returned no valid items', {
+      context,
+      locale: targetLocale,
+      requested: aiCandidates.length,
+      totalIssues: issues.length,
+      skippedByLimit,
+      configuredMaxIssues: maxIssues,
+      timeoutMs,
+      model
+    })
+    return issues
+  }
 
-  const generatedById = new Map(aiItems.map((item) => [item.id, item]))
+  const generatedById = new Map<string, AiIssueOutput>()
+  const duplicateGeneratedIds = new Set<string>()
+
+  aiItems.forEach((item) => {
+    const normalizedId = normalizeIssueId(item.id)
+    if (!normalizedId) return
+    if (generatedById.has(normalizedId)) duplicateGeneratedIds.add(normalizedId)
+    generatedById.set(normalizedId, { ...item, id: normalizedId })
+  })
+
+  const missingCandidateIds = Array.from(candidateIds).filter((id) => !generatedById.has(id))
+  const unexpectedGeneratedIds = Array.from(generatedById.keys()).filter((id) => !candidateIds.has(id))
   let applied = 0
 
   const enriched = issues.map((issue) => {
-    const generated = generatedById.get(normalizeWhitespace(issue.id))
+    const generated = generatedById.get(normalizeIssueId(issue.id))
     if (!generated) return issue
     applied += 1
     return mergeAiCopyIntoIssue(issue, targetLocale, generated, promptVersion)
@@ -375,10 +393,24 @@ export const enrichIssuesWithAiCopy = async <TIssue extends AiCopyIssue>({
   console.info('[audit-ai-copy] AI copy applied', {
     context,
     locale: targetLocale,
+    totalIssues: issues.length,
     requested: aiCandidates.length,
+    skippedByLimit,
+    configuredMaxIssues: maxIssues,
     generated: aiItems.length,
+    generatedUnique: generatedById.size,
     applied
   })
+
+  if (missingCandidateIds.length > 0 || unexpectedGeneratedIds.length > 0 || duplicateGeneratedIds.size > 0) {
+    console.warn('[audit-ai-copy] AI copy id diagnostics', {
+      context,
+      locale: targetLocale,
+      missingCandidateIds: missingCandidateIds.slice(0, 8),
+      unexpectedGeneratedIds: unexpectedGeneratedIds.slice(0, 8),
+      duplicateGeneratedIds: Array.from(duplicateGeneratedIds).slice(0, 8)
+    })
+  }
 
   return enriched
 }
