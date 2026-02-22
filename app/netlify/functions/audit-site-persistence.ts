@@ -7,7 +7,7 @@ import {
   normalizeIssueLocale
 } from './audit-copy'
 import { enrichIssuesWithAiCopy } from './audit-ai-copy'
-import { normalizeUrlForCompare } from './audit-site-security'
+import { normalizeUrlForCrawl } from './audit-site-security'
 import { getErrorMessage, logJson, truncateText } from './audit-site-observability'
 import {
   clampNumber,
@@ -257,7 +257,7 @@ export const createSiteAuditJob = async ({
   const pageInsert = await supabase.from('audit_job_pages').insert({
     job_id: insertResult.data.id,
     url: rootUrl,
-    normalized_url: normalizeUrlForCompare(rootUrl),
+    normalized_url: normalizeUrlForCrawl(rootUrl),
     depth: 0,
     status: 'queued'
   })
@@ -552,7 +552,7 @@ export const queueDiscoveredPages = async (
   if (nextDepth > Number(job.max_depth || 0)) return 0
   if (!Array.isArray(discoveredUrls) || discoveredUrls.length === 0) return 0
 
-  const unique = Array.from(new Set(discoveredUrls.map((url) => normalizeUrlForCompare(url))))
+  const unique = Array.from(new Set(discoveredUrls.map((url) => normalizeUrlForCrawl(url))))
   if (unique.length === 0) return 0
 
   const pagesCountResult = await supabase
@@ -567,7 +567,7 @@ export const queueDiscoveredPages = async (
   const rows = unique.slice(0, maxAllowed).map((url) => ({
     job_id: job.id,
     url,
-    normalized_url: normalizeUrlForCompare(url),
+    normalized_url: normalizeUrlForCrawl(url),
     depth: nextDepth,
     discovered_from_url: page.url,
     status: 'queued'

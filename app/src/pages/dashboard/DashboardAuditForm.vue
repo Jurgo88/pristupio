@@ -130,6 +130,7 @@
         <div class="audit-progress__fill" :style="{ width: effectiveProgress + '%' }"></div>
       </div>
       <p v-if="siteProgressLine" class="audit-progress__meta">{{ siteProgressLine }}</p>
+      <p v-if="siteCurrentLine" class="audit-progress__meta">{{ siteCurrentLine }}</p>
     </div>
 
     <div v-if="errorMessage" class="status-alert status-alert--danger">{{ errorMessage }}</div>
@@ -161,6 +162,8 @@ const props = defineProps<{
     pagesQueued?: number
     pagesLimit?: number
     pagesFailed?: number
+    currentUrl?: string | null
+    currentDepth?: number | null
   } | null
   errorMessage: string
 }>()
@@ -250,6 +253,33 @@ const progressLabel = computed(() => {
 
 const idleLabel = computed(() => (props.auditMode === 'site' ? copy.runIdleSite : copy.runIdle))
 const loadingLabel = computed(() => (props.auditMode === 'site' ? copy.runLoadingSite : copy.runLoading))
+const siteCurrentLine = computed(() => {
+  if (props.auditMode !== 'site' || !props.siteAuditJob) return ''
+  if (props.siteAuditJob.status !== 'running') return ''
+
+  const raw = typeof props.siteAuditJob.currentUrl === 'string' ? props.siteAuditJob.currentUrl.trim() : ''
+  if (!raw) return ''
+
+  let display = raw
+  try {
+    const parsed = new URL(raw)
+    const pathWithQuery = `${parsed.pathname || '/'}${parsed.search || ''}`
+    display = `${parsed.host}${pathWithQuery}`
+  } catch {
+    // use raw value
+  }
+
+  if (display.length > 110) {
+    display = `${display.slice(0, 107)}...`
+  }
+
+  const depth =
+    Number.isFinite(Number(props.siteAuditJob.currentDepth)) && Number(props.siteAuditJob.currentDepth) >= 0
+      ? Number(props.siteAuditJob.currentDepth)
+      : null
+
+  return depth === null ? `${copy.progressCurrent}: ${display}` : `${copy.progressCurrent}: ${display} (depth ${depth})`
+})
 
 const siteProgressLine = computed(() => {
   if (props.auditMode !== 'site' || !props.siteAuditJob) return ''
@@ -267,7 +297,7 @@ const siteProgressLine = computed(() => {
   }
   details.push(`${copy.progressFailed}: ${sitePagesFailed.value}`)
 
-  return details.join(' • ')
+  return details.join(' | ')
 })
 
 watch(
