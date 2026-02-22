@@ -168,6 +168,13 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     wcag: "4.1.2 Názov, rola, hodnota",
     principle: "Robustnosť"
   },
+  "aria-hidden-focus": {
+    title: "Fokusovateľný prvok je skrytý pre čítačky",
+    description: "Prvok sa dá zamerať klávesnicou, ale aria-hidden=\"true\" ho skrýva pred asistenčnými technológiami.",
+    recommendation: "Odstráňte aria-hidden z fokusovateľných prvkov, alebo ich urobte nefokusovateľné (napr. tabindex=\"-1\"), ak nemajú byť dostupné.",
+    wcag: "4.1.2 Názov, rola, hodnota",
+    principle: "Robustnosť"
+  },
   "aria-unsupported-elements": {
     title: "ARIA na nepodporovanom elemente",
     description: "Element nepodporuje použité ARIA atribúty.",
@@ -462,6 +469,7 @@ const WCAG_LEVEL_BY_ID: Record<string, string> = {
   'aria-required-children': 'A',
   'aria-required-parent': 'A',
   'aria-hidden-body': 'A',
+  'aria-hidden-focus': 'A',
   'aria-unsupported-elements': 'A',
   'aria-dialog-name': 'A',
   'input-button-name': 'A',

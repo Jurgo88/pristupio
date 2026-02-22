@@ -57,6 +57,53 @@ const asString = (value: unknown) => (typeof value === 'string' ? value : '')
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim()
 const normalizeIssueId = (value: unknown) => normalizeWhitespace(asString(value)).toLowerCase()
+const normalizeTitleForMatch = (value: unknown) =>
+  normalizeWhitespace(asString(value))
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+const isUnknownIssueTitle = (title: unknown, issueId?: unknown) => {
+  const normalizedTitle = normalizeTitleForMatch(title)
+  if (!normalizedTitle) return true
+
+  if (normalizedTitle.startsWith('neznamy problem pristupnosti')) return true
+  if (normalizedTitle.startsWith('unknown accessibility issue')) return true
+  if (normalizedTitle.startsWith('unknown accessibility problem')) return true
+
+  const normalizedId = normalizeIssueId(issueId)
+  if (!normalizedId) return false
+
+  if (normalizedTitle === normalizedId) return true
+  if (normalizedTitle === `neznamy problem pristupnosti (${normalizedId})`) return true
+  if (normalizedTitle === `unknown accessibility issue (${normalizedId})`) return true
+  return false
+}
+
+const formatIssueIdLabel = (issueId: unknown) => {
+  const normalizedId = normalizeIssueId(issueId)
+  if (!normalizedId) return ''
+
+  const acronymTokens = new Set(['aria', 'html', 'wcag', 'id', 'css', 'ui', 'ux'])
+  return normalizedId
+    .split('-')
+    .filter(Boolean)
+    .map((token, index) => {
+      if (acronymTokens.has(token)) return token.toUpperCase()
+      if (token.length <= 2) return token
+      if (index === 0) return token.charAt(0).toUpperCase() + token.slice(1)
+      return token
+    })
+    .join(' ')
+}
+
+const buildReadableFallbackTitle = (issueId: unknown) => {
+  const normalizedId = normalizeIssueId(issueId)
+  if (!normalizedId) return 'Problém prístupnosti'
+  const label = formatIssueIdLabel(normalizedId)
+  if (!label) return `Problém prístupnosti (${normalizedId})`
+  return `Problém prístupnosti: ${label}`
+}
 
 const clampNumber = (value: unknown, min: number, max: number, fallback: number) => {
   const parsed = Number(value)
@@ -295,8 +342,16 @@ const mergeAiCopyIntoIssue = <TIssue extends AiCopyIssue>(
   if (!generated) return issue
 
   const copyByLocale = normalizeIssueCopyMap(issue.copy)
+  const generatedTitle = sanitizeGeneratedText(generated.title, 100)
+  const staticTitle = sanitizeGeneratedText(issue.title, 100)
+  const resolvedTitle = !isUnknownIssueTitle(generatedTitle, issue.id)
+    ? generatedTitle
+    : !isUnknownIssueTitle(staticTitle, issue.id)
+      ? staticTitle
+      : buildReadableFallbackTitle(issue.id)
+
   const nextCopy = createIssueCopy({
-    title: generated.title,
+    title: resolvedTitle,
     description: generated.description,
     recommendation: generated.recommendation,
     source: 'ai',
