@@ -41,6 +41,7 @@ type AiIssueCopyInput<TIssue extends AiCopyIssue> = {
 
 type AiIssueOutput = {
   id: string
+  title: string
   description: string
   recommendation: string
 }
@@ -153,10 +154,11 @@ const AI_JSON_SCHEMA = {
           additionalProperties: false,
           properties: {
             id: { type: 'string' },
+            title: { type: 'string' },
             description: { type: 'string' },
             recommendation: { type: 'string' }
           },
-          required: ['id', 'description', 'recommendation']
+          required: ['id', 'title', 'description', 'recommendation']
         }
       }
     },
@@ -190,6 +192,7 @@ const buildAiRequestBody = (model: string, issues: AiCopyIssue[], locale: 'sk' |
   const userPrompt = {
     language: localePrompts.language,
     formatRules: {
+      titleMaxChars: 100,
       descriptionMaxChars: 280,
       recommendationMaxChars: 420
     },
@@ -225,10 +228,11 @@ const parseAiItems = (rawContent: unknown): AiIssueOutput[] => {
 
   rawItems.forEach((item: any) => {
     const id = normalizeWhitespace(asString(item?.id))
+    const title = sanitizeGeneratedText(item?.title, 100)
     const description = sanitizeGeneratedText(item?.description, 280)
     const recommendation = sanitizeGeneratedText(item?.recommendation, 420)
-    if (!id || !description || !recommendation) return
-    normalized.push({ id, description, recommendation })
+    if (!id || !title || !description || !recommendation) return
+    normalized.push({ id, title, description, recommendation })
   })
 
   return normalized
@@ -300,7 +304,7 @@ const mergeAiCopyIntoIssue = <TIssue extends AiCopyIssue>(
     })
 
   const nextCopy = createIssueCopy({
-    title: existingLocaleCopy.title || issue.title,
+    title: generated.title,
     description: generated.description,
     recommendation: generated.recommendation,
     source: 'ai',
@@ -314,6 +318,7 @@ const mergeAiCopyIntoIssue = <TIssue extends AiCopyIssue>(
 
   return {
     ...issue,
+    title: nextCopy.title,
     description: nextCopy.description,
     recommendation: nextCopy.recommendation,
     copy: mergedCopy
