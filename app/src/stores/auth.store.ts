@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js'
 
 type UserRole = 'guest' | 'user' | 'admin'
 type UserPlan = 'free' | 'paid'
+type AuditTier = 'none' | 'basic' | 'pro'
 
 const isAbortError = (error: unknown) => {
   const name = typeof error === 'object' && error && 'name' in error ? String((error as any).name) : ''
@@ -19,6 +20,7 @@ const resetGuestState = (store: any) => {
   store.freeAuditUsed = false
   store.paidAuditCompleted = false
   store.paidAuditCredits = 0
+  store.auditTier = 'none'
   store.consentMarketing = false
 }
 
@@ -30,6 +32,7 @@ export const useAuthStore = defineStore('auth', {
     authError: null as string | null,
     userRole: 'guest' as UserRole,
     userPlan: 'free' as UserPlan,
+    auditTier: 'none' as AuditTier,
     freeAuditUsed: false,
     paidAuditCompleted: false,
     paidAuditCredits: 0,
@@ -40,7 +43,13 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isLoggedIn: (state) => !!state.user,
     isAdmin: (state) => state.userRole === 'admin',
-    isPaid: (state) => state.userPlan === 'paid'
+    isPaid: (state) => state.userPlan === 'paid',
+    hasPaidAuditEntitlement: (state) =>
+      state.userRole === 'admin' ||
+      state.userPlan === 'paid' ||
+      Number(state.paidAuditCredits || 0) > 0 ||
+      state.auditTier === 'basic' ||
+      state.auditTier === 'pro'
   },
 
   actions: {
@@ -135,13 +144,14 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('role, plan, free_audit_used, paid_audit_completed, paid_audit_credits, consent_marketing')
+          .select('role, plan, audit_tier, free_audit_used, paid_audit_completed, paid_audit_credits, consent_marketing')
           .eq('id', this.user.id)
           .single()
 
         if (error || !data) {
           this.userRole = 'user'
           this.userPlan = 'free'
+          this.auditTier = 'none'
           this.freeAuditUsed = false
           this.paidAuditCompleted = false
           this.paidAuditCredits = 0
@@ -151,6 +161,7 @@ export const useAuthStore = defineStore('auth', {
 
         this.userRole = (data.role as UserRole) || 'user'
         this.userPlan = (data.plan as UserPlan) || 'free'
+        this.auditTier = (data.audit_tier as AuditTier) || 'none'
         this.freeAuditUsed = !!data.free_audit_used
         this.paidAuditCompleted = !!data.paid_audit_completed
         this.paidAuditCredits = Number(data.paid_audit_credits || 0)
@@ -158,6 +169,7 @@ export const useAuthStore = defineStore('auth', {
       } catch (_error) {
         this.userRole = 'user'
         this.userPlan = 'free'
+        this.auditTier = 'none'
         this.freeAuditUsed = false
         this.paidAuditCompleted = false
         this.paidAuditCredits = 0

@@ -77,12 +77,19 @@ export const useDashboardCore = () => {
   )
 
   const isPreview = computed(() => auditStore.accessLevel === 'free')
-  const freeLimitReached = computed(() => auth.isLoggedIn && !auth.isPaid && auth.freeAuditUsed)
+  const hasPaidAuditEntitlement = computed(() => auth.hasPaidAuditEntitlement)
+  const freeLimitReached = computed(
+    () => auth.isLoggedIn && !hasPaidAuditEntitlement.value && auth.freeAuditUsed
+  )
   const paidLimitReached = computed(
-    () => auth.isLoggedIn && auth.isPaid && (auth.paidAuditCredits || 0) <= 0 && !auth.isAdmin
+    () =>
+      auth.isLoggedIn &&
+      !auth.isAdmin &&
+      hasPaidAuditEntitlement.value &&
+      Number(auth.paidAuditCredits || 0) <= 0
   )
   const siteAuditRequiresPaidPlan = computed(
-    () => auditMode.value === 'site' && auth.isLoggedIn && !auth.isPaid && !auth.isAdmin
+    () => auditMode.value === 'site' && auth.isLoggedIn && !auth.isAdmin && !hasPaidAuditEntitlement.value
   )
   const auditLocked = computed(
     () => siteAuditRequiresPaidPlan.value || freeLimitReached.value || paidLimitReached.value
@@ -97,9 +104,9 @@ export const useDashboardCore = () => {
   })
 
   const showUpgrade = computed(
-    () => auth.isLoggedIn && !auth.isPaid && (auth.freeAuditUsed || isPreview.value)
+    () => auth.isLoggedIn && !hasPaidAuditEntitlement.value && (auth.freeAuditUsed || isPreview.value)
   )
-  const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
+  const showPaidStatus = computed(() => auth.isLoggedIn && hasPaidAuditEntitlement.value && !auth.isAdmin)
   const paidCredits = computed(() => auth.paidAuditCredits || 0)
   const siteAuditJob = computed(() => auditStore.siteAuditJob)
   const canCancelSiteAudit = computed(() => {
