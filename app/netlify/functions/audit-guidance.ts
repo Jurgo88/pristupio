@@ -63,6 +63,13 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     wcag: "4.1.2 Názov, rola, hodnota",
     principle: "Robustnosť"
   },
+  "nested-interactive": {
+    title: "Interaktívne prvky sú vnorené do seba",
+    description: "Na stránke je interaktívny prvok (napr. odkaz alebo tlačidlo) vložený do iného interaktívneho prvku.",
+    recommendation: "Odstráňte vnorenie interaktívnych prvkov. Použite len jeden interaktívny element pre jednu akciu.",
+    wcag: "4.1.2 Názov, rola, hodnota",
+    principle: "Robustnosť"
+  },
   "duplicate-id": {
     title: "Duplicitné id v HTML",
     description: "Rovnaké id je použité viackrát.",
@@ -168,6 +175,13 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     wcag: "4.1.2 Názov, rola, hodnota",
     principle: "Robustnosť"
   },
+  "aria-dialog-name": {
+    title: "Dialóg nemá zrozumiteľný názov",
+    description: "Element s rolou dialog alebo alertdialog nemá prístupný názov.",
+    recommendation: "Doplňte názov cez aria-label alebo aria-labelledby a overte, že názov vystihuje obsah dialógu.",
+    wcag: "4.1.2 Názov, rola, hodnota",
+    principle: "Robustnosť"
+  },
   "input-button-name": {
     title: "Vstupné tlačidlo nemá názov",
     description: "Pole typu button alebo submit nemá zrozumiteľný text.",
@@ -210,6 +224,13 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     wcag: "2.4.3 Poradie fokusu",
     principle: "Ovládateľnosť"
   },
+  "scrollable-region-focusable": {
+    title: "Rolovateľná oblasť nie je fokusovateľná",
+    description: "Oblasť so scrollovaním nie je dostupná cez klávesnicu.",
+    recommendation: "Urobte rolovateľný kontajner fokusovateľný (napr. tabindex=\"0\") a overte ovládanie klávesnicou.",
+    wcag: "2.1.1 Klávesnica",
+    principle: "Ovládateľnosť"
+  },
   "tabindex": {
     title: "Nevhodný tabindex",
     description: "Pozitívny tabindex zvyčajne zhoršuje ovládanie klávesnicou.",
@@ -242,6 +263,48 @@ const GUIDANCE_BY_ID: Record<string, GuidanceTemplate> = {
     title: "Landmarky nie sú jednoznačné",
     description: "Viac rovnakých landmarkov nie je rozlíšených.",
     recommendation: "Rozlište rovnaké landmarky pomocou aria-label alebo aria-labelledby.",
+    wcag: "1.3.1 Informácie a vzťahy",
+    principle: "Vnímateľnosť"
+  },
+  "landmark-no-duplicate-banner": {
+    title: "Viacero banner landmarkov",
+    description: "Na stránke je viac ako jeden banner landmark bez jasného odlíšenia.",
+    recommendation: "Ponechajte jeden hlavný banner alebo ďalšie bannery jednoznačne označte cez aria-label alebo aria-labelledby.",
+    wcag: "1.3.1 Informácie a vzťahy",
+    principle: "Vnímateľnosť"
+  },
+  "landmark-no-duplicate-contentinfo": {
+    title: "Viacero contentinfo landmarkov",
+    description: "Na stránke je viac ako jeden contentinfo landmark bez jasného odlíšenia.",
+    recommendation: "Ponechajte jeden hlavný contentinfo (footer) alebo ďalšie oblasti jasne pomenujte cez aria-label alebo aria-labelledby.",
+    wcag: "1.3.1 Informácie a vzťahy",
+    principle: "Vnímateľnosť"
+  },
+  "landmark-no-duplicate-main": {
+    title: "Viacero hlavných oblastí main",
+    description: "Na stránke je viac ako jeden main landmark bez jasného odlíšenia.",
+    recommendation: "Použite jeden hlavný element <main>; ak potrebujete viac sekcií, využite section a vhodné nadpisy.",
+    wcag: "1.3.1 Informácie a vzťahy",
+    principle: "Vnímateľnosť"
+  },
+  "landmark-banner-is-top-level": {
+    title: "Banner landmark nie je na najvyššej úrovni",
+    description: "Banner landmark je vnorený v štruktúre, kde môže komplikovať orientáciu.",
+    recommendation: "Umiestnite banner ako top-level landmark stránky (zvyčajne hlavný <header> pri koreni layoutu).",
+    wcag: "1.3.1 Informácie a vzťahy",
+    principle: "Vnímateľnosť"
+  },
+  "landmark-contentinfo-is-top-level": {
+    title: "Contentinfo landmark nie je na najvyššej úrovni",
+    description: "Contentinfo landmark je vnorený v štruktúre, kde môže komplikovať orientáciu.",
+    recommendation: "Umiestnite contentinfo ako top-level landmark stránky (zvyčajne hlavný <footer> pri koreni layoutu).",
+    wcag: "1.3.1 Informácie a vzťahy",
+    principle: "Vnímateľnosť"
+  },
+  "landmark-main-is-top-level": {
+    title: "Main landmark nie je na najvyššej úrovni",
+    description: "Main landmark je vnorený spôsobom, ktorý zhoršuje orientáciu asistenčných technológií.",
+    recommendation: "Použite jeden top-level <main> pre hlavný obsah stránky.",
     wcag: "1.3.1 Informácie a vzťahy",
     principle: "Vnímateľnosť"
   },
@@ -385,6 +448,7 @@ const WCAG_LEVEL_BY_ID: Record<string, string> = {
   label: 'A',
   'link-name': 'A',
   'button-name': 'A',
+  'nested-interactive': 'A',
   'duplicate-id': 'A',
   'html-has-lang': 'A',
   'html-lang-valid': 'A',
@@ -399,16 +463,24 @@ const WCAG_LEVEL_BY_ID: Record<string, string> = {
   'aria-required-parent': 'A',
   'aria-hidden-body': 'A',
   'aria-unsupported-elements': 'A',
+  'aria-dialog-name': 'A',
   'input-button-name': 'A',
   'label-title-only': 'A',
   'form-field-multiple-labels': 'A',
   'form-field-multiple-labels-implicit': 'A',
   'duplicate-id-aria': 'A',
   'focus-order-semantics': 'A',
+  'scrollable-region-focusable': 'A',
   tabindex: 'A',
   bypass: 'A',
   'landmark-one-main': 'A',
   'landmark-unique': 'A',
+  'landmark-no-duplicate-banner': 'A',
+  'landmark-no-duplicate-contentinfo': 'A',
+  'landmark-no-duplicate-main': 'A',
+  'landmark-banner-is-top-level': 'A',
+  'landmark-contentinfo-is-top-level': 'A',
+  'landmark-main-is-top-level': 'A',
   list: 'A',
   listitem: 'A',
   'frame-title': 'A',
