@@ -66,6 +66,7 @@ type SiteAuditJob = {
 const REPORT_LOCALE = 'sk'
 const SITE_AUDIT_POLL_INTERVAL_MS = 2_500
 const SITE_AUDIT_TIMEOUT_MS = 12 * 60 * 1_000
+const SITE_AUDIT_WORKER_KICK_INTERVAL_MS = 20_000
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -245,8 +246,20 @@ export const useAuditStore = defineStore('audit', {
       return normalizedJob
     },
 
+    async triggerSiteAuditWorker(maxJobs = 1) {
+      try {
+        const query = new URLSearchParams({ maxJobs: String(Math.max(1, Math.min(10, Math.floor(maxJobs)))) })
+        await fetch(`/.netlify/functions/audit-site-worker?${query.toString()}`, {
+          method: 'POST'
+        })
+      } catch (_error) {
+        // best effort only; scheduler should still process queued jobs
+      }
+    },
+
     async pollSiteAuditJobUntilDone(jobId: string) {
       const startedAt = Date.now()
+      let lastWorkerKickAt = 0
 
       while (Date.now() - startedAt < SITE_AUDIT_TIMEOUT_MS) {
         const job = await this.fetchSiteAuditStatus(jobId)
@@ -255,6 +268,12 @@ export const useAuditStore = defineStore('audit', {
         if (status === 'completed') return job
         if (status === 'failed' || status === 'cancelled') {
           throw new Error(job?.error || 'Site audit zlyhal.')
+        }
+
+        const now = Date.now()
+        if (status === 'queued' && (lastWorkerKickAt === 0 || now - lastWorkerKickAt >= SITE_AUDIT_WORKER_KICK_INTERVAL_MS)) {
+          lastWorkerKickAt = now
+          void this.triggerSiteAuditWorker(1)
         }
 
         await delay(SITE_AUDIT_POLL_INTERVAL_MS)
@@ -326,6 +345,7 @@ export const useAuditStore = defineStore('audit', {
           throw new Error('Site audit job sa nepodarilo inicializovat.')
         }
 
+        void this.triggerSiteAuditWorker(1)
         await this.pollSiteAuditJobUntilDone(jobId)
 
         const resultQuery = new URLSearchParams({ jobId, lang: REPORT_LOCALE })

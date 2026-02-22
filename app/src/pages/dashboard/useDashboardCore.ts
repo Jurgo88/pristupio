@@ -102,6 +102,10 @@ export const useDashboardCore = () => {
   const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
   const paidCredits = computed(() => auth.paidAuditCredits || 0)
   const siteAuditJob = computed(() => auditStore.siteAuditJob)
+  const canCancelSiteAudit = computed(() => {
+    const status = siteAuditJob.value?.status
+    return auditMode.value === 'site' && (status === 'queued' || status === 'running')
+  })
   const auditHistory = computed(() => auditStore.history || [])
   const latestAudit = computed(() => auditHistory.value[0] || null)
   const monitoringHasAccess = computed(() => monitoringStore.hasAccess)
@@ -264,6 +268,8 @@ export const useDashboardCore = () => {
   )
 
   const handleStartAudit = async () => {
+    if (auditStore.loading || !canRunAudit.value) return
+
     const raw = targetUrl.value.trim()
     if (!raw) return
 
@@ -279,6 +285,15 @@ export const useDashboardCore = () => {
       selectedAuditId.value = auditStore.currentAudit.auditId
     }
     void loadAuditHistory()
+  }
+
+  const handleCancelSiteAudit = async () => {
+    if (!canCancelSiteAudit.value) return
+    try {
+      await auditStore.cancelSiteAudit(siteAuditJob.value?.id || undefined)
+    } catch (error: any) {
+      auditStore.error = error?.message || 'Zrusenie site auditu zlyhalo.'
+    }
   }
 
   const formatDate = (value?: string) => {
@@ -414,6 +429,7 @@ export const useDashboardCore = () => {
     showPaidStatus,
     paidCredits,
     siteAuditJob,
+    canCancelSiteAudit,
     auditHistory,
     historyLoading,
     historyLoadingMore,
@@ -448,6 +464,7 @@ export const useDashboardCore = () => {
     canRunAudit,
     profileLabel,
     handleStartAudit,
+    handleCancelSiteAudit,
     formatDate,
     formatDateTime,
     selectAudit,

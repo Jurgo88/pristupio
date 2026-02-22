@@ -24,9 +24,9 @@
           type="url"
           class="field-control"
           :placeholder="copy.targetPlaceholder"
-          :disabled="auditLocked"
+          :disabled="auditLocked || loading"
           @input="onTargetUrlInput"
-          @keyup.enter="$emit('startAudit')"
+          @keyup.enter="onEnterKey"
         />
 
         <div class="mode-toggle">
@@ -102,6 +102,14 @@
           <span v-if="loading" class="spinner-border spinner-border-sm"></span>
           {{ loading ? loadingLabel : idleLabel }}
         </button>
+        <button
+          v-if="canCancelSiteAudit"
+          type="button"
+          class="btn btn-outline-secondary flow-cancel"
+          @click="$emit('cancelSiteAudit')"
+        >
+          {{ copy.cancelSiteAudit }}
+        </button>
 
         <p class="field-hint">{{ auditMode === 'site' ? copy.runHintSite : copy.runHint }}</p>
       </article>
@@ -145,6 +153,7 @@ const props = defineProps<{
   auditLocked: boolean
   auditLockedMessage: string
   loading: boolean
+  canCancelSiteAudit: boolean
   siteAuditJob?: {
     status?: string
     progress?: number
@@ -160,6 +169,7 @@ const emit = defineEmits<{
   (event: 'update:auditMode', value: 'single' | 'site'): void
   (event: 'update:selectedProfile', value: 'wad' | 'eaa'): void
   (event: 'startAudit'): void
+  (event: 'cancelSiteAudit'): void
 }>()
 
 const progress = ref(0)
@@ -170,9 +180,15 @@ const siteProgress = computed(() => {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(100, value))
 })
-const effectiveProgress = computed(() =>
-  props.auditMode === 'site' && props.siteAuditJob ? siteProgress.value : progress.value
-)
+const effectiveProgress = computed(() => {
+  if (props.auditMode === 'site' && props.siteAuditJob) {
+    const scanned = Number(props.siteAuditJob.pagesScanned || 0)
+    const failed = Number(props.siteAuditJob.pagesFailed || 0)
+    if (scanned + failed > 0) return siteProgress.value
+    return Math.max(3, progress.value)
+  }
+  return progress.value
+})
 let progressTimer: ReturnType<typeof setInterval> | null = null
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -261,6 +277,11 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
 
 const onAuditModeChange = (value: 'single' | 'site') => {
   emit('update:auditMode', value)
+}
+
+const onEnterKey = () => {
+  if (!props.canRunAudit || props.loading) return
+  emit('startAudit')
 }
 </script>
 
@@ -430,6 +451,10 @@ const onAuditModeChange = (value: 'single' | 'site') => {
 }
 
 .flow-cta {
+  width: 100%;
+}
+
+.flow-cancel {
   width: 100%;
 }
 

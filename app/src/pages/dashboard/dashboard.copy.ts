@@ -115,6 +115,7 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
   runLoadingSite: 'Auditujem cely web...',
   runIdle: 'Analyzovať web',
   runIdleSite: 'Spustit site audit',
+  cancelSiteAudit: 'Ukoncit site audit',
   runHint: 'Po dokončení dostaneš skóre, priority a detailný zoznam nálezov.',
   runHintSite: 'Po dokonceni dostanes agregovany report napriec podstrankami.',
   progressInit: 'Inicializujem audit...',

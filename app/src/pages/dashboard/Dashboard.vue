@@ -59,11 +59,13 @@
       :audit-locked-message="auditLockedMessage"
       :loading="auditStore.loading"
       :site-audit-job="siteAuditJob"
+      :can-cancel-site-audit="canCancelSiteAudit"
       :error-message="auditFormErrorMessage"
       @update:target-url="targetUrl = $event"
       @update:audit-mode="auditMode = $event"
       @update:selected-profile="selectedProfile = $event"
       @start-audit="handleStartAudit"
+      @cancel-site-audit="handleCancelSiteAudit"
     />
 
     <section
@@ -179,6 +181,7 @@ const {
   showPaidStatus,
   paidCredits,
   siteAuditJob,
+  canCancelSiteAudit,
   monitoringStore,
   monitoringHasAccess,
   canBuyMonitoring,
@@ -209,6 +212,7 @@ const {
   canRunAudit,
   profileLabel,
   handleStartAudit,
+  handleCancelSiteAudit,
   formatDate,
   formatDateTime,
   selectAudit,
