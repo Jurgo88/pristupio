@@ -56,3 +56,23 @@ This keeps paid guidance hidden even if consumer starts reading from `copy`.
 `audit-run` accepts optional `lang` in request body and returns localized top-level fields in `report.issues`.
 
 PDF export supports `lang` in payload and localizes both report UI strings and issue text (from `copy` with fallback).
+
+## AI Copy Generation (PR2)
+
+Paid audit flows can optionally generate Slovak issue copy with OpenAI.
+
+Feature flags (server-side env):
+
+- `AUDIT_AI_COPY_ENABLED` - enable/disable AI generation (`true/false`, default `false`)
+- `OPENAI_API_KEY` - OpenAI API key
+- `AUDIT_AI_COPY_MODEL` - model name (default `gpt-4.1-mini`)
+- `AUDIT_AI_COPY_TIMEOUT_MS` - request timeout in ms (default `8000`)
+- `AUDIT_AI_COPY_MAX_ISSUES` - max issues per run sent to AI (default `30`)
+- `AUDIT_AI_COPY_LOCALES` - comma-separated locale allowlist (default `sk`)
+
+Behavior:
+
+1. Static guidance is always created first.
+2. AI can overwrite `description` + `recommendation` for allowed locales.
+3. On OpenAI timeout/error/invalid response, output safely falls back to static copy.
+4. Free audit recommendation redaction still applies to both top-level and locale `copy`.

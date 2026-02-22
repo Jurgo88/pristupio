@@ -7,9 +7,11 @@ import { getGuidance, getWcagLevel } from './audit-guidance'
 import {
   DEFAULT_ISSUE_LOCALE,
   createIssueCopyMap,
+  normalizeIssueLocale,
   redactIssueRecommendation,
   type IssueCopyMap
 } from './audit-copy'
+import { enrichIssuesWithAiCopy } from './audit-ai-copy'
 
 declare const process: {
   env: Record<string, string | undefined>
@@ -58,6 +60,7 @@ type RunStoredAuditInput = {
   userId: string
   url: string
   auditKind?: 'paid' | 'free'
+  locale?: unknown
 }
 
 export type MonitoringEntitlement = {
@@ -501,7 +504,7 @@ function normalizeAuditResults(results: any): ReportIssue[] {
   })
 }
 
-export const runStoredAudit = async ({ supabase, userId, url, auditKind = 'paid' }: RunStoredAuditInput) => {
+export const runStoredAudit = async ({ supabase, userId, url, auditKind = 'paid', locale }: RunStoredAuditInput) => {
   let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
 
   try {
@@ -546,7 +549,16 @@ export const runStoredAudit = async ({ supabase, userId, url, auditKind = 'paid'
       'Axe evaluation timeout.'
     )
 
-    const issues = normalizeAuditResults(results)
+    let issues = normalizeAuditResults(results)
+    const reportLocale = normalizeIssueLocale(locale, DEFAULT_ISSUE_LOCALE)
+    if (auditKind === 'paid') {
+      issues = await enrichIssuesWithAiCopy({
+        issues,
+        locale: reportLocale,
+        context: 'monitoring-core'
+      })
+    }
+
     const summary = buildSummary(issues)
     const topIssues = pickTopIssues(issues, 3)
     const storedTopIssues = auditKind === 'paid' ? topIssues : topIssues.map(stripIssueForFree)
