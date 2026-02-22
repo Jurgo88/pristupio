@@ -29,7 +29,32 @@
           @keyup.enter="$emit('startAudit')"
         />
 
-        <p class="field-hint">{{ copy.targetHint }}</p>
+        <div class="mode-toggle">
+          <label class="mode-option" :class="{ 'is-selected': auditMode === 'single' }">
+            <input
+              type="radio"
+              name="audit-mode"
+              value="single"
+              :checked="auditMode === 'single'"
+              :disabled="auditLocked || loading"
+              @change="onAuditModeChange('single')"
+            />
+            <span>{{ copy.modeSingle }}</span>
+          </label>
+          <label class="mode-option" :class="{ 'is-selected': auditMode === 'site' }">
+            <input
+              type="radio"
+              name="audit-mode"
+              value="site"
+              :checked="auditMode === 'site'"
+              :disabled="auditLocked || loading"
+              @change="onAuditModeChange('site')"
+            />
+            <span>{{ copy.modeSite }}</span>
+          </label>
+        </div>
+
+        <p class="field-hint">{{ auditMode === 'site' ? copy.modeHintSite : copy.modeHintSingle }}</p>
       </article>
 
       <article class="flow-step" :class="{ 'is-ready': !!selectedProfile }">
@@ -75,27 +100,28 @@
 
         <button class="btn btn-primary flow-cta" @click="$emit('startAudit')" :disabled="!canRunAudit">
           <span v-if="loading" class="spinner-border spinner-border-sm"></span>
-          {{ loading ? copy.runLoading : copy.runIdle }}
+          {{ loading ? loadingLabel : idleLabel }}
         </button>
 
-        <p class="field-hint">{{ copy.runHint }}</p>
+        <p class="field-hint">{{ auditMode === 'site' ? copy.runHintSite : copy.runHint }}</p>
       </article>
     </div>
 
     <div v-if="progressVisible" class="audit-progress">
       <div class="audit-progress__head">
         <span>{{ progressLabel }}</span>
-        <strong>{{ Math.round(progress) }}%</strong>
+        <strong>{{ Math.round(effectiveProgress) }}%</strong>
       </div>
       <div
         class="audit-progress__track"
         role="progressbar"
-        :aria-valuenow="Math.round(progress)"
+        :aria-valuenow="Math.round(effectiveProgress)"
         aria-valuemin="0"
         aria-valuemax="100"
       >
-        <div class="audit-progress__fill" :style="{ width: progress + '%' }"></div>
+        <div class="audit-progress__fill" :style="{ width: effectiveProgress + '%' }"></div>
       </div>
+      <p v-if="siteProgressLine" class="audit-progress__meta">{{ siteProgressLine }}</p>
     </div>
 
     <div v-if="errorMessage" class="status-alert status-alert--danger">{{ errorMessage }}</div>
@@ -112,17 +138,26 @@ const copy = DASHBOARD_AUDIT_FORM_TEXT
 
 const props = defineProps<{
   targetUrl: string
+  auditMode: 'single' | 'site'
   selectedProfile: 'wad' | 'eaa'
   profileOptions: ProfileOption[]
   canRunAudit: boolean
   auditLocked: boolean
   auditLockedMessage: string
   loading: boolean
+  siteAuditJob?: {
+    status?: string
+    progress?: number
+    pagesScanned?: number
+    pagesLimit?: number
+    pagesFailed?: number
+  } | null
   errorMessage: string
 }>()
 
 const emit = defineEmits<{
   (event: 'update:targetUrl', value: string): void
+  (event: 'update:auditMode', value: 'single' | 'site'): void
   (event: 'update:selectedProfile', value: 'wad' | 'eaa'): void
   (event: 'startAudit'): void
 }>()
@@ -130,6 +165,14 @@ const emit = defineEmits<{
 const progress = ref(0)
 const progressVisible = ref(false)
 const hasTargetUrl = computed(() => props.targetUrl.trim().length > 0)
+const siteProgress = computed(() => {
+  const value = Number(props.siteAuditJob?.progress || 0)
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, value))
+})
+const effectiveProgress = computed(() =>
+  props.auditMode === 'site' && props.siteAuditJob ? siteProgress.value : progress.value
+)
 let progressTimer: ReturnType<typeof setInterval> | null = null
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -169,11 +212,29 @@ const finishProgress = () => {
 }
 
 const progressLabel = computed(() => {
+  if (props.auditMode === 'site' && props.siteAuditJob) {
+    if (props.siteAuditJob.status === 'queued') return copy.progressQueued
+    if (props.siteAuditJob.status === 'running') return copy.progressCrawling
+    if (props.siteAuditJob.status === 'completed') return copy.progressDone
+  }
+
   if (progress.value < 20) return copy.progressInit
   if (progress.value < 55) return copy.progressLoadingPage
   if (progress.value < 85) return copy.progressRules
   if (progress.value < 100) return copy.progressSaving
   return copy.progressDone
+})
+
+const idleLabel = computed(() => (props.auditMode === 'site' ? copy.runIdleSite : copy.runIdle))
+const loadingLabel = computed(() => (props.auditMode === 'site' ? copy.runLoadingSite : copy.runLoading))
+
+const siteProgressLine = computed(() => {
+  if (props.auditMode !== 'site' || !props.siteAuditJob) return ''
+  const scanned = Number(props.siteAuditJob.pagesScanned || 0)
+  const limit = Number(props.siteAuditJob.pagesLimit || 0)
+  const failed = Number(props.siteAuditJob.pagesFailed || 0)
+  if (limit <= 0) return ''
+  return `${copy.progressPages}: ${scanned}/${limit} (${copy.progressFailed}: ${failed})`
 })
 
 watch(
@@ -196,6 +257,10 @@ const onTargetUrlInput = (event: Event) => {
 
 const onProfileChange = (value: 'wad' | 'eaa') => {
   emit('update:selectedProfile', value)
+}
+
+const onAuditModeChange = (value: 'single' | 'site') => {
+  emit('update:auditMode', value)
 }
 </script>
 
@@ -327,6 +392,39 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
   line-height: 1.35;
 }
 
+.mode-toggle {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.mode-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mode-option input {
+  margin-top: 0;
+  accent-color: #2563eb;
+}
+
+.mode-option span {
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.mode-option.is-selected {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .flow-step--cta {
   background: linear-gradient(180deg, rgba(219, 234, 254, 0.55), #ffffff 65%);
 }
@@ -405,6 +503,12 @@ const onProfileChange = (value: 'wad' | 'eaa') => {
   border-radius: var(--radius-pill);
   background: linear-gradient(90deg, #2563eb, #0ea5e9);
   transition: width var(--motion-base) var(--ease-standard);
+}
+
+.audit-progress__meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
 }
 
 .status-alert {

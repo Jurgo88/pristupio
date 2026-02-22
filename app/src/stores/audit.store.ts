@@ -39,7 +39,88 @@ type AuditReport = {
   }>
 }
 
+type SiteAuditMode = 'quick' | 'full'
+type SiteAuditJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | string
+
+type SiteAuditJob = {
+  id: string
+  status: SiteAuditJobStatus
+  mode: SiteAuditMode | string
+  rootUrl: string
+  lang?: string
+  pagesLimit: number
+  maxDepth: number
+  pagesQueued: number
+  pagesScanned: number
+  pagesFailed: number
+  issuesTotal: number
+  progress: number
+  auditId?: string | null
+  error?: string | null
+  startedAt?: string | null
+  finishedAt?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 const REPORT_LOCALE = 'sk'
+const SITE_AUDIT_POLL_INTERVAL_MS = 2_500
+const SITE_AUDIT_TIMEOUT_MS = 12 * 60 * 1_000
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const parseErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const data = await response.json()
+    if (data?.error) return String(data.error)
+  } catch (_error) {
+    // ignore json parsing errors
+  }
+  return fallback
+}
+
+const normalizeSiteAuditJob = (raw: any): SiteAuditJob | null => {
+  if (!raw || typeof raw !== 'object') return null
+
+  const id = typeof raw.id === 'string' ? raw.id : typeof raw.jobId === 'string' ? raw.jobId : ''
+  if (!id) return null
+
+  const pagesLimit = Math.max(0, Number(raw.pagesLimit || raw.pages_limit || 0))
+  const pagesScanned = Math.max(0, Number(raw.pagesScanned || raw.pages_scanned || 0))
+  const pagesFailed = Math.max(0, Number(raw.pagesFailed || raw.pages_failed || 0))
+  const pagesQueued = Math.max(0, Number(raw.pagesQueued || raw.pages_queued || 0))
+  const processed = pagesScanned + pagesFailed
+  const progress =
+    Number(raw.progress) > 0
+      ? Math.min(100, Math.max(0, Number(raw.progress)))
+      : pagesLimit > 0
+      ? Math.min(100, Math.round((processed / pagesLimit) * 100))
+      : 0
+
+  return {
+    id,
+    status: String(raw.status || 'queued'),
+    mode: String(raw.mode || 'quick'),
+    rootUrl: String(raw.rootUrl || raw.root_url || ''),
+    lang: typeof raw.lang === 'string' ? raw.lang : REPORT_LOCALE,
+    pagesLimit,
+    maxDepth: Math.max(0, Number(raw.maxDepth || raw.max_depth || 0)),
+    pagesQueued,
+    pagesScanned,
+    pagesFailed,
+    issuesTotal: Math.max(0, Number(raw.issuesTotal || raw.issues_total || 0)),
+    progress,
+    auditId: typeof raw.auditId === 'string' ? raw.auditId : typeof raw.audit_id === 'string' ? raw.audit_id : null,
+    error: typeof raw.error === 'string' ? raw.error : typeof raw.error_message === 'string' ? raw.error_message : null,
+    startedAt: typeof raw.startedAt === 'string' ? raw.startedAt : typeof raw.started_at === 'string' ? raw.started_at : null,
+    finishedAt:
+      typeof raw.finishedAt === 'string' ? raw.finishedAt : typeof raw.finished_at === 'string' ? raw.finished_at : null,
+    createdAt:
+      typeof raw.createdAt === 'string' ? raw.createdAt : typeof raw.created_at === 'string' ? raw.created_at : null,
+    updatedAt:
+      typeof raw.updatedAt === 'string' ? raw.updatedAt : typeof raw.updated_at === 'string' ? raw.updated_at : null
+  }
+}
 
 export const useAuditStore = defineStore('audit', {
   state: () => ({
@@ -47,6 +128,7 @@ export const useAuditStore = defineStore('audit', {
     currentAudit: null as any,
     accessLevel: null as null | 'free' | 'paid',
     report: null as null | AuditReport,
+    siteAuditJob: null as SiteAuditJob | null,
     error: null as string | null,
     history: [] as Array<{
       id: string
@@ -63,6 +145,7 @@ export const useAuditStore = defineStore('audit', {
       this.error = null
       this.report = null
       this.accessLevel = null
+      this.siteAuditJob = null
       const auth = useAuthStore()
 
       try {
@@ -112,6 +195,177 @@ export const useAuditStore = defineStore('audit', {
       } finally {
         this.loading = false
       }
+    },
+
+    async getAccessToken() {
+      const { data: sessionData } = await supabase.auth.getSession()
+      return sessionData.session?.access_token || ''
+    },
+
+    async authorizedFetch(path: string, init?: RequestInit) {
+      const accessToken = await this.getAccessToken()
+      if (!accessToken) {
+        throw new Error('Prihlaste sa, aby ste mohli spustit audit.')
+      }
+
+      return fetch(`/.netlify/functions/${path}`, {
+        ...(init || {}),
+        headers: {
+          ...(init?.headers || {}),
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+    },
+
+    async fetchSiteAuditStatus(jobId: string) {
+      const query = new URLSearchParams({ jobId })
+      const response = await this.authorizedFetch(`audit-site-status?${query.toString()}`, {
+        method: 'GET'
+      })
+
+      if (!response.ok) {
+        const message = await parseErrorMessage(response, 'Nacitanie stavu site auditu zlyhalo.')
+        throw new Error(message)
+      }
+
+      const data = await response.json()
+      const normalizedJob = normalizeSiteAuditJob(data?.job)
+      if (normalizedJob) {
+        this.siteAuditJob = normalizedJob
+      }
+      return normalizedJob
+    },
+
+    async pollSiteAuditJobUntilDone(jobId: string) {
+      const startedAt = Date.now()
+
+      while (Date.now() - startedAt < SITE_AUDIT_TIMEOUT_MS) {
+        const job = await this.fetchSiteAuditStatus(jobId)
+        const status = job?.status || 'queued'
+
+        if (status === 'completed') return job
+        if (status === 'failed' || status === 'cancelled') {
+          throw new Error(job?.error || 'Site audit zlyhal.')
+        }
+
+        await delay(SITE_AUDIT_POLL_INTERVAL_MS)
+      }
+
+      throw new Error('Site audit trval prilis dlho. Skuste to prosim znova.')
+    },
+
+    async runSiteAudit(url: string, options?: { mode?: SiteAuditMode; pagesLimit?: number; maxDepth?: number }) {
+      this.loading = true
+      this.error = null
+      this.report = null
+      this.accessLevel = null
+      this.siteAuditJob = null
+
+      const auth = useAuthStore()
+
+      try {
+        if (!auth.isLoggedIn) {
+          throw new Error('Prihlaste sa, aby ste mohli spustit audit.')
+        }
+
+        const response = await this.authorizedFetch('audit-site-start', {
+          method: 'POST',
+          body: JSON.stringify({
+            rootUrl: url,
+            mode: options?.mode || 'full',
+            lang: REPORT_LOCALE,
+            pagesLimit: options?.pagesLimit,
+            maxDepth: options?.maxDepth
+          })
+        })
+
+        if (!response.ok) {
+          const message = await parseErrorMessage(response, 'Spustenie site auditu zlyhalo.')
+          throw new Error(message)
+        }
+
+        const data = await response.json()
+        const bootJob = normalizeSiteAuditJob({
+          id: data?.jobId,
+          status: data?.status,
+          mode: data?.mode,
+          rootUrl: data?.rootUrl,
+          lang: data?.lang,
+          pagesLimit: data?.pagesLimit,
+          maxDepth: data?.maxDepth
+        })
+
+        if (bootJob) {
+          this.siteAuditJob = bootJob
+        }
+
+        const jobId = typeof data?.jobId === 'string' ? data.jobId : bootJob?.id || ''
+        if (!jobId) {
+          throw new Error('Site audit job sa nepodarilo inicializovat.')
+        }
+
+        await this.pollSiteAuditJobUntilDone(jobId)
+
+        const resultQuery = new URLSearchParams({ jobId, lang: REPORT_LOCALE })
+        const resultResponse = await this.authorizedFetch(`audit-site-result?${resultQuery.toString()}`, {
+          method: 'GET'
+        })
+
+        if (!resultResponse.ok) {
+          const message = await parseErrorMessage(resultResponse, 'Nacitanie site audit reportu zlyhalo.')
+          throw new Error(message)
+        }
+
+        const resultData = await resultResponse.json()
+        const auditData = resultData?.audit
+        if (!auditData?.auditId || !auditData?.report) {
+          throw new Error('Site audit report je nekompletny.')
+        }
+
+        this.currentAudit = auditData
+        this.report = auditData.report
+        this.accessLevel = auditData.accessLevel || 'paid'
+
+        if (!auth.isAdmin) {
+          auth.paidAuditCompleted = true
+          auth.paidAuditCredits = Math.max(0, Number(auth.paidAuditCredits || 0) - 1)
+        }
+      } catch (err: any) {
+        this.error = err?.message || 'Site audit zlyhal.'
+        this.accessLevel = null
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async cancelSiteAudit(jobId?: string) {
+      const resolvedJobId = (jobId || this.siteAuditJob?.id || '').trim()
+      if (!resolvedJobId) return null
+
+      const response = await this.authorizedFetch('audit-site-cancel', {
+        method: 'POST',
+        body: JSON.stringify({ jobId: resolvedJobId })
+      })
+
+      if (!response.ok) {
+        const message = await parseErrorMessage(response, 'Zrusenie site auditu zlyhalo.')
+        throw new Error(message)
+      }
+
+      const data = await response.json()
+      const normalizedJob = normalizeSiteAuditJob(data?.job)
+      if (normalizedJob) {
+        this.siteAuditJob = normalizedJob
+      } else if (this.siteAuditJob) {
+        this.siteAuditJob = {
+          ...this.siteAuditJob,
+          status: 'cancelled',
+          finishedAt: new Date().toISOString()
+        }
+      }
+      this.loading = false
+      return data
     },
 
     async fetchLatestAudit() {
