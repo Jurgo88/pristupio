@@ -249,9 +249,15 @@ export const useAuditStore = defineStore('audit', {
     async triggerSiteAuditWorker(maxJobs = 1) {
       try {
         const query = new URLSearchParams({ maxJobs: String(Math.max(1, Math.min(10, Math.floor(maxJobs)))) })
-        await fetch(`/.netlify/functions/audit-site-worker?${query.toString()}`, {
+        const backgroundResponse = await fetch(`/.netlify/functions/audit-site-worker-background?${query.toString()}`, {
           method: 'POST'
         })
+
+        if (!backgroundResponse.ok && backgroundResponse.status !== 202) {
+          await fetch(`/.netlify/functions/audit-site-worker?${query.toString()}`, {
+            method: 'POST'
+          })
+        }
       } catch (_error) {
         // best effort only; scheduler should still process queued jobs
       }

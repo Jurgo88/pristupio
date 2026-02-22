@@ -18,6 +18,15 @@ const isAuthorized = (headers: Record<string, string | undefined>) => {
   return provided === secret
 }
 
+const getBaseUrl = (event: Parameters<Handler>[0]) => {
+  const proto = event.headers['x-forwarded-proto'] || event.headers['X-Forwarded-Proto'] || 'https'
+  const host = event.headers['x-forwarded-host'] || event.headers['X-Forwarded-Host'] || event.headers.host || ''
+  if (host) return `${proto}://${host}`
+
+  const envUrl = (process.env.URL || '').trim()
+  return envUrl || ''
+}
+
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') {
@@ -34,11 +43,47 @@ export const handler: Handler = async (event) => {
     }
 
     const maxJobs = parseMaxJobs(event.queryStringParameters?.maxJobs)
-    const result = await processQueuedSiteAuditJobs(supabase, { maxJobs })
+    const baseUrl = getBaseUrl(event)
+    const query = new URLSearchParams()
+    if (typeof maxJobs === 'number' && Number.isFinite(maxJobs) && maxJobs > 0) {
+      query.set('maxJobs', String(maxJobs))
+    }
+    const backgroundUrl = `${baseUrl}/.netlify/functions/audit-site-worker-background${
+      query.toString() ? `?${query.toString()}` : ''
+    }`
 
-    return jsonResponse(200, {
+    if (!baseUrl) {
+      if (process.env.NETLIFY_DEV === 'true') {
+        const fallbackResult = await processQueuedSiteAuditJobs(supabase, { maxJobs })
+        return jsonResponse(200, {
+          ok: true,
+          mode: 'direct-fallback',
+          ...fallbackResult
+        })
+      }
+      return errorResponse(500, 'Nepodarilo sa zostavit URL pre background worker.')
+    }
+
+    const dispatch = await fetch(backgroundUrl, {
+      method: 'POST'
+    })
+
+    if (!dispatch.ok && dispatch.status !== 202) {
+      if (process.env.NETLIFY_DEV === 'true') {
+        const fallbackResult = await processQueuedSiteAuditJobs(supabase, { maxJobs })
+        return jsonResponse(200, {
+          ok: true,
+          mode: 'direct-fallback',
+          ...fallbackResult
+        })
+      }
+      return errorResponse(500, 'Spustenie background workeru zlyhalo.')
+    }
+
+    return jsonResponse(202, {
       ok: true,
-      ...result
+      mode: 'dispatch-background',
+      dispatched: true
     })
   } catch (error) {
     console.error('Site audit worker error:', error)
