@@ -59,17 +59,23 @@ export const DASHBOARD_MONITORING_TEXT = {
 } as const
 
 export const DASHBOARD_HERO_TEXT = {
-  kicker: 'Dashboard',
-  title: 'WCAG cockpit pre produktový tím',
-  lead: 'Spustite audit, prioritizujte bariéry a odovzdajte report bez chaosu.',
-  tags: ['WCAG 2.1 AA', 'EN 301 549', 'EAA / WAD'],
-  workflowTitle: 'Rýchly workflow',
+  kicker: 'Accessibility Intelligence Platform',
+
+  title: 'Kompletný prehľad prístupnosti vášho webu',
+
+  lead: 'Identifikujte kritické bariéry, prioritizujte opravy a generujte reporty pripravené pre audit, compliance aj klienta.',
+
+  tags: ['WCAG 2.1 AA', 'EN 301 549', 'EAA Ready'],
+
+  workflowTitle: 'Audit workflow',
+
   workflowSteps: [
-    'Vložte URL a vyberte profil legislatívy',
-    'Spustite audit a vyriešte najkritickejšie nálezy',
-    'Zdieľajte report pre vývoj, produkt a compliance'
+    'Zadajte URL stránky',
+    'Analyzujte kritické problémy',
+    'Exportujte profesionálny report'
   ],
-  workflowMeta: 'Automatický audit + manuálny checklist'
+
+  workflowMeta: 'Výsledky do 30 sekúnd • Bez technickej konfigurácie'
 } as const
 
 export const DASHBOARD_OVERVIEW_TEXT = {
