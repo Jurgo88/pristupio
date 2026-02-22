@@ -26,6 +26,7 @@ const normalizeAuditUrlInput = (rawUrl: unknown): string | null => {
 
 export const useDashboardCore = () => {
   const targetUrl = ref('')
+  const auditMode = ref<'single' | 'site'>('single')
   const selectedProfile = ref<'wad' | 'eaa'>('wad')
   const auditStore = useAuditStore()
   const auth = useAuthStore()
@@ -80,8 +81,14 @@ export const useDashboardCore = () => {
   const paidLimitReached = computed(
     () => auth.isLoggedIn && auth.isPaid && (auth.paidAuditCredits || 0) <= 0 && !auth.isAdmin
   )
-  const auditLocked = computed(() => freeLimitReached.value || paidLimitReached.value)
+  const siteAuditRequiresPaidPlan = computed(
+    () => auditMode.value === 'site' && auth.isLoggedIn && !auth.isPaid && !auth.isAdmin
+  )
+  const auditLocked = computed(
+    () => siteAuditRequiresPaidPlan.value || freeLimitReached.value || paidLimitReached.value
+  )
   const auditLockedMessage = computed(() => {
+    if (siteAuditRequiresPaidPlan.value) return DASHBOARD_CORE_TEXT.siteAuditPaidOnly
     if (paidLimitReached.value) return DASHBOARD_CORE_TEXT.auditLockedNoCredits
     if (freeLimitReached.value) {
       return DASHBOARD_CORE_TEXT.auditLockedFreeUsed
@@ -94,6 +101,7 @@ export const useDashboardCore = () => {
   )
   const showPaidStatus = computed(() => auth.isLoggedIn && auth.isPaid && !auth.isAdmin)
   const paidCredits = computed(() => auth.paidAuditCredits || 0)
+  const siteAuditJob = computed(() => auditStore.siteAuditJob)
   const auditHistory = computed(() => auditStore.history || [])
   const latestAudit = computed(() => auditHistory.value[0] || null)
   const monitoringHasAccess = computed(() => monitoringStore.hasAccess)
@@ -262,7 +270,11 @@ export const useDashboardCore = () => {
     const normalizedUrl = normalizeAuditUrlInput(raw)
     if (!normalizedUrl) return
 
-    await auditStore.runManualAudit(normalizedUrl)
+    if (auditMode.value === 'site') {
+      await auditStore.runSiteAudit(normalizedUrl, { mode: 'full' })
+    } else {
+      await auditStore.runManualAudit(normalizedUrl)
+    }
     if (auditStore.currentAudit?.auditId) {
       selectedAuditId.value = auditStore.currentAudit.auditId
     }
@@ -385,6 +397,7 @@ export const useDashboardCore = () => {
 
   return {
     targetUrl,
+    auditMode,
     selectedProfile,
     auditStore,
     auth,
@@ -400,6 +413,7 @@ export const useDashboardCore = () => {
     showUpgrade,
     showPaidStatus,
     paidCredits,
+    siteAuditJob,
     auditHistory,
     historyLoading,
     historyLoadingMore,

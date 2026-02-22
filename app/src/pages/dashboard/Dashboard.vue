@@ -51,14 +51,17 @@
 
     <DashboardAuditForm
       :target-url="targetUrl"
+      :audit-mode="auditMode"
       :selected-profile="selectedProfile"
       :profile-options="profileOptions"
       :can-run-audit="canRunAudit"
       :audit-locked="auditLocked"
       :audit-locked-message="auditLockedMessage"
       :loading="auditStore.loading"
+      :site-audit-job="siteAuditJob"
       :error-message="auditFormErrorMessage"
       @update:target-url="targetUrl = $event"
+      @update:audit-mode="auditMode = $event"
       @update:selected-profile="selectedProfile = $event"
       @start-audit="handleStartAudit"
     />
@@ -159,6 +162,7 @@ import './dashboard.shared.css'
 
 const {
   targetUrl,
+  auditMode,
   selectedProfile,
   auditStore,
   auth,
@@ -174,6 +178,7 @@ const {
   showUpgrade,
   showPaidStatus,
   paidCredits,
+  siteAuditJob,
   monitoringStore,
   monitoringHasAccess,
   canBuyMonitoring,

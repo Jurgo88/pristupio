@@ -103,18 +103,29 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
   stepTargetCopy: 'Zadaj URL stránky, ktorú chceš otestovať.',
   targetPlaceholder: 'https://priklad.sk',
   targetHint: 'Vhodné pre weby, aplikácie aj digitálne služby.',
+  modeSingle: 'Jedna stranka (rychly audit)',
+  modeSite: 'Cely web (site audit)',
+  modeHintSingle: 'Rychly audit jednej URL s vysledkom do par sekund.',
+  modeHintSite: 'Asynchronny crawl viacerych podstranok v ramci domeny.',
   stepProfileLabel: 'Profil legislatívy',
   stepProfileCopy: 'Vyberte profil podľa typu organizácie a služby.',
   stepRunLabel: 'Spustenie',
   stepRunCopy: 'Klikni a počkaj na výpočet skóre aj prioritizácie problémov.',
   runLoading: 'Auditujem...',
+  runLoadingSite: 'Auditujem cely web...',
   runIdle: 'Analyzovať web',
+  runIdleSite: 'Spustit site audit',
   runHint: 'Po dokončení dostaneš skóre, priority a detailný zoznam nálezov.',
+  runHintSite: 'Po dokonceni dostanes agregovany report napriec podstrankami.',
   progressInit: 'Inicializujem audit...',
+  progressQueued: 'Pripravujem site audit...',
   progressLoadingPage: 'Načítavam stránku...',
+  progressCrawling: 'Crawlujem podstranky...',
   progressRules: 'Vyhodnocujem pravidlá WCAG...',
   progressSaving: 'Ukladám výsledky...',
-  progressDone: 'Audit dokončený'
+  progressDone: 'Audit dokončený',
+  progressPages: 'Stranky',
+  progressFailed: 'Zlyhania'
 } as const
 
 export const DASHBOARD_HISTORY_TEXT = {
@@ -138,6 +149,7 @@ export const DASHBOARD_HISTORY_TEXT = {
 export const DASHBOARD_CORE_TEXT = {
   auditLockedNoCredits: 'Nemáte kredit na základný audit. Objednajte ďalší audit.',
   auditLockedFreeUsed: 'Bezplatný audit už bol použitý. Pre plný report si objednajte základný audit.',
+  siteAuditPaidOnly: 'Site audit je dostupny iba pre plateny plan.',
   historyLoadError: 'Históriu auditov sa nepodarilo načítať.',
   profileFallback: 'WCAG audit',
   targetUrlInvalid: 'Zadajte platnú URL (napr. https://priklad.sk).',
