@@ -65,7 +65,10 @@ type SiteAuditJob = {
 
 const REPORT_LOCALE = 'sk'
 const SITE_AUDIT_POLL_INTERVAL_MS = 2_500
-const SITE_AUDIT_TIMEOUT_MS = 12 * 60 * 1_000
+const SITE_AUDIT_TIMEOUT_MIN_MS = 20 * 60 * 1_000
+const SITE_AUDIT_TIMEOUT_MAX_MS = 3 * 60 * 60 * 1_000
+const SITE_AUDIT_TIMEOUT_PER_PAGE_MS = 45_000
+const SITE_AUDIT_STALL_TIMEOUT_MS = 10 * 60 * 1_000
 const SITE_AUDIT_WORKER_KICK_INTERVAL_MS = 20_000
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -129,6 +132,12 @@ const normalizeSiteAuditJob = (raw: any): SiteAuditJob | null => {
     updatedAt:
       typeof raw.updatedAt === 'string' ? raw.updatedAt : typeof raw.updated_at === 'string' ? raw.updated_at : null
   }
+}
+
+const getSiteAuditTimeoutMs = (pagesLimit?: unknown) => {
+  const parsedLimit = Number(pagesLimit)
+  const estimated = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit * SITE_AUDIT_TIMEOUT_PER_PAGE_MS : 45 * 60 * 1_000
+  return Math.max(SITE_AUDIT_TIMEOUT_MIN_MS, Math.min(SITE_AUDIT_TIMEOUT_MAX_MS, Math.round(estimated)))
 }
 
 export const useAuditStore = defineStore('audit', {
@@ -263,13 +272,26 @@ export const useAuditStore = defineStore('audit', {
       }
     },
 
-    async pollSiteAuditJobUntilDone(jobId: string) {
+    async pollSiteAuditJobUntilDone(jobId: string, options?: { timeoutMs?: number; stallTimeoutMs?: number }) {
       const startedAt = Date.now()
       let lastWorkerKickAt = 0
+      const timeoutMs = Math.max(60_000, Number(options?.timeoutMs || SITE_AUDIT_TIMEOUT_MIN_MS))
+      const stallTimeoutMs = Math.max(
+        SITE_AUDIT_POLL_INTERVAL_MS * 2,
+        Number(options?.stallTimeoutMs || SITE_AUDIT_STALL_TIMEOUT_MS)
+      )
+      let lastActivityAt = Date.now()
+      let lastStatus = ''
+      let lastProcessed = -1
+      let lastQueued = -1
+      let lastUpdatedAt = ''
 
-      while (Date.now() - startedAt < SITE_AUDIT_TIMEOUT_MS) {
+      while (Date.now() - startedAt < timeoutMs) {
         const job = await this.fetchSiteAuditStatus(jobId)
         const status = job?.status || 'queued'
+        const processed = Math.max(0, Number(job?.pagesScanned || 0)) + Math.max(0, Number(job?.pagesFailed || 0))
+        const queued = Math.max(0, Number(job?.pagesQueued || 0))
+        const updatedAt = String(job?.updatedAt || '')
 
         if (status === 'completed') return job
         if (status === 'failed' || status === 'cancelled') {
@@ -277,6 +299,23 @@ export const useAuditStore = defineStore('audit', {
         }
 
         const now = Date.now()
+        if (
+          status !== lastStatus ||
+          processed !== lastProcessed ||
+          queued !== lastQueued ||
+          (updatedAt && updatedAt !== lastUpdatedAt)
+        ) {
+          lastActivityAt = now
+          lastStatus = status
+          lastProcessed = processed
+          lastQueued = queued
+          lastUpdatedAt = updatedAt
+        }
+
+        if (now - lastActivityAt >= stallTimeoutMs) {
+          throw new Error('Site audit bezi prilis dlho bez zmeny. Skuste kliknut na Spustit site audit pre obnovenie stavu.')
+        }
+
         if (status === 'queued' && (lastWorkerKickAt === 0 || now - lastWorkerKickAt >= SITE_AUDIT_WORKER_KICK_INTERVAL_MS)) {
           lastWorkerKickAt = now
           void this.triggerSiteAuditWorker(1)
@@ -285,7 +324,7 @@ export const useAuditStore = defineStore('audit', {
         await delay(SITE_AUDIT_POLL_INTERVAL_MS)
       }
 
-      throw new Error('Site audit trval prilis dlho. Skuste to prosim znova.')
+      throw new Error('Site audit stale bezi na serveri. Kliknite na Spustit site audit pre obnovenie stavu alebo audit ukoncite.')
     },
 
     async runSiteAudit(url: string, options?: { mode?: SiteAuditMode; pagesLimit?: number; maxDepth?: number }) {
@@ -352,7 +391,8 @@ export const useAuditStore = defineStore('audit', {
         }
 
         void this.triggerSiteAuditWorker(1)
-        await this.pollSiteAuditJobUntilDone(jobId)
+        const timeoutMs = getSiteAuditTimeoutMs(this.siteAuditJob?.pagesLimit || options?.pagesLimit)
+        await this.pollSiteAuditJobUntilDone(jobId, { timeoutMs })
 
         const resultQuery = new URLSearchParams({ jobId, lang: REPORT_LOCALE })
         const resultResponse = await this.authorizedFetch(`audit-site-result?${resultQuery.toString()}`, {

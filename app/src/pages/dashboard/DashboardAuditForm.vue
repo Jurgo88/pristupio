@@ -158,6 +158,7 @@ const props = defineProps<{
     status?: string
     progress?: number
     pagesScanned?: number
+    pagesQueued?: number
     pagesLimit?: number
     pagesFailed?: number
   } | null
@@ -175,6 +176,12 @@ const emit = defineEmits<{
 const progress = ref(0)
 const progressVisible = ref(false)
 const hasTargetUrl = computed(() => props.targetUrl.trim().length > 0)
+const sitePagesScanned = computed(() => Math.max(0, Number(props.siteAuditJob?.pagesScanned || 0)))
+const sitePagesFailed = computed(() => Math.max(0, Number(props.siteAuditJob?.pagesFailed || 0)))
+const sitePagesQueued = computed(() => Math.max(0, Number(props.siteAuditJob?.pagesQueued || 0)))
+const sitePagesProcessed = computed(() => sitePagesScanned.value + sitePagesFailed.value)
+const sitePagesDiscovered = computed(() => sitePagesProcessed.value + sitePagesQueued.value)
+const sitePagesLimit = computed(() => Math.max(0, Number(props.siteAuditJob?.pagesLimit || 0)))
 const siteProgress = computed(() => {
   const value = Number(props.siteAuditJob?.progress || 0)
   if (!Number.isFinite(value)) return 0
@@ -182,9 +189,7 @@ const siteProgress = computed(() => {
 })
 const effectiveProgress = computed(() => {
   if (props.auditMode === 'site' && props.siteAuditJob) {
-    const scanned = Number(props.siteAuditJob.pagesScanned || 0)
-    const failed = Number(props.siteAuditJob.pagesFailed || 0)
-    if (scanned + failed > 0) return siteProgress.value
+    if (sitePagesProcessed.value > 0) return siteProgress.value
     return Math.max(3, progress.value)
   }
   return progress.value
@@ -230,7 +235,9 @@ const finishProgress = () => {
 const progressLabel = computed(() => {
   if (props.auditMode === 'site' && props.siteAuditJob) {
     if (props.siteAuditJob.status === 'queued') return copy.progressQueued
-    if (props.siteAuditJob.status === 'running') return copy.progressCrawling
+    if (props.siteAuditJob.status === 'running') {
+      return copy.progressCrawling(sitePagesDiscovered.value || undefined)
+    }
     if (props.siteAuditJob.status === 'completed') return copy.progressDone
   }
 
@@ -246,11 +253,21 @@ const loadingLabel = computed(() => (props.auditMode === 'site' ? copy.runLoadin
 
 const siteProgressLine = computed(() => {
   if (props.auditMode !== 'site' || !props.siteAuditJob) return ''
-  const scanned = Number(props.siteAuditJob.pagesScanned || 0)
-  const limit = Number(props.siteAuditJob.pagesLimit || 0)
-  const failed = Number(props.siteAuditJob.pagesFailed || 0)
-  if (limit <= 0) return ''
-  return `${copy.progressPages}: ${scanned}/${limit} (${copy.progressFailed}: ${failed})`
+
+  const details: string[] = []
+  if (sitePagesDiscovered.value > 0) {
+    details.push(`${copy.progressDiscovered}: ${sitePagesDiscovered.value}`)
+  }
+  details.push(`${copy.progressProcessed}: ${sitePagesProcessed.value}`)
+  if (sitePagesQueued.value > 0 || props.siteAuditJob.status === 'queued' || props.siteAuditJob.status === 'running') {
+    details.push(`${copy.progressInQueue}: ${sitePagesQueued.value}`)
+  }
+  if (sitePagesLimit.value > 0) {
+    details.push(`${copy.progressLimit}: ${sitePagesLimit.value}`)
+  }
+  details.push(`${copy.progressFailed}: ${sitePagesFailed.value}`)
+
+  return details.join(' • ')
 })
 
 watch(

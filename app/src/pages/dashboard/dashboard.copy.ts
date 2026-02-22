@@ -121,11 +121,18 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
   progressInit: 'Inicializujem audit...',
   progressQueued: 'Pripravujem site audit...',
   progressLoadingPage: 'Načítavam stránku...',
-  progressCrawling: 'Crawlujem podstranky...',
+  progressCrawling: (discoveredCount?: number) =>
+    discoveredCount && discoveredCount > 0
+      ? `Crawlujem podstranky (objavene: ${discoveredCount})...`
+      : 'Crawlujem podstranky...',
   progressRules: 'Vyhodnocujem pravidlá WCAG...',
   progressSaving: 'Ukladám výsledky...',
   progressDone: 'Audit dokončený',
   progressPages: 'Stranky',
+  progressDiscovered: 'Objavene',
+  progressProcessed: 'Spracovane',
+  progressInQueue: 'Vo fronte',
+  progressLimit: 'Limit',
   progressFailed: 'Zlyhania'
 } as const
 
