@@ -1,0 +1,533 @@
+import chromium from '@sparticuz/chromium-min'
+import { chromium as playwright } from 'playwright-core'
+import * as axe from 'axe-core'
+import {
+  createIssueCopyMap,
+  DEFAULT_ISSUE_LOCALE
+} from './audit-copy'
+import {
+  claimNextQueuedPage,
+  getGuidanceForViolation,
+  getMaxLinksPerPage,
+  getLiveJobStatus,
+  heartbeatJob,
+  insertPageIssues,
+  markPageDone,
+  markPageFailed,
+  markPageSkipped,
+  queueDiscoveredPages,
+  skipRemainingQueuedPages,
+  syncJobCounters
+} from './audit-site-persistence'
+import { isInternalHost, normalizeUrlForCompare } from './audit-site-security'
+import {
+  classifyAuditError,
+  delay,
+  formatCategorizedError,
+  getErrorMessage,
+  logJson,
+  truncateText,
+  withTimeout
+} from './audit-site-observability'
+import {
+  AXE_TAGS,
+  clampNumber,
+  type ReportIssue,
+  type ScannedPage,
+  type SiteAuditJobRow,
+  type SupabaseAdminClient
+} from './audit-site-types'
+
+declare const process: {
+  env: Record<string, string | undefined>
+}
+
+process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
+
+const NAVIGATION_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_NAVIGATION_TIMEOUT_MS, 5_000, 240_000, 45_000)
+const AXE_RUN_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_AXE_TIMEOUT_MS, 10_000, 300_000, 90_000)
+const PAGE_SCAN_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_PAGE_TIMEOUT_MS, 20_000, 600_000, 180_000)
+const PAGE_SCAN_MAX_ATTEMPTS = clampNumber(process.env.AUDIT_SITE_PAGE_RETRIES, 1, 5, 3)
+const PAGE_SCAN_BACKOFF_BASE_MS = clampNumber(process.env.AUDIT_SITE_BACKOFF_BASE_MS, 100, 5_000, 700)
+const GLOBAL_PAGE_CONCURRENCY_LIMIT = clampNumber(process.env.AUDIT_SITE_PAGE_CONCURRENCY, 1, 8, 2)
+const JOB_TIMEOUT_MIN_MS = 15 * 60 * 1_000
+const JOB_TIMEOUT_MAX_MS = 4 * 60 * 60 * 1_000
+const JOB_TIMEOUT_PER_PAGE_MS = clampNumber(process.env.AUDIT_SITE_JOB_TIMEOUT_PER_PAGE_MS, 5_000, 120_000, 35_000)
+const HEARTBEAT_INTERVAL_MS = clampNumber(process.env.AUDIT_SITE_HEARTBEAT_INTERVAL_MS, 1_000, 60_000, 8_000)
+
+type RobotsRule = {
+  allow: boolean
+  path: string
+}
+
+type RobotsPolicy = {
+  sourceUrl: string
+  fetched: boolean
+  statusCode: number | null
+  isAllowed: (url: string) => boolean
+}
+
+const parseRobots = (content: string) => {
+  const lines = content.split(/\r?\n/)
+  const rulesByAgent = new Map<string, RobotsRule[]>()
+
+  let currentAgents: string[] = []
+  for (const lineRaw of lines) {
+    const commentCut = lineRaw.split('#')[0] || ''
+    const line = commentCut.trim()
+    if (!line) continue
+
+    const separator = line.indexOf(':')
+    if (separator < 0) continue
+
+    const key = line.slice(0, separator).trim().toLowerCase()
+    const value = line.slice(separator + 1).trim()
+    if (!value && key !== 'disallow' && key !== 'allow') continue
+
+    if (key === 'user-agent') {
+      const ua = value.toLowerCase()
+      currentAgents = ua ? [ua] : []
+      if (ua && !rulesByAgent.has(ua)) {
+        rulesByAgent.set(ua, [])
+      }
+      continue
+    }
+
+    if (key !== 'allow' && key !== 'disallow') continue
+    if (currentAgents.length === 0) continue
+
+    const rule: RobotsRule = {
+      allow: key === 'allow',
+      path: value || '/'
+    }
+
+    for (const ua of currentAgents) {
+      const list = rulesByAgent.get(ua) || []
+      list.push(rule)
+      rulesByAgent.set(ua, list)
+    }
+  }
+
+  return rulesByAgent
+}
+
+const createRobotsPolicyFromRules = (sourceUrl: string, statusCode: number | null, rulesByAgent: Map<string, RobotsRule[]>) => {
+  const botRules = rulesByAgent.get('pristupioauditbot') || []
+  const wildcardRules = rulesByAgent.get('*') || []
+  const rules = [...botRules, ...wildcardRules]
+
+  const isAllowed = (rawUrl: string) => {
+    if (!rules.length) return true
+
+    let targetPath = '/'
+    try {
+      const parsed = new URL(rawUrl)
+      targetPath = `${parsed.pathname || '/'}${parsed.search || ''}`
+    } catch {
+      return false
+    }
+
+    let bestMatch: { length: number; allow: boolean } | null = null
+    for (const rule of rules) {
+      const rawPath = (rule.path || '/').trim()
+      if (!rawPath || rawPath === '/') {
+        if (!bestMatch || bestMatch.length < 1) {
+          bestMatch = { length: 1, allow: rule.allow }
+        }
+        continue
+      }
+      if (!targetPath.startsWith(rawPath)) continue
+
+      const length = rawPath.length
+      if (!bestMatch || length > bestMatch.length || (length === bestMatch.length && rule.allow)) {
+        bestMatch = { length, allow: rule.allow }
+      }
+    }
+
+    if (!bestMatch) return true
+    return bestMatch.allow
+  }
+
+  return {
+    sourceUrl,
+    fetched: true,
+    statusCode,
+    isAllowed
+  } satisfies RobotsPolicy
+}
+
+const buildAllowAllRobotsPolicy = (sourceUrl: string, statusCode: number | null): RobotsPolicy => ({
+  sourceUrl,
+  fetched: false,
+  statusCode,
+  isAllowed: () => true
+})
+
+const fetchRobotsPolicy = async (rootUrl: string): Promise<RobotsPolicy> => {
+  const origin = new URL(rootUrl).origin
+  const robotsUrl = `${origin}/robots.txt`
+
+  try {
+    const response = await withTimeout(
+      fetch(robotsUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'PristupioAuditBot/1.0 (+https://pristupio.sk)'
+        }
+      }),
+      8_000,
+      'robots.txt request timeout'
+    )
+
+    if (!response.ok) {
+      return buildAllowAllRobotsPolicy(robotsUrl, response.status)
+    }
+
+    const text = await response.text()
+    const rules = parseRobots(text || '')
+    return createRobotsPolicyFromRules(robotsUrl, response.status, rules)
+  } catch (error) {
+    logJson('warn', 'robots_fetch_failed', {
+      rootUrl,
+      robotsUrl,
+      error: getErrorMessage(error)
+    })
+    return buildAllowAllRobotsPolicy(robotsUrl, null)
+  }
+}
+
+const normalizeImpact = (value?: string) => {
+  if (value === 'critical' || value === 'serious' || value === 'moderate' || value === 'minor') {
+    return value
+  }
+  return 'minor'
+}
+
+const normalizeRuleId = (value: unknown) => {
+  if (typeof value !== 'string') return 'unknown'
+  const normalized = value.trim().toLowerCase()
+  return normalized || 'unknown'
+}
+
+const normalizeAuditResults = (results: any): ReportIssue[] => {
+  const violations = Array.isArray(results?.violations) ? results.violations : []
+
+  return violations.map((violation: any) => {
+    const nodes = Array.isArray(violation.nodes)
+      ? violation.nodes.map((node: any) => ({
+          target: Array.isArray(node?.target) ? node.target : [],
+          html: truncateText(node?.html || '', 1_500),
+          failureSummary: truncateText(node?.failureSummary || '', 300)
+        }))
+      : []
+
+    const guidance = getGuidanceForViolation(violation.id, violation.description, violation.help)
+    const copy = createIssueCopyMap(DEFAULT_ISSUE_LOCALE, {
+      title: guidance.title,
+      description: guidance.description,
+      recommendation: guidance.recommendation
+    })
+
+    return {
+      id: normalizeRuleId(violation.id || violation.help || 'unknown'),
+      title: guidance.title,
+      impact: normalizeImpact(violation.impact),
+      description: guidance.description,
+      recommendation: guidance.recommendation,
+      copy,
+      wcag: guidance.wcag,
+      wcagLevel: guidance.wcagLevel,
+      principle: guidance.principle,
+      helpUrl: violation.helpUrl,
+      nodesCount: nodes.length,
+      nodes
+    } satisfies ReportIssue
+  })
+}
+
+const discoverInternalLinks = async (
+  page: any,
+  currentUrl: string,
+  rootHost: string,
+  robotsPolicy: RobotsPolicy
+) => {
+  const rawLinks = await page.evaluate(() => {
+    const anchors = Array.from(document.querySelectorAll('a[href]'))
+    return anchors.map((anchor) => (anchor as HTMLAnchorElement).getAttribute('href') || '')
+  })
+
+  const discovered = new Set<string>()
+  const maxLinks = getMaxLinksPerPage()
+  for (const rawLink of rawLinks) {
+    if (typeof rawLink !== 'string') continue
+    const trimmed = rawLink.trim()
+    if (!trimmed) continue
+
+    const lowered = trimmed.toLowerCase()
+    if (lowered.startsWith('javascript:') || lowered.startsWith('mailto:') || lowered.startsWith('tel:')) continue
+
+    try {
+      const parsed = new URL(trimmed, currentUrl)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue
+      if (!isInternalHost(parsed.host, rootHost)) continue
+
+      const normalized = normalizeUrlForCompare(parsed.toString())
+      if (!robotsPolicy.isAllowed(normalized)) continue
+      discovered.add(normalized)
+      if (discovered.size >= maxLinks) break
+    } catch {
+      // ignore malformed links
+    }
+  }
+
+  return Array.from(discovered)
+}
+
+const scanSinglePageOnce = async (
+  page: any,
+  url: string,
+  rootHost: string,
+  robotsPolicy: RobotsPolicy
+): Promise<ScannedPage> => {
+  if (!robotsPolicy.isAllowed(url)) {
+    throw new Error('Blocked by robots.txt policy.')
+  }
+
+  const startedAt = Date.now()
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS })
+  const finalUrlRaw = page.url()
+  const finalUrl = normalizeUrlForCompare(finalUrlRaw || url)
+  const finalHost = new URL(finalUrl).host.toLowerCase()
+  if (!isInternalHost(finalHost, rootHost)) {
+    throw new Error('Navigation left the target domain.')
+  }
+
+  await page.addScriptTag({ content: axe.source })
+  const results = await withTimeout(
+    page.evaluate(async (axeTags) => {
+      // @ts-ignore
+      return await window.axe.run(document, {
+        runOnly: {
+          type: 'tag',
+          values: axeTags
+        },
+        resultTypes: ['violations']
+      })
+    }, [...AXE_TAGS]),
+    AXE_RUN_TIMEOUT_MS,
+    'Axe evaluation timeout.'
+  )
+
+  const discoveredUrls = await discoverInternalLinks(page, finalUrl, rootHost, robotsPolicy)
+  return {
+    url: finalUrl,
+    normalizedUrl: normalizeUrlForCompare(finalUrl),
+    httpStatus: response ? Number(response.status()) : null,
+    loadMs: Date.now() - startedAt,
+    issues: normalizeAuditResults(results),
+    discoveredUrls
+  }
+}
+
+const isRetryableCategory = (category: ReturnType<typeof classifyAuditError>) => {
+  return category === 'network' || category === 'timeout'
+}
+
+const scanSinglePageWithRetry = async (
+  page: any,
+  url: string,
+  rootHost: string,
+  robotsPolicy: RobotsPolicy
+): Promise<ScannedPage> => {
+  let lastError: unknown = null
+
+  for (let attempt = 1; attempt <= PAGE_SCAN_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const scanned = await withTimeout(
+        scanSinglePageOnce(page, url, rootHost, robotsPolicy),
+        PAGE_SCAN_TIMEOUT_MS,
+        'Page scan timeout.'
+      )
+      return scanned
+    } catch (error) {
+      lastError = error
+      const category = classifyAuditError(error)
+      if (!isRetryableCategory(category) || attempt >= PAGE_SCAN_MAX_ATTEMPTS) {
+        break
+      }
+
+      const jitter = Math.floor(Math.random() * 200)
+      const backoff = Math.min(20_000, PAGE_SCAN_BACKOFF_BASE_MS * 2 ** (attempt - 1) + jitter)
+      await delay(backoff)
+    }
+  }
+
+  throw lastError || new Error('Page scan failed.')
+}
+
+const getPageConcurrency = (job: SiteAuditJobRow) => {
+  const byMode = job.mode === 'full' ? 3 : 2
+  return Math.max(1, Math.min(byMode, GLOBAL_PAGE_CONCURRENCY_LIMIT))
+}
+
+const getJobTimeoutMs = (job: SiteAuditJobRow) => {
+  const estimated = Math.max(1, Number(job.pages_limit || 1)) * JOB_TIMEOUT_PER_PAGE_MS
+  return Math.max(JOB_TIMEOUT_MIN_MS, Math.min(JOB_TIMEOUT_MAX_MS, estimated))
+}
+
+const isHeartbeatDue = (lastHeartbeatAt: number) => Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS
+
+export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: SiteAuditJobRow) => {
+  let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
+  const rootHost = new URL(job.root_url).host.toLowerCase()
+  const jobDeadlineAt = Date.now() + getJobTimeoutMs(job)
+  const robotsPolicy = await fetchRobotsPolicy(job.root_url)
+  const pageConcurrency = getPageConcurrency(job)
+
+  logJson('info', 'crawler_started', {
+    jobId: job.id,
+    rootUrl: job.root_url,
+    mode: job.mode,
+    pagesLimit: job.pages_limit,
+    maxDepth: job.max_depth,
+    pageConcurrency,
+    robotsSource: robotsPolicy.sourceUrl,
+    robotsFetched: robotsPolicy.fetched,
+    robotsStatusCode: robotsPolicy.statusCode
+  })
+
+  let cancelRequested = false
+  let timeoutTriggered = false
+  let lastHeartbeatAt = 0
+
+  try {
+    const isLocal = process.env.NETLIFY_DEV === 'true'
+    browser = await playwright.launch({
+      args: chromium.args,
+      executablePath: isLocal
+        ? undefined
+        : await chromium.executablePath(
+            'https://github.com/sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar'
+          ),
+      headless: (chromium as any).headless
+    })
+
+    const context = await browser.newContext({
+      userAgent: 'PristupioAuditBot/1.0 (+https://pristupio.sk)',
+      javaScriptEnabled: true
+    })
+
+    await context.route('**/*', (route) => {
+      const type = route.request().resourceType()
+      if (type === 'image' || type === 'media' || type === 'font') {
+        return route.abort()
+      }
+      return route.continue()
+    })
+
+    const worker = async (workerIndex: number) => {
+      const page = await context.newPage()
+      page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS)
+      page.setDefaultTimeout(NAVIGATION_TIMEOUT_MS)
+
+      try {
+        while (!cancelRequested && !timeoutTriggered) {
+          if (Date.now() > jobDeadlineAt) {
+            timeoutTriggered = true
+            break
+          }
+
+          if (isHeartbeatDue(lastHeartbeatAt)) {
+            await heartbeatJob(supabase, job.id)
+            lastHeartbeatAt = Date.now()
+          }
+
+          const live = await getLiveJobStatus(supabase, job.id)
+          const liveStatus = String(live?.status || '')
+          if (liveStatus === 'cancelled') {
+            cancelRequested = true
+            break
+          }
+          if (liveStatus === 'failed') {
+            cancelRequested = true
+            break
+          }
+
+          const counters = await syncJobCounters(supabase, job.id)
+          const processed = counters.pagesScanned + counters.pagesFailed
+          if (processed >= Number(job.pages_limit || 0)) {
+            await skipRemainingQueuedPages(supabase, job.id, 'Page limit reached.')
+            break
+          }
+
+          const nextPage = await claimNextQueuedPage(supabase, job.id)
+          if (!nextPage?.id) break
+
+          if (Number(nextPage.depth || 0) > Number(job.max_depth || 0)) {
+            await markPageSkipped(supabase, nextPage.id, '[audit] Depth limit reached.')
+            continue
+          }
+
+          if (!robotsPolicy.isAllowed(nextPage.url)) {
+            await markPageSkipped(supabase, nextPage.id, '[audit] Skipped by robots.txt policy.')
+            continue
+          }
+
+          try {
+            const scannedPage = await scanSinglePageWithRetry(page, nextPage.url, rootHost, robotsPolicy)
+            await insertPageIssues(supabase, job.id, nextPage.id, scannedPage.issues)
+            await queueDiscoveredPages(supabase, job, nextPage, scannedPage.discoveredUrls)
+            await markPageDone(supabase, nextPage.id, {
+              url: scannedPage.url,
+              normalizedUrl: scannedPage.normalizedUrl,
+              httpStatus: scannedPage.httpStatus,
+              loadMs: scannedPage.loadMs,
+              issuesCount: scannedPage.issues.length
+            })
+
+            logJson('info', 'page_scanned', {
+              jobId: job.id,
+              pageId: nextPage.id,
+              workerIndex,
+              depth: nextPage.depth,
+              url: scannedPage.url,
+              issues: scannedPage.issues.length,
+              discovered: scannedPage.discoveredUrls.length,
+              loadMs: scannedPage.loadMs
+            })
+          } catch (scanError) {
+            const categorized = formatCategorizedError(scanError)
+            await markPageFailed(supabase, nextPage.id, truncateText(categorized.message, 600))
+            logJson('warn', 'page_scan_failed', {
+              jobId: job.id,
+              pageId: nextPage.id,
+              workerIndex,
+              url: nextPage.url,
+              errorCategory: categorized.category,
+              error: truncateText(getErrorMessage(scanError), 450)
+            })
+          }
+        }
+      } finally {
+        await page.close({ runBeforeUnload: false }).catch(() => undefined)
+      }
+    }
+
+    await Promise.all(Array.from({ length: pageConcurrency }, (_item, index) => worker(index + 1)))
+
+    if (timeoutTriggered) {
+      throw new Error('[timeout] Job exceeded execution watchdog limit.')
+    }
+
+    return { cancelled: cancelRequested }
+  } finally {
+    if (browser) {
+      await browser.close().catch((closeError) => {
+        logJson('warn', 'browser_close_failed', {
+          jobId: job.id,
+          error: getErrorMessage(closeError)
+        })
+      })
+    }
+  }
+}

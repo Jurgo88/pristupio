@@ -1,8 +1,10 @@
 import type { Handler } from '@netlify/functions'
 import {
   canStartSiteAudit,
+  checkSiteAuditStartRateLimit,
   createSiteAuditJob,
   createSupabaseAdminClient,
+  ensureSafeAuditRootUrl,
   errorResponse,
   getAuthUser,
   getBearerToken,
@@ -62,6 +64,11 @@ export const handler: Handler = async (event) => {
     if (!rootUrl) {
       return errorResponse(400, 'Neplatna URL.')
     }
+    try {
+      await ensureSafeAuditRootUrl(rootUrl)
+    } catch {
+      return errorResponse(400, 'Neplatna alebo nebezpecna URL.')
+    }
 
     const mode = normalizeSiteAuditMode(body.mode)
     const locale = normalizeSiteAuditLocale(body.lang)
@@ -78,6 +85,16 @@ export const handler: Handler = async (event) => {
         error: 'Uz mate rozbehnuty site audit job.',
         job: activeJob
       })
+    }
+
+    if (!profile?.isAdmin) {
+      const rateLimit = await checkSiteAuditStartRateLimit(supabase, auth.userId)
+      if (!rateLimit.allowed) {
+        return jsonResponse(429, {
+          error: rateLimit.message || 'Prilis vela spusteni site auditu. Skuste to neskor.',
+          retryAfterSec: rateLimit.retryAfterSec || 0
+        })
+      }
     }
 
     const tier = profile?.isAdmin ? 'pro' : profile?.auditTier || 'none'
