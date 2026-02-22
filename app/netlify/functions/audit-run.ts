@@ -448,6 +448,11 @@ export const handler: Handler = async (event) => {
   }
 }
 
+const normalizeRuleId = (id: unknown): string => {
+  if (!id || typeof id !== 'string') return 'unknown'
+  return id.trim().toLowerCase()
+}
+
 function normalizeAuditResults(results: any): ReportIssue[] {
   const violations = Array.isArray(results?.violations) ? results.violations : []
 
@@ -461,7 +466,13 @@ function normalizeAuditResults(results: any): ReportIssue[] {
         }))
       : []
 
-    const guidance = getGuidance(v.id, v.description, v.help)
+    const normalizedId = normalizeRuleId(v.id)
+
+    const guidance = getGuidance(
+      normalizedId,
+      v.description,
+      v.help
+    )
     const copy = createIssueCopyMap(DEFAULT_ISSUE_LOCALE, {
       title: guidance.title,
       description: guidance.description,
@@ -469,14 +480,14 @@ function normalizeAuditResults(results: any): ReportIssue[] {
     })
 
     return {
-      id: v.id || v.help || 'unknown',
+      id: normalizeRuleId(v.id || v.help),
       title: guidance.title,
       impact,
       description: guidance.description,
       recommendation: guidance.recommendation,
       copy,
       wcag: guidance.wcag,
-      wcagLevel: getWcagLevel(v.id, guidance.wcag),
+      wcagLevel: getWcagLevel(normalizedId, guidance.wcag),
       principle: guidance.principle,
       helpUrl: v.helpUrl,
       nodesCount: nodes.length,
