@@ -264,6 +264,8 @@ export const useDashboardCore = () => {
   )
 
   const handleStartAudit = async () => {
+    if (auditStore.loading || !canRunAudit.value) return
+
     const raw = targetUrl.value.trim()
     if (!raw) return
 
