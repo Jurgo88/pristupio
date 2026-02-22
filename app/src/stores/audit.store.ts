@@ -79,6 +79,14 @@ const parseErrorMessage = async (response: Response, fallback: string) => {
   return fallback
 }
 
+const parseJsonSafe = async (response: Response) => {
+  try {
+    return await response.json()
+  } catch (_error) {
+    return null
+  }
+}
+
 const normalizeSiteAuditJob = (raw: any): SiteAuditJob | null => {
   if (!raw || typeof raw !== 'object') return null
 
@@ -280,27 +288,40 @@ export const useAuditStore = defineStore('audit', {
           })
         })
 
-        if (!response.ok) {
+        let jobId = ''
+        if (response.ok) {
+          const data = await parseJsonSafe(response)
+          const bootJob = normalizeSiteAuditJob({
+            id: data?.jobId,
+            status: data?.status,
+            mode: data?.mode,
+            rootUrl: data?.rootUrl,
+            lang: data?.lang,
+            pagesLimit: data?.pagesLimit,
+            maxDepth: data?.maxDepth
+          })
+
+          if (bootJob) {
+            this.siteAuditJob = bootJob
+            jobId = bootJob.id
+          } else if (typeof data?.jobId === 'string') {
+            jobId = data.jobId
+          }
+        } else if (response.status === 409) {
+          const data = await parseJsonSafe(response)
+          const existingJob = normalizeSiteAuditJob(data?.job)
+          if (existingJob) {
+            this.siteAuditJob = existingJob
+            jobId = existingJob.id
+          } else {
+            const message = await parseErrorMessage(response, 'Uz mate rozbehnuty site audit job.')
+            throw new Error(message)
+          }
+        } else {
           const message = await parseErrorMessage(response, 'Spustenie site auditu zlyhalo.')
           throw new Error(message)
         }
 
-        const data = await response.json()
-        const bootJob = normalizeSiteAuditJob({
-          id: data?.jobId,
-          status: data?.status,
-          mode: data?.mode,
-          rootUrl: data?.rootUrl,
-          lang: data?.lang,
-          pagesLimit: data?.pagesLimit,
-          maxDepth: data?.maxDepth
-        })
-
-        if (bootJob) {
-          this.siteAuditJob = bootJob
-        }
-
-        const jobId = typeof data?.jobId === 'string' ? data.jobId : bootJob?.id || ''
         if (!jobId) {
           throw new Error('Site audit job sa nepodarilo inicializovat.')
         }
