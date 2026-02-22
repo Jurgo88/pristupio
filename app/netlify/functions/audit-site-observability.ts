@@ -30,6 +30,7 @@ export const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, mes
 
 export const classifyAuditError = (error: unknown): AuditErrorCategory => {
   const text = getErrorMessage(error).toLowerCase()
+  if (text.includes('[audit]')) return 'audit'
   if (text.includes('timeout') || text.includes('timed out')) return 'timeout'
   if (
     text.includes('econnreset') ||
@@ -49,6 +50,12 @@ export const classifyAuditError = (error: unknown): AuditErrorCategory => {
 export const formatCategorizedError = (error: unknown) => {
   const category = classifyAuditError(error)
   const message = getErrorMessage(error)
+  if (message.trim().startsWith('[')) {
+    return {
+      category,
+      message
+    }
+  }
   return {
     category,
     message: `[${category}] ${message}`

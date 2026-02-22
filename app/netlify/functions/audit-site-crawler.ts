@@ -72,6 +72,7 @@ const parseRobots = (content: string) => {
   const rulesByAgent = new Map<string, RobotsRule[]>()
 
   let currentAgents: string[] = []
+  let lastDirectiveType: 'user-agent' | 'rule' | 'other' = 'other'
   for (const lineRaw of lines) {
     const commentCut = lineRaw.split('#')[0] || ''
     const line = commentCut.trim()
@@ -86,19 +87,44 @@ const parseRobots = (content: string) => {
 
     if (key === 'user-agent') {
       const ua = value.toLowerCase()
-      currentAgents = ua ? [ua] : []
+      if (!ua) {
+        currentAgents = []
+        lastDirectiveType = 'user-agent'
+        continue
+      }
+
+      // Consecutive user-agent lines belong to the same group.
+      if (lastDirectiveType === 'user-agent' && currentAgents.length > 0) {
+        if (!currentAgents.includes(ua)) {
+          currentAgents.push(ua)
+        }
+      } else {
+        currentAgents = [ua]
+      }
       if (ua && !rulesByAgent.has(ua)) {
         rulesByAgent.set(ua, [])
       }
+      lastDirectiveType = 'user-agent'
       continue
     }
 
-    if (key !== 'allow' && key !== 'disallow') continue
+    if (key !== 'allow' && key !== 'disallow') {
+      lastDirectiveType = 'other'
+      continue
+    }
     if (currentAgents.length === 0) continue
+
+    // robots.txt semantics:
+    // - "Disallow:" with empty value means no restriction
+    // - "Allow:" with empty value is a no-op
+    if (!value) {
+      lastDirectiveType = 'rule'
+      continue
+    }
 
     const rule: RobotsRule = {
       allow: key === 'allow',
-      path: value || '/'
+      path: value
     }
 
     for (const ua of currentAgents) {
@@ -106,6 +132,7 @@ const parseRobots = (content: string) => {
       list.push(rule)
       rulesByAgent.set(ua, list)
     }
+    lastDirectiveType = 'rule'
   }
 
   return rulesByAgent
