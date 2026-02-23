@@ -2,7 +2,7 @@ import type { Handler } from '@netlify/functions'
 import { createSupabaseAdminClient, errorResponse, jsonResponse, processQueuedSiteAuditJobs } from './audit-site-core'
 
 export const config = {
-  schedule: '*/5 * * * *'
+  schedule: '*/1 * * * *'
 }
 
 const parseMaxJobs = (rawValue: string | undefined) => {

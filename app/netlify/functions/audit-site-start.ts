@@ -17,6 +17,8 @@ import {
   normalizeSiteAuditLocale,
   normalizeSiteAuditMode
 } from './audit-site-core'
+import { logJson } from './audit-site-observability'
+import { dispatchSiteAuditWorkerBackground } from './audit-site-worker-dispatch'
 
 type StartSiteAuditBody = {
   rootUrl?: unknown
@@ -112,6 +114,19 @@ export const handler: Handler = async (event) => {
       maxDepth
     })
 
+    const dispatch = await dispatchSiteAuditWorkerBackground({
+      event,
+      maxJobs: 1
+    })
+    if (!dispatch.dispatched) {
+      logJson('warn', 'start_worker_dispatch_failed', {
+        jobId: job.id,
+        statusCode: dispatch.statusCode,
+        targetUrl: dispatch.targetUrl,
+        error: dispatch.error || 'unknown'
+      })
+    }
+
     return jsonResponse(202, {
       jobId: job.id,
       status: job.status,
@@ -119,7 +134,8 @@ export const handler: Handler = async (event) => {
       rootUrl: job.root_url,
       pagesLimit: job.pages_limit,
       maxDepth: job.max_depth,
-      lang: job.lang
+      lang: job.lang,
+      workerDispatched: dispatch.dispatched
     })
   } catch (error) {
     console.error('Site audit start error:', error)

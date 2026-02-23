@@ -7,6 +7,33 @@ import {
   getSiteAuditJobForUser,
   jsonResponse
 } from './audit-site-core'
+import { logJson } from './audit-site-observability'
+import { dispatchSiteAuditWorkerBackground } from './audit-site-worker-dispatch'
+
+const QUEUED_REDRIVE_AFTER_MS = 12_000
+const QUEUED_REDRIVE_INTERVAL_MS = 30_000
+const QUEUED_REDRIVE_WINDOW_MS = 3_000
+
+const getUnixMs = (value: unknown) => {
+  if (typeof value !== 'string' || !value.trim()) return NaN
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : NaN
+}
+
+const shouldRedriveQueuedJob = (job: any) => {
+  if (String(job?.status || '') !== 'queued') return false
+  if (job?.started_at) return false
+
+  const createdAtMs = getUnixMs(job?.created_at)
+  if (!Number.isFinite(createdAtMs)) return false
+
+  const ageMs = Date.now() - createdAtMs
+  if (ageMs < QUEUED_REDRIVE_AFTER_MS) return false
+
+  const offset = ageMs - QUEUED_REDRIVE_AFTER_MS
+  const withinWindow = offset % QUEUED_REDRIVE_INTERVAL_MS
+  return withinWindow >= 0 && withinWindow <= QUEUED_REDRIVE_WINDOW_MS
+}
 
 export const handler: Handler = async (event) => {
   try {
@@ -43,6 +70,26 @@ export const handler: Handler = async (event) => {
     }
 
     const job = jobResult.data
+    if (shouldRedriveQueuedJob(job)) {
+      const redrive = await dispatchSiteAuditWorkerBackground({
+        event,
+        maxJobs: 1,
+        timeoutMs: 1_200
+      })
+      if (redrive.dispatched) {
+        logJson('info', 'status_worker_redrive_dispatched', {
+          jobId: job.id
+        })
+      } else {
+        logJson('warn', 'status_worker_redrive_failed', {
+          jobId: job.id,
+          statusCode: redrive.statusCode,
+          targetUrl: redrive.targetUrl,
+          error: redrive.error || 'unknown'
+        })
+      }
+    }
+
     const pagesScanned = Number(job.pages_scanned || 0)
     const pagesFailed = Number(job.pages_failed || 0)
     const pagesQueued = Number(job.pages_queued || 0)
