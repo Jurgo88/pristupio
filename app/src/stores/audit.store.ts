@@ -72,6 +72,8 @@ const SITE_AUDIT_TIMEOUT_MAX_MS = 3 * 60 * 60 * 1_000
 const SITE_AUDIT_TIMEOUT_PER_PAGE_MS = 45_000
 const SITE_AUDIT_STALL_TIMEOUT_MS = 10 * 60 * 1_000
 const SITE_AUDIT_WORKER_KICK_INTERVAL_MS = 20_000
+const SITE_AUDIT_STATUS_MAX_CONSECUTIVE_ERRORS = 5
+const SITE_AUDIT_STATUS_ERROR_BACKOFF_MS = 1_500
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -299,9 +301,33 @@ export const useAuditStore = defineStore('audit', {
       let lastProcessed = -1
       let lastQueued = -1
       let lastUpdatedAt = ''
+      let consecutiveStatusErrors = 0
 
       while (Date.now() - startedAt < timeoutMs) {
-        const job = await this.fetchSiteAuditStatus(jobId)
+        let job: Awaited<ReturnType<typeof this.fetchSiteAuditStatus>> = null
+        try {
+          job = await this.fetchSiteAuditStatus(jobId)
+          consecutiveStatusErrors = 0
+        } catch (statusError: any) {
+          consecutiveStatusErrors += 1
+          const statusErrorMessage =
+            typeof statusError?.message === 'string' && statusError.message
+              ? statusError.message
+              : 'Nacitanie stavu site auditu zlyhalo.'
+
+          if (consecutiveStatusErrors >= SITE_AUDIT_STATUS_MAX_CONSECUTIVE_ERRORS) {
+            throw new Error(
+              `${statusErrorMessage} Docasne neviem nacitat stav auditu. Skuste to o chvilu znovu.`
+            )
+          }
+
+          // Keep polling on transient status errors.
+          lastActivityAt = Date.now()
+          const backoffMs = Math.min(10_000, SITE_AUDIT_STATUS_ERROR_BACKOFF_MS * consecutiveStatusErrors)
+          await delay(backoffMs)
+          continue
+        }
+
         const status = job?.status || 'queued'
         const processed = Math.max(0, Number(job?.pagesScanned || 0)) + Math.max(0, Number(job?.pagesFailed || 0))
         const queued = Math.max(0, Number(job?.pagesQueued || 0))
