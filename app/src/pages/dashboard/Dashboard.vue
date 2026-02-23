@@ -64,7 +64,7 @@
       @update:target-url="targetUrl = $event"
       @update:audit-mode="auditMode = $event"
       @update:selected-profile="selectedProfile = $event"
-      @start-audit="handleStartAudit"
+      @start-audit="handleStartAuditWithSuccessModal"
       @cancel-site-audit="handleCancelSiteAudit"
     />
 
@@ -140,6 +140,41 @@
     </section>
 
     <!-- <ManualChecklist :profile="selectedProfile" /> -->
+    <div
+      v-if="siteAuditSuccessModalVisible"
+      class="site-audit-success-modal-backdrop"
+      role="presentation"
+      @click.self="closeSiteAuditSuccessModal"
+    >
+      <section
+        class="site-audit-success-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="site-audit-success-title"
+      >
+        <h3 id="site-audit-success-title">{{ coreText.siteAuditSuccessTitle }}</h3>
+        <p>{{ coreText.siteAuditSuccessLead }}</p>
+        <p v-if="siteAuditSuccessUrl" class="site-audit-success-url">{{ siteAuditSuccessUrl }}</p>
+        <div class="site-audit-success-stats">
+          <div>
+            <span>{{ coreText.siteAuditSuccessTotal }}</span>
+            <strong>{{ siteAuditSuccessTotal }}</strong>
+          </div>
+          <div>
+            <span>{{ coreText.siteAuditSuccessHigh }}</span>
+            <strong>{{ siteAuditSuccessHigh }}</strong>
+          </div>
+        </div>
+        <div class="site-audit-success-actions">
+          <button type="button" class="btn btn-outline-secondary" @click="closeSiteAuditSuccessModal">
+            {{ coreText.siteAuditSuccessClose }}
+          </button>
+          <button type="button" class="btn btn-primary" @click="openSiteAuditFromModal">
+            {{ coreText.siteAuditSuccessOpen }}
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 <script setup lang="ts">
@@ -160,6 +195,7 @@ import {
   useDashboardCore,
   useMonitoringDiff
 } from './index'
+import { DASHBOARD_CORE_TEXT } from './dashboard.copy'
 import './dashboard.shared.css'
 
 const {
@@ -273,6 +309,49 @@ const {
 const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 const totalIssuesCount = computed(() => auditStore.report?.issues?.length || 0)
 const scoreStateLabel = computed(() => getDashboardScoreStateLabel(!!auditStore.report, auditScore.value))
+const coreText = DASHBOARD_CORE_TEXT
+const siteAuditSuccessModalVisible = ref(false)
+const siteAuditSuccessTotal = ref(0)
+const siteAuditSuccessHigh = ref(0)
+const siteAuditSuccessUrl = ref('')
+
+const closeSiteAuditSuccessModal = () => {
+  siteAuditSuccessModalVisible.value = false
+}
+
+const handleStartAuditWithSuccessModal = async () => {
+  const startedAsSiteAudit = auditMode.value === 'site'
+  siteAuditSuccessModalVisible.value = false
+
+  await handleStartAudit()
+
+  if (!startedAsSiteAudit) return
+  if (auditStore.error) return
+  if (!auditStore.currentAudit?.auditId) return
+
+  const summary = auditStore.report?.summary
+  const total = Number(summary?.total) || Number(auditStore.report?.issues?.length || 0)
+  const high = Number(summary?.byImpact?.critical || 0) + Number(summary?.byImpact?.serious || 0)
+
+  siteAuditSuccessTotal.value = Math.max(0, total)
+  siteAuditSuccessHigh.value = Math.max(0, high)
+  siteAuditSuccessUrl.value =
+    (typeof auditStore.currentAudit?.url === 'string' && auditStore.currentAudit.url) ||
+    (typeof siteAuditJob.value?.rootUrl === 'string' && siteAuditJob.value.rootUrl) ||
+    targetUrl.value
+  siteAuditSuccessModalVisible.value = true
+}
+
+const openSiteAuditFromModal = async () => {
+  closeSiteAuditSuccessModal()
+  const auditId = auditStore.currentAudit?.auditId
+  if (typeof auditId === 'string' && auditId) {
+    await selectAudit(auditId)
+    return
+  }
+  openLatestAudit()
+}
+
 const lastAuditLabel = computed(() => {
   if (!latestAudit.value?.created_at) return ''
   return formatDate(latestAudit.value.created_at)
@@ -302,6 +381,75 @@ const lastAuditLabel = computed(() => {
   display: grid;
   gap: 1.15rem;
 }
+
+.site-audit-success-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(2, 6, 23, 0.58);
+}
+
+.site-audit-success-modal {
+  width: min(560px, 100%);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.3);
+  padding: 1.25rem 1.25rem 1.1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.site-audit-success-modal h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.site-audit-success-modal p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.site-audit-success-url {
+  font-size: 0.88rem;
+  word-break: break-word;
+}
+
+.site-audit-success-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.site-audit-success-stats > div {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 0.65rem 0.75rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.site-audit-success-stats span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.site-audit-success-stats strong {
+  font-size: 1.18rem;
+  color: var(--text);
+}
+
+.site-audit-success-actions {
+  margin-top: 0.3rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
 /* Responsive */
 @media (max-width: 980px) {
   .audit-page {
@@ -326,6 +474,14 @@ const lastAuditLabel = computed(() => {
   .dashboard-workspace.is-tab-issues .mobile-pane--issues,
   .dashboard-workspace.is-tab-history .mobile-pane--history {
     display: block;
+  }
+
+  .site-audit-success-modal {
+    padding: 1rem;
+  }
+
+  .site-audit-success-stats {
+    grid-template-columns: 1fr;
   }
 }
 </style>
