@@ -32,10 +32,24 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 const DEFAULT_MAX_JOBS_PER_WORKER = 1
 const DEFAULT_MAX_LINKS_PER_PAGE = 120
+const DEFAULT_PAGE_COUNT_CACHE_TTL_MS = 15_000
 
 const START_RATE_LIMIT_MAX_ATTEMPTS = clampNumber(process.env.AUDIT_SITE_START_RATE_LIMIT_MAX, 1, 20, 4)
 const START_RATE_LIMIT_WINDOW_SEC = clampNumber(process.env.AUDIT_SITE_START_RATE_LIMIT_WINDOW_SEC, 60, 86_400, 600)
 const START_RATE_LIMIT_ENABLED = process.env.AUDIT_SITE_START_RATE_LIMIT !== 'false'
+const PAGE_COUNT_CACHE_TTL_MS = clampNumber(
+  process.env.AUDIT_SITE_PAGE_COUNT_CACHE_TTL_MS,
+  1_000,
+  120_000,
+  DEFAULT_PAGE_COUNT_CACHE_TTL_MS
+)
+
+type JobPageCountCacheEntry = {
+  count: number
+  refreshedAt: number
+}
+
+const jobPageCountCache = new Map<string, JobPageCountCacheEntry>()
 
 export const getMaxJobsPerWorker = () =>
   clampNumber(process.env.AUDIT_SITE_WORKER_MAX_JOBS, 1, 10, DEFAULT_MAX_JOBS_PER_WORKER)
@@ -46,6 +60,43 @@ export const getMaxLinksPerPage = () =>
 export const createSupabaseAdminClient = () => {
   if (!supabaseUrl || !supabaseServiceKey) return null
   return createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
+}
+
+const setJobPageCountCache = (jobId: string, count: number) => {
+  jobPageCountCache.set(jobId, {
+    count: Math.max(0, Math.floor(Number(count || 0))),
+    refreshedAt: Date.now()
+  })
+}
+
+const clearJobPageCountCache = (jobId: string) => {
+  if (!jobId) return
+  jobPageCountCache.delete(jobId)
+}
+
+const bumpJobPageCountCache = (jobId: string, baselineCount: number, delta: number) => {
+  const normalizedDelta = Math.max(0, Math.floor(Number(delta || 0)))
+  if (normalizedDelta <= 0) return
+
+  const cachedCount = Number(jobPageCountCache.get(jobId)?.count || 0)
+  const base = Math.max(cachedCount, Math.max(0, Math.floor(Number(baselineCount || 0))))
+  setJobPageCountCache(jobId, base + normalizedDelta)
+}
+
+const getJobPageCountCached = async (supabase: SupabaseAdminClient, jobId: string) => {
+  const cached = jobPageCountCache.get(jobId)
+  if (cached && Date.now() - cached.refreshedAt <= PAGE_COUNT_CACHE_TTL_MS) {
+    return cached.count
+  }
+
+  const pagesCountResult = await supabase
+    .from('audit_job_pages')
+    .select('id', { count: 'exact', head: true })
+    .eq('job_id', jobId)
+
+  const freshCount = Math.max(0, Number(pagesCountResult.count || 0))
+  setJobPageCountCache(jobId, freshCount)
+  return freshCount
 }
 
 const normalizeImpact = (value?: string): Impact => {
@@ -275,6 +326,7 @@ export const createSiteAuditJob = async ({
     throw new Error('Vytvorenie vstupnej stranky pre site audit zlyhalo.')
   }
 
+  setJobPageCountCache(insertResult.data.id, 1)
   return insertResult.data as SiteAuditJobRow
 }
 
@@ -318,6 +370,7 @@ export const cancelSiteAuditJob = async (supabase: SupabaseAdminClient, userId: 
     .eq('job_id', jobId)
     .eq('status', 'queued')
 
+  clearJobPageCountCache(jobId)
   return { data: updateResult.data as SiteAuditJobRow, error: null }
 }
 
@@ -421,6 +474,8 @@ export const markJobFailed = async (supabase: SupabaseAdminClient, jobId: string
       updated_at: nowIso
     })
     .eq('id', jobId)
+
+  clearJobPageCountCache(jobId)
 }
 
 export const failStuckRunningJobs = async (supabase: SupabaseAdminClient, staleBeforeIso: string) => {
@@ -454,6 +509,8 @@ export const failStuckRunningJobs = async (supabase: SupabaseAdminClient, staleB
       })
       .eq('job_id', job.id)
       .eq('status', 'running')
+
+    clearJobPageCountCache(String(job.id || ''))
   }
 
   return staleJobs.length
@@ -584,6 +641,9 @@ export const queueDiscoveredPages = async (
   page: SiteAuditPageRow,
   discoveredUrls: string[]
 ) => {
+  const pagesLimit = Math.max(0, Number(job.pages_limit || 0))
+  if (pagesLimit <= 0) return 0
+
   const nextDepth = Number(page.depth || 0) + 1
   if (nextDepth > Number(job.max_depth || 0)) return 0
   if (!Array.isArray(discoveredUrls) || discoveredUrls.length === 0) return 0
@@ -591,19 +651,14 @@ export const queueDiscoveredPages = async (
   const unique = Array.from(new Set(discoveredUrls.map((url) => normalizeUrlForCrawl(url))))
   if (unique.length === 0) return 0
 
-  const pagesCountResult = await supabase
-    .from('audit_job_pages')
-    .select('id', { count: 'exact', head: true })
-    .eq('job_id', job.id)
-
-  const existingCount = Number(pagesCountResult.count || 0)
-  const maxAllowed = Math.max(0, Number(job.pages_limit || 0) - existingCount)
+  const existingCount = await getJobPageCountCached(supabase, job.id)
+  const maxAllowed = Math.max(0, pagesLimit - existingCount)
   if (maxAllowed <= 0) return 0
 
   const rows = unique.slice(0, maxAllowed).map((url) => ({
     job_id: job.id,
     url,
-    normalized_url: normalizeUrlForCrawl(url),
+    normalized_url: url,
     depth: nextDepth,
     discovered_from_url: page.url,
     status: 'queued'
@@ -617,7 +672,12 @@ export const queueDiscoveredPages = async (
     .select('id')
 
   if (insertResult.error || !Array.isArray(insertResult.data)) return 0
-  return insertResult.data.length
+
+  const insertedCount = insertResult.data.length
+  if (insertedCount > 0) {
+    bumpJobPageCountCache(job.id, existingCount, insertedCount)
+  }
+  return insertedCount
 }
 
 const buildIssueRows = (jobId: string, pageId: number, issues: ReportIssue[]) => {
@@ -819,6 +879,7 @@ export const finalizeSiteAuditJob = async (supabase: SupabaseAdminClient, job: S
     })
     .eq('id', job.id)
 
+  clearJobPageCountCache(job.id)
   logJson('info', 'job_completed', {
     jobId: job.id,
     auditId: auditInsert.id,
