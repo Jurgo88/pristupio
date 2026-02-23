@@ -54,6 +54,15 @@ const JOB_TIMEOUT_MIN_MS = 15 * 60 * 1_000
 const JOB_TIMEOUT_MAX_MS = 4 * 60 * 60 * 1_000
 const JOB_TIMEOUT_PER_PAGE_MS = clampNumber(process.env.AUDIT_SITE_JOB_TIMEOUT_PER_PAGE_MS, 5_000, 120_000, 35_000)
 const HEARTBEAT_INTERVAL_MS = clampNumber(process.env.AUDIT_SITE_HEARTBEAT_INTERVAL_MS, 1_000, 60_000, 8_000)
+const COUNTERS_SYNC_INTERVAL_MS = clampNumber(process.env.AUDIT_SITE_COUNTERS_SYNC_INTERVAL_MS, 500, 20_000, 3_000)
+const LIVE_STATUS_REFRESH_INTERVAL_MS = clampNumber(
+  process.env.AUDIT_SITE_LIVE_STATUS_REFRESH_INTERVAL_MS,
+  500,
+  10_000,
+  2_000
+)
+const BLOCK_EXTERNAL_RESOURCES = process.env.AUDIT_SITE_BLOCK_EXTERNAL_RESOURCES === 'true'
+const NON_CRITICAL_RESOURCE_TYPES = new Set(['image', 'media', 'font'])
 
 type RobotsRule = {
   allow: boolean
@@ -433,6 +442,66 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
   let cancelRequested = false
   let timeoutTriggered = false
   let lastHeartbeatAt = 0
+  let countersSnapshot = {
+    pagesQueued: Math.max(0, Number(job.pages_queued || 0)),
+    pagesScanned: Math.max(0, Number(job.pages_scanned || 0)),
+    pagesFailed: Math.max(0, Number(job.pages_failed || 0))
+  }
+  let lastCountersSyncAt = 0
+  let countersSyncPromise: Promise<typeof countersSnapshot> | null = null
+  let liveJobStatus = String(job.status || 'running')
+  let lastLiveStatusAt = 0
+  let liveStatusPromise: Promise<string> | null = null
+
+  const syncCounters = async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastCountersSyncAt < COUNTERS_SYNC_INTERVAL_MS) {
+      return countersSnapshot
+    }
+    if (countersSyncPromise) {
+      return countersSyncPromise
+    }
+
+    countersSyncPromise = (async () => {
+      const synced = await syncJobCounters(supabase, job.id)
+      countersSnapshot = {
+        pagesQueued: Math.max(0, Number(synced.pagesQueued || 0)),
+        pagesScanned: Math.max(0, Number(synced.pagesScanned || 0)),
+        pagesFailed: Math.max(0, Number(synced.pagesFailed || 0))
+      }
+      lastCountersSyncAt = Date.now()
+      return countersSnapshot
+    })()
+
+    try {
+      return await countersSyncPromise
+    } finally {
+      countersSyncPromise = null
+    }
+  }
+
+  const refreshLiveStatus = async (force = false) => {
+    const now = Date.now()
+    if (!force && now - lastLiveStatusAt < LIVE_STATUS_REFRESH_INTERVAL_MS) {
+      return liveJobStatus
+    }
+    if (liveStatusPromise) {
+      return liveStatusPromise
+    }
+
+    liveStatusPromise = (async () => {
+      const live = await getLiveJobStatus(supabase, job.id)
+      liveJobStatus = String(live?.status || liveJobStatus || 'running')
+      lastLiveStatusAt = Date.now()
+      return liveJobStatus
+    })()
+
+    try {
+      return await liveStatusPromise
+    } finally {
+      liveStatusPromise = null
+    }
+  }
 
   try {
     const isLocal = process.env.NETLIFY_DEV === 'true'
@@ -454,9 +523,21 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
 
     await context.route('**/*', (route) => {
       const type = route.request().resourceType()
-      if (type === 'image' || type === 'media' || type === 'font') {
+      if (NON_CRITICAL_RESOURCE_TYPES.has(type)) {
         return route.abort()
       }
+
+      if (BLOCK_EXTERNAL_RESOURCES && type !== 'document') {
+        try {
+          const requestHost = new URL(route.request().url()).host.toLowerCase()
+          if (requestHost && !isInternalHost(requestHost, canonicalRootHost)) {
+            return route.abort()
+          }
+        } catch {
+          return route.abort()
+        }
+      }
+
       return route.continue()
     })
 
@@ -477,8 +558,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
             lastHeartbeatAt = Date.now()
           }
 
-          const live = await getLiveJobStatus(supabase, job.id)
-          const liveStatus = String(live?.status || '')
+          const liveStatus = await refreshLiveStatus()
           if (liveStatus === 'cancelled') {
             cancelRequested = true
             break
@@ -488,15 +568,17 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
             break
           }
 
-          const counters = await syncJobCounters(supabase, job.id)
-          const processed = counters.pagesScanned + counters.pagesFailed
+          await syncCounters()
+          const processed = countersSnapshot.pagesScanned + countersSnapshot.pagesFailed
           if (processed >= Number(job.pages_limit || 0)) {
             await skipRemainingQueuedPages(supabase, job.id, 'Page limit reached.')
+            await syncCounters(true)
             break
           }
 
           const nextPage = await claimNextQueuedPage(supabase, job.id)
           if (!nextPage?.id) break
+          countersSnapshot.pagesQueued = Math.max(0, countersSnapshot.pagesQueued - 1)
 
           if (Number(nextPage.depth || 0) > Number(job.max_depth || 0)) {
             await markPageSkipped(supabase, nextPage.id, '[audit] Depth limit reached.')
@@ -522,7 +604,10 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
               }
             }
             await insertPageIssues(supabase, job.id, nextPage.id, scannedPage.issues)
-            await queueDiscoveredPages(supabase, job, nextPage, scannedPage.discoveredUrls)
+            const discoveredCount = await queueDiscoveredPages(supabase, job, nextPage, scannedPage.discoveredUrls)
+            if (discoveredCount > 0) {
+              countersSnapshot.pagesQueued += discoveredCount
+            }
             await markPageDone(supabase, nextPage.id, {
               url: scannedPage.url,
               normalizedUrl: scannedPage.normalizedUrl,
@@ -530,6 +615,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
               loadMs: scannedPage.loadMs,
               issuesCount: scannedPage.issues.length
             })
+            countersSnapshot.pagesScanned += 1
 
             logJson('info', 'page_scanned', {
               jobId: job.id,
@@ -544,6 +630,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
           } catch (scanError) {
             const categorized = formatCategorizedError(scanError)
             await markPageFailed(supabase, nextPage.id, truncateText(categorized.message, 600))
+            countersSnapshot.pagesFailed += 1
             logJson('warn', 'page_scan_failed', {
               jobId: job.id,
               pageId: nextPage.id,
@@ -560,6 +647,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
     }
 
     await Promise.all(Array.from({ length: pageConcurrency }, (_item, index) => worker(index + 1)))
+    await syncCounters(true)
 
     if (timeoutTriggered) {
       throw new Error('[timeout] Job exceeded execution watchdog limit.')
