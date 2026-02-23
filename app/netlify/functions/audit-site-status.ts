@@ -61,14 +61,31 @@ export const handler: Handler = async (event) => {
       progress = Math.round((processed / limit) * 100)
     }
     progress = Math.max(0, Math.min(100, progress))
-    const { data: runningPage } = await supabase
-      .from('audit_job_pages')
-      .select('url, depth')
-      .eq('job_id', job.id)
-      .eq('status', 'running')
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+
+    let runningPage: { url?: string | null; depth?: number | null } | null = null
+    if (job.status === 'running') {
+      try {
+        const runningPagePromise = supabase
+          .from('audit_job_pages')
+          .select('url, depth')
+          .eq('job_id', job.id)
+          .eq('status', 'running')
+          .order('id', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        const result = (await Promise.race([
+          runningPagePromise,
+          new Promise((resolve) => setTimeout(() => resolve(null), 2_500))
+        ])) as { data?: { url?: string | null; depth?: number | null } | null; error?: any } | null
+
+        if (result?.data && !result.error) {
+          runningPage = result.data
+        }
+      } catch (_runningPageError) {
+        runningPage = null
+      }
+    }
 
     return jsonResponse(200, {
       job: {
