@@ -35,7 +35,7 @@ export const handler: Handler = async (event) => {
 
     const { data: audits, error: auditError } = await supabase
       .from('audits')
-      .select('id, url, audit_kind, summary, created_at')
+      .select('id, url, audit_kind, summary, created_at, scope')
       .eq('user_id', userData.user.id)
       .order('created_at', { ascending: false })
       .range(from, to)

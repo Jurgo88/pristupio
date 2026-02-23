@@ -143,6 +143,7 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
 export const DASHBOARD_HISTORY_TEXT = {
   loading: 'Načítavam históriu...',
   empty: 'Zatiaľ nemáte žiadne audity.',
+  pillSite: 'Site audit',
   pillPaid: 'Základný audit',
   pillFree: 'Free audit',
   statsTotal: 'Spolu',

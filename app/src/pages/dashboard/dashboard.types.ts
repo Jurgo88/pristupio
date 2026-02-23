@@ -47,6 +47,7 @@ export type AuditHistoryItem = {
   url: string
   created_at?: string
   audit_kind?: 'paid' | 'free' | string
+  scope?: 'single' | 'site' | 'monitoring' | string
   summary?: DashboardReportSummary
 }
 
