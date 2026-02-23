@@ -107,11 +107,13 @@ export const handler: Handler = async (event) => {
       })
       if (redrive.dispatched) {
         logJson('info', 'status_worker_redrive_dispatched', {
-          jobId: job.id
+          jobId: job.id,
+          attemptsUsed: redrive.attemptsUsed
         })
       } else {
         logJson('warn', 'status_worker_redrive_failed', {
           jobId: job.id,
+          attemptsUsed: redrive.attemptsUsed,
           statusCode: redrive.statusCode,
           targetUrl: redrive.targetUrl,
           error: redrive.error || 'unknown'

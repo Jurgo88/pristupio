@@ -121,9 +121,16 @@ export const handler: Handler = async (event) => {
     if (!dispatch.dispatched) {
       logJson('warn', 'start_worker_dispatch_failed', {
         jobId: job.id,
+        attemptsUsed: dispatch.attemptsUsed,
         statusCode: dispatch.statusCode,
         targetUrl: dispatch.targetUrl,
         error: dispatch.error || 'unknown'
+      })
+    } else if (dispatch.attemptsUsed > 1) {
+      logJson('info', 'start_worker_dispatch_retried', {
+        jobId: job.id,
+        attemptsUsed: dispatch.attemptsUsed,
+        statusCode: dispatch.statusCode
       })
     }
 
