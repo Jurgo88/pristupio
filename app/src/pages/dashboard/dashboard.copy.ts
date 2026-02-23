@@ -132,6 +132,9 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
   progressDiscovered: 'Objavene',
   progressProcessed: 'Spracovane',
   progressCurrent: 'Aktualne',
+  progressEta: 'Odhad dokoncenia',
+  progressEtaSoon: 'menej ako 1 min',
+  progressEtaUnknown: 'pocitam...',
   progressInQueue: 'Vo fronte',
   progressLimit: 'Limit',
   progressFailed: 'Zlyhania'

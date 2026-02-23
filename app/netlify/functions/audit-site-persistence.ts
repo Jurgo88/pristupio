@@ -35,6 +35,7 @@ const DEFAULT_MAX_LINKS_PER_PAGE = 120
 
 const START_RATE_LIMIT_MAX_ATTEMPTS = clampNumber(process.env.AUDIT_SITE_START_RATE_LIMIT_MAX, 1, 20, 4)
 const START_RATE_LIMIT_WINDOW_SEC = clampNumber(process.env.AUDIT_SITE_START_RATE_LIMIT_WINDOW_SEC, 60, 86_400, 600)
+const START_RATE_LIMIT_ENABLED = process.env.AUDIT_SITE_START_RATE_LIMIT !== 'false'
 
 export const getMaxJobsPerWorker = () =>
   clampNumber(process.env.AUDIT_SITE_WORKER_MAX_JOBS, 1, 10, DEFAULT_MAX_JOBS_PER_WORKER)
@@ -170,19 +171,26 @@ export const canStartSiteAudit = (profile: SiteAuditProfile | null) => {
 }
 
 export const checkSiteAuditStartRateLimit = async (supabase: SupabaseAdminClient, userId: string) => {
+  if (!START_RATE_LIMIT_ENABLED) {
+    return { allowed: true, retryAfterSec: 0 }
+  }
+
   const since = new Date(Date.now() - START_RATE_LIMIT_WINDOW_SEC * 1_000).toISOString()
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from('audit_jobs')
-    .select('id', { count: 'exact', head: true })
+    .select('id, status, created_at')
     .eq('user_id', userId)
     .gte('created_at', since)
+    .in('status', ['queued', 'running', 'completed'])
+    .order('created_at', { ascending: false })
+    .limit(100)
 
   if (error) {
     logJson('warn', 'rate_limit_query_failed', { userId, error: getErrorMessage(error) })
     return { allowed: true, retryAfterSec: 0 }
   }
 
-  const used = Number(count || 0)
+  const used = Array.isArray(data) ? data.length : 0
   if (used < START_RATE_LIMIT_MAX_ATTEMPTS) {
     return { allowed: true, retryAfterSec: 0 }
   }

@@ -43,9 +43,24 @@ export const handler: Handler = async (event) => {
     }
 
     const job = jobResult.data
-    const processed = Number(job.pages_scanned || 0) + Number(job.pages_failed || 0)
+    const pagesScanned = Number(job.pages_scanned || 0)
+    const pagesFailed = Number(job.pages_failed || 0)
+    const pagesQueued = Number(job.pages_queued || 0)
+    const processed = pagesScanned + pagesFailed
+    const discovered = processed + pagesQueued
     const limit = Number(job.pages_limit || 0)
-    const progress = limit > 0 ? Math.min(100, Math.round((processed / limit) * 100)) : 0
+
+    let progress = 0
+    if (job.status === 'completed') {
+      progress = 100
+    } else if (processed <= 0 && pagesQueued > 0) {
+      progress = 3
+    } else if (discovered > 0) {
+      progress = Math.round((processed / discovered) * 100)
+    } else if (limit > 0) {
+      progress = Math.round((processed / limit) * 100)
+    }
+    progress = Math.max(0, Math.min(100, progress))
     const { data: runningPage } = await supabase
       .from('audit_job_pages')
       .select('url, depth')
@@ -64,9 +79,9 @@ export const handler: Handler = async (event) => {
         lang: job.lang,
         pagesLimit: limit,
         maxDepth: Number(job.max_depth || 0),
-        pagesQueued: Number(job.pages_queued || 0),
-        pagesScanned: Number(job.pages_scanned || 0),
-        pagesFailed: Number(job.pages_failed || 0),
+        pagesQueued,
+        pagesScanned,
+        pagesFailed,
         issuesTotal: Number(job.issues_total || 0),
         currentUrl: typeof runningPage?.url === 'string' ? runningPage.url : null,
         currentDepth: Number.isFinite(Number(runningPage?.depth)) ? Number(runningPage?.depth) : null,
