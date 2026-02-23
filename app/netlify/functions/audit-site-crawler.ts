@@ -411,7 +411,8 @@ const isHeartbeatDue = (lastHeartbeatAt: number) => Date.now() - lastHeartbeatAt
 
 export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: SiteAuditJobRow) => {
   let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
-  const rootHost = new URL(job.root_url).host.toLowerCase()
+  const initialRootHost = new URL(job.root_url).host.toLowerCase()
+  let canonicalRootHost = initialRootHost
   const jobDeadlineAt = Date.now() + getJobTimeoutMs(job)
   const robotsPolicy = await fetchRobotsPolicy(job.root_url)
   const pageConcurrency = getPageConcurrency(job)
@@ -422,6 +423,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
     mode: job.mode,
     pagesLimit: job.pages_limit,
     maxDepth: job.max_depth,
+    rootHost: initialRootHost,
     pageConcurrency,
     robotsSource: robotsPolicy.sourceUrl,
     robotsFetched: robotsPolicy.fetched,
@@ -507,7 +509,18 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
           }
 
           try {
-            const scannedPage = await scanSinglePageWithRetry(page, nextPage.url, rootHost, robotsPolicy)
+            const scannedPage = await scanSinglePageWithRetry(page, nextPage.url, canonicalRootHost, robotsPolicy)
+            if (Number(nextPage.depth || 0) === 0) {
+              const scannedHost = new URL(scannedPage.url).host.toLowerCase()
+              if (scannedHost !== canonicalRootHost && isInternalHost(scannedHost, canonicalRootHost)) {
+                canonicalRootHost = scannedHost
+                logJson('info', 'crawler_canonical_host_updated', {
+                  jobId: job.id,
+                  fromHost: initialRootHost,
+                  toHost: canonicalRootHost
+                })
+              }
+            }
             await insertPageIssues(supabase, job.id, nextPage.id, scannedPage.issues)
             await queueDiscoveredPages(supabase, job, nextPage, scannedPage.discoveredUrls)
             await markPageDone(supabase, nextPage.id, {

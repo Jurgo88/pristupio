@@ -3,6 +3,7 @@ import {
   claimOldestQueuedJob,
   failStuckRunningJobs,
   finalizeSiteAuditJob,
+  getFirstFailedPageForJob,
   getMaxJobsPerWorker,
   getPrimaryRunningJob,
   markJobFailed,
@@ -95,7 +96,14 @@ export const processQueuedSiteAuditJobs = async (
       const counters = await syncJobCounters(supabase, claimedJob.id)
       if (Number(counters.pagesScanned || 0) <= 0) {
         if (Number(counters.pagesFailed || 0) > 0) {
-          throw new Error('[audit] Site audit nedokazal uspesne naskenovat ziadnu podstranku. Vsetky pokusy zlyhali.')
+          const firstFailedPage = await getFirstFailedPageForJob(supabase, claimedJob.id)
+          const failedUrl = truncateText(firstFailedPage?.url || '', 180)
+          const failedReason = truncateText(firstFailedPage?.errorMessage || '', 320)
+          const urlPart = failedUrl ? ` URL: ${failedUrl}.` : ''
+          const reasonPart = failedReason ? ` Dovod: ${failedReason}` : ''
+          throw new Error(
+            `[audit] Site audit nedokazal uspesne naskenovat ziadnu podstranku.${urlPart}${reasonPart}`.trim()
+          )
         }
         throw new Error('[audit] Site audit nenasiel ziadnu skenovatelnu podstranku (robots, depth alebo URL filtre).')
       }
