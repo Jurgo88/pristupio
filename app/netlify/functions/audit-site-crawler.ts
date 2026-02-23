@@ -63,6 +63,8 @@ const LIVE_STATUS_REFRESH_INTERVAL_MS = clampNumber(
 )
 const BLOCK_EXTERNAL_RESOURCES = process.env.AUDIT_SITE_BLOCK_EXTERNAL_RESOURCES === 'true'
 const NON_CRITICAL_RESOURCE_TYPES = new Set(['image', 'media', 'font'])
+const HTML_CONTENT_TYPE_MARKERS = ['text/html', 'application/xhtml+xml']
+const SKIP_SCAN_PREFIX = '[audit][skip]'
 
 type RobotsRule = {
   allow: boolean
@@ -245,6 +247,19 @@ const normalizeRuleId = (value: unknown) => {
   return normalized || 'unknown'
 }
 
+const createSkipScanError = (reason: string) => {
+  return new Error(`${SKIP_SCAN_PREFIX} ${reason}`.trim())
+}
+
+const isSkipScanError = (error: unknown) => {
+  return getErrorMessage(error).toLowerCase().includes(SKIP_SCAN_PREFIX)
+}
+
+const toSkipPageMessage = (error: unknown) => {
+  const message = getErrorMessage(error).replace(/\[audit\]\[skip\]\s*/gi, '[audit] ').trim()
+  return message || '[audit] Stranka bola preskocena.'
+}
+
 const normalizeAuditResults = (results: any): ReportIssue[] => {
   const violations = Array.isArray(results?.violations) ? results.violations : []
 
@@ -338,6 +353,15 @@ const scanSinglePageOnce = async (
   const finalHost = new URL(finalUrl).host.toLowerCase()
   if (!isInternalHost(finalHost, rootHost)) {
     throw new Error('Navigation left the target domain.')
+  }
+
+  if (!isLikelyCrawlableUrl(finalUrl)) {
+    throw createSkipScanError(`Final URL nie je vhodna na crawl (${finalUrl}).`)
+  }
+
+  const contentType = String(response?.headers()?.['content-type'] || '').toLowerCase()
+  if (contentType && !HTML_CONTENT_TYPE_MARKERS.some((marker) => contentType.includes(marker))) {
+    throw createSkipScanError(`Nepodporovany content-type: ${truncateText(contentType, 120)}`)
   }
 
   const results = await withTimeout(
@@ -628,6 +652,19 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
               loadMs: scannedPage.loadMs
             })
           } catch (scanError) {
+            if (isSkipScanError(scanError)) {
+              const skippedMessage = truncateText(toSkipPageMessage(scanError), 600)
+              await markPageSkipped(supabase, nextPage.id, skippedMessage)
+              logJson('info', 'page_scan_skipped_runtime', {
+                jobId: job.id,
+                pageId: nextPage.id,
+                workerIndex,
+                url: nextPage.url,
+                reason: truncateText(getErrorMessage(scanError), 450)
+              })
+              continue
+            }
+
             const categorized = formatCategorizedError(scanError)
             await markPageFailed(supabase, nextPage.id, truncateText(categorized.message, 600))
             countersSnapshot.pagesFailed += 1
