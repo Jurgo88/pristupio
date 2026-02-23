@@ -13,6 +13,7 @@ import { dispatchSiteAuditWorkerBackground } from './audit-site-worker-dispatch'
 const QUEUED_REDRIVE_AFTER_MS = 12_000
 const QUEUED_REDRIVE_INTERVAL_MS = 30_000
 const QUEUED_REDRIVE_WINDOW_MS = 3_000
+const RUNNING_PAGE_QUERY_TIMEOUT_MS = 2_500
 
 const getUnixMs = (value: unknown) => {
   if (typeof value !== 'string' || !value.trim()) return NaN
@@ -33,6 +34,34 @@ const shouldRedriveQueuedJob = (job: any) => {
   const offset = ageMs - QUEUED_REDRIVE_AFTER_MS
   const withinWindow = offset % QUEUED_REDRIVE_INTERVAL_MS
   return withinWindow >= 0 && withinWindow <= QUEUED_REDRIVE_WINDOW_MS
+}
+
+const loadRunningPageBestEffort = async (supabase: any, jobId: string, status: string) => {
+  if (status !== 'running') return null
+
+  try {
+    const queryPromise = supabase
+      .from('audit_job_pages')
+      .select('url, depth')
+      .eq('job_id', jobId)
+      .eq('status', 'running')
+      .order('id', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), RUNNING_PAGE_QUERY_TIMEOUT_MS)
+    )
+
+    const result = (await Promise.race([queryPromise, timeoutPromise])) as
+      | { data?: { url?: string | null; depth?: number | null } | null; error?: any }
+      | null
+
+    if (!result || result.error) return null
+    return result.data || null
+  } catch {
+    return null
+  }
 }
 
 export const handler: Handler = async (event) => {
@@ -108,14 +137,7 @@ export const handler: Handler = async (event) => {
       progress = Math.round((processed / limit) * 100)
     }
     progress = Math.max(0, Math.min(100, progress))
-    const { data: runningPage } = await supabase
-      .from('audit_job_pages')
-      .select('url, depth')
-      .eq('job_id', job.id)
-      .eq('status', 'running')
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle()
+    const runningPage = await loadRunningPageBestEffort(supabase, job.id, String(job.status || ''))
 
     return jsonResponse(200, {
       job: {
