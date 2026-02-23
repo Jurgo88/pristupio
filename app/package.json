@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "site-audit:smoke": "node scripts/site-audit-smoke.mjs"
   },
   "dependencies": {
     "@netlify/functions": "^5.1.2",
