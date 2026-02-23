@@ -11,9 +11,15 @@ const parseMaxJobs = (rawValue: string | undefined) => {
   return Math.min(10, Math.floor(parsed))
 }
 
-const isAuthorized = (headers: Record<string, string | undefined>) => {
-  const secret = process.env.AUDIT_SITE_WORKER_SECRET || ''
-  if (!secret) return true
+const getWorkerSecret = () => (process.env.AUDIT_SITE_WORKER_SECRET || '').trim()
+const isDevMode = () => process.env.NETLIFY_DEV === 'true'
+
+const isScheduledInvocation = (event: Parameters<Handler>[0]) => {
+  const marker = event.headers['x-nf-event'] || event.headers['X-Nf-Event'] || ''
+  return String(marker).trim().toLowerCase() === 'schedule'
+}
+
+const isAuthorized = (headers: Record<string, string | undefined>, secret: string) => {
   const provided = headers['x-audit-site-secret'] || headers['X-Audit-Site-Secret'] || ''
   return provided === secret
 }
@@ -33,7 +39,13 @@ export const handler: Handler = async (event) => {
       return errorResponse(405, 'Metoda nie je povolena.')
     }
 
-    if (!isAuthorized(event.headers)) {
+    const workerSecret = getWorkerSecret()
+    if (!workerSecret && !isDevMode()) {
+      return errorResponse(500, 'Chyba konfiguracia worker secretu.')
+    }
+
+    const scheduledInvocation = isScheduledInvocation(event)
+    if (workerSecret && !scheduledInvocation && !isAuthorized(event.headers, workerSecret)) {
       return errorResponse(401, 'Neplatna autorizacia workeru.')
     }
 
@@ -65,7 +77,12 @@ export const handler: Handler = async (event) => {
     }
 
     const dispatch = await fetch(backgroundUrl, {
-      method: 'POST'
+      method: 'POST',
+      headers: workerSecret
+        ? {
+            'x-audit-site-secret': workerSecret
+          }
+        : undefined
     })
 
     if (!dispatch.ok && dispatch.status !== 202) {

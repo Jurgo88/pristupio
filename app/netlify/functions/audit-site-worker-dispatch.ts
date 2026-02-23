@@ -11,6 +11,8 @@ const DEFAULT_DISPATCH_RETRY_MAX_DELAY_MS = clampNumber(
   10_000,
   1_500
 )
+const getWorkerSecret = () => (process.env.AUDIT_SITE_WORKER_SECRET || '').trim()
+const isDevMode = () => process.env.NETLIFY_DEV === 'true'
 
 const getForwardedHeader = (headers: Record<string, string | undefined>, lower: string, upper: string) => {
   return headers[lower] || headers[upper] || ''
@@ -86,11 +88,21 @@ export const dispatchSiteAuditWorkerBackground = async (
     }
   }
 
+  const workerSecret = getWorkerSecret()
+  if (!workerSecret && !isDevMode()) {
+    return {
+      dispatched: false,
+      attemptsUsed: 0,
+      error: 'Chyba konfiguracia worker secretu.'
+    }
+  }
+
   const maxJobs = clampNumber(options?.maxJobs, 1, 10, 1)
   const timeoutMs = clampNumber(options?.timeoutMs, 500, 10_000, DEFAULT_DISPATCH_TIMEOUT_MS)
   const maxAttempts = clampNumber(options?.maxAttempts, 1, 5, DEFAULT_DISPATCH_MAX_ATTEMPTS)
   const query = new URLSearchParams({ maxJobs: String(maxJobs) })
   const targetUrl = `${baseUrl}/.netlify/functions/audit-site-worker-background?${query.toString()}`
+  const headers = workerSecret ? { 'x-audit-site-secret': workerSecret } : undefined
 
   let lastStatusCode: number | undefined
   let lastError = ''
@@ -102,6 +114,7 @@ export const dispatchSiteAuditWorkerBackground = async (
     try {
       const response = await fetch(targetUrl, {
         method: 'POST',
+        headers,
         signal: controller.signal
       })
 

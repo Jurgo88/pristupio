@@ -330,7 +330,12 @@ export const useAuditStore = defineStore('audit', {
           method: 'POST'
         })
 
-        if (!backgroundResponse.ok && backgroundResponse.status !== 202) {
+        if (
+          !backgroundResponse.ok &&
+          backgroundResponse.status !== 202 &&
+          backgroundResponse.status !== 401 &&
+          backgroundResponse.status !== 403
+        ) {
           await fetch(`/.netlify/functions/audit-site-worker?${query.toString()}`, {
             method: 'POST'
           })
