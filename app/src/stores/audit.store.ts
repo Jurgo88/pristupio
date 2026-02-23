@@ -165,6 +165,7 @@ export const useAuditStore = defineStore('audit', {
       id: string
       url: string
       audit_kind: 'free' | 'paid'
+      scope?: 'single' | 'site' | 'monitoring' | string
       summary: AuditReport['summary']
       created_at: string
     }>

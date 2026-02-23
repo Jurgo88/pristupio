@@ -16,7 +16,7 @@
         <strong>{{ audit.url }}</strong>
         <div class="history-sub">
           <span>{{ formatDate(audit.created_at) }}</span>
-          <span class="pill">{{ audit.audit_kind === 'paid' ? copy.pillPaid : copy.pillFree }}</span>
+          <span class="pill">{{ auditPillLabel(audit) }}</span>
         </div>
         <div class="history-stats">
           <span>{{ copy.statsTotal }}: {{ issueTotal(audit.summary) }}</span>
@@ -116,6 +116,11 @@ const monitorButtonTitle = (audit: AuditHistoryItem) => {
 
 const isPendingAudit = (audit: AuditHistoryItem) => {
   return props.monitoringLoadingAction && pendingMonitoringAuditId.value === audit.id
+}
+
+const auditPillLabel = (audit: AuditHistoryItem) => {
+  if (audit.scope === 'site') return copy.pillSite
+  return audit.audit_kind === 'paid' ? copy.pillPaid : copy.pillFree
 }
 
 const handleRunMonitoringForAudit = async (audit: AuditHistoryItem) => {

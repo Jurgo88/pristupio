@@ -143,6 +143,7 @@ export const DASHBOARD_AUDIT_FORM_TEXT = {
 export const DASHBOARD_HISTORY_TEXT = {
   loading: 'Načítavam históriu...',
   empty: 'Zatiaľ nemáte žiadne audity.',
+  pillSite: 'Site audit',
   pillPaid: 'Základný audit',
   pillFree: 'Free audit',
   statsTotal: 'Spolu',
@@ -175,7 +176,13 @@ export const DASHBOARD_CORE_TEXT = {
   monitoringNoDomains: 'Monitoring plán pre tento účet nemá dostupné domény.',
   monitoringAddSuccess: 'Doména bola pridaná do monitoringu.',
   monitoringAddError: 'Monitoring domény sa nepodarilo aktivovať.',
-  monitoringLimitReached: (limit: number) => `Dosiahli ste limit monitorovaných domén (${limit}).`
+  monitoringLimitReached: (limit: number) => `Dosiahli ste limit monitorovaných domén (${limit}).`,
+  siteAuditSuccessTitle: 'Site audit bol úspešne dokončený.',
+  siteAuditSuccessLead: 'Audit prebehol úspešne. Môžete si otvoriť report s detailami.',
+  siteAuditSuccessTotal: 'Nájdené chyby',
+  siteAuditSuccessHigh: 'Kritické + závažné',
+  siteAuditSuccessOpen: 'Otvoriť audit',
+  siteAuditSuccessClose: 'Zavrieť'
 } as const
 
 export const DASHBOARD_ISSUES_TEXT = {
