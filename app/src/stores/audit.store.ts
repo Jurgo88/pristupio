@@ -67,6 +67,16 @@ type SiteAuditJob = {
 
 const REPORT_LOCALE = 'sk'
 const SITE_AUDIT_POLL_INTERVAL_MS = 2_500
+const SITE_AUDIT_POLL_MIN_INTERVAL_MS = 2_000
+const SITE_AUDIT_POLL_MAX_INTERVAL_MS = 12_000
+const SITE_AUDIT_POLL_QUEUED_MS = 4_000
+const SITE_AUDIT_POLL_QUEUED_STALE_MS = 8_000
+const SITE_AUDIT_POLL_RUNNING_IDLE_MS = 4_000
+const SITE_AUDIT_POLL_RUNNING_STALE_MS = 7_000
+const SITE_AUDIT_POLL_QUEUED_STALE_AFTER_MS = 90_000
+const SITE_AUDIT_POLL_RUNNING_IDLE_AFTER_MS = 35_000
+const SITE_AUDIT_POLL_RUNNING_STALE_AFTER_MS = 90_000
+const SITE_AUDIT_POLL_HIDDEN_TAB_MULTIPLIER = 2
 const SITE_AUDIT_TIMEOUT_MIN_MS = 20 * 60 * 1_000
 const SITE_AUDIT_TIMEOUT_MAX_MS = 3 * 60 * 60 * 1_000
 const SITE_AUDIT_TIMEOUT_PER_PAGE_MS = 45_000
@@ -93,6 +103,12 @@ const parseJsonSafe = async (response: Response) => {
   } catch (_error) {
     return null
   }
+}
+
+const parseUnixMs = (value: unknown) => {
+  if (typeof value !== 'string' || !value.trim()) return NaN
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : NaN
 }
 
 const normalizeSiteAuditJob = (raw: any): SiteAuditJob | null => {
@@ -153,6 +169,42 @@ const getSiteAuditTimeoutMs = (pagesLimit?: unknown) => {
   const parsedLimit = Number(pagesLimit)
   const estimated = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit * SITE_AUDIT_TIMEOUT_PER_PAGE_MS : 45 * 60 * 1_000
   return Math.max(SITE_AUDIT_TIMEOUT_MIN_MS, Math.min(SITE_AUDIT_TIMEOUT_MAX_MS, Math.round(estimated)))
+}
+
+const isDocumentHidden = () => {
+  if (typeof document === 'undefined') return false
+  return document.visibilityState === 'hidden'
+}
+
+const clampPollInterval = (value: number) =>
+  Math.max(SITE_AUDIT_POLL_MIN_INTERVAL_MS, Math.min(SITE_AUDIT_POLL_MAX_INTERVAL_MS, Math.round(value)))
+
+const getAdaptiveSiteAuditPollIntervalMs = (
+  job: SiteAuditJob | null,
+  lastActivityAt: number
+) => {
+  const now = Date.now()
+  const status = String(job?.status || 'queued')
+  let intervalMs = SITE_AUDIT_POLL_INTERVAL_MS
+
+  if (status === 'queued') {
+    const createdAtMs = parseUnixMs(job?.createdAt)
+    const queuedAgeMs = Number.isFinite(createdAtMs) ? Math.max(0, now - createdAtMs) : 0
+    intervalMs = queuedAgeMs >= SITE_AUDIT_POLL_QUEUED_STALE_AFTER_MS ? SITE_AUDIT_POLL_QUEUED_STALE_MS : SITE_AUDIT_POLL_QUEUED_MS
+  } else if (status === 'running') {
+    const idleMs = Math.max(0, now - lastActivityAt)
+    if (idleMs >= SITE_AUDIT_POLL_RUNNING_STALE_AFTER_MS) {
+      intervalMs = SITE_AUDIT_POLL_RUNNING_STALE_MS
+    } else if (idleMs >= SITE_AUDIT_POLL_RUNNING_IDLE_AFTER_MS) {
+      intervalMs = SITE_AUDIT_POLL_RUNNING_IDLE_MS
+    }
+  }
+
+  if (isDocumentHidden()) {
+    intervalMs *= SITE_AUDIT_POLL_HIDDEN_TAB_MULTIPLIER
+  }
+
+  return clampPollInterval(intervalMs)
 }
 
 export const useAuditStore = defineStore('audit', {
@@ -361,7 +413,8 @@ export const useAuditStore = defineStore('audit', {
           void this.triggerSiteAuditWorker(1)
         }
 
-        await delay(SITE_AUDIT_POLL_INTERVAL_MS)
+        const pollDelayMs = getAdaptiveSiteAuditPollIntervalMs(job || this.siteAuditJob, lastActivityAt)
+        await delay(pollDelayMs)
       }
 
       throw new Error('Site audit stale bezi na serveri. Kliknite na Spustit site audit pre obnovenie stavu alebo audit ukoncite.')
