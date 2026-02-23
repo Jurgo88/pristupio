@@ -322,11 +322,15 @@ export const cancelSiteAuditJob = async (supabase: SupabaseAdminClient, userId: 
 }
 
 export const syncJobCounters = async (supabase: SupabaseAdminClient, jobId: string) => {
-  const { data: pages } = await supabase.from('audit_job_pages').select('status').eq('job_id', jobId)
+  const [queuedResult, scannedResult, failedResult] = await Promise.all([
+    supabase.from('audit_job_pages').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'queued'),
+    supabase.from('audit_job_pages').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'done'),
+    supabase.from('audit_job_pages').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'failed')
+  ])
 
-  const queued = (pages || []).filter((page: any) => page?.status === 'queued').length
-  const scanned = (pages || []).filter((page: any) => page?.status === 'done').length
-  const failed = (pages || []).filter((page: any) => page?.status === 'failed').length
+  const queued = Math.max(0, Number(queuedResult.count || 0))
+  const scanned = Math.max(0, Number(scannedResult.count || 0))
+  const failed = Math.max(0, Number(failedResult.count || 0))
 
   await supabase
     .from('audit_jobs')
