@@ -131,6 +131,7 @@
       </div>
       <p v-if="siteProgressLine" class="audit-progress__meta">{{ siteProgressLine }}</p>
       <p v-if="siteCurrentLine" class="audit-progress__meta">{{ siteCurrentLine }}</p>
+      <p v-if="siteEtaLine" class="audit-progress__meta">{{ siteEtaLine }}</p>
     </div>
 
     <div v-if="errorMessage" class="status-alert status-alert--danger">{{ errorMessage }}</div>
@@ -164,6 +165,7 @@ const props = defineProps<{
     pagesFailed?: number
     currentUrl?: string | null
     currentDepth?: number | null
+    startedAt?: string | null
   } | null
   errorMessage: string
 }>()
@@ -279,6 +281,48 @@ const siteCurrentLine = computed(() => {
       : null
 
   return depth === null ? `${copy.progressCurrent}: ${display}` : `${copy.progressCurrent}: ${display} (depth ${depth})`
+})
+const siteEtaLine = computed(() => {
+  if (props.auditMode !== 'site' || !props.siteAuditJob) return ''
+  if (props.siteAuditJob.status !== 'running') return ''
+
+  const startedAtRaw = typeof props.siteAuditJob.startedAt === 'string' ? props.siteAuditJob.startedAt : ''
+  const startedAtMs = startedAtRaw ? new Date(startedAtRaw).getTime() : NaN
+  if (!Number.isFinite(startedAtMs) || startedAtMs <= 0) {
+    return `${copy.progressEta}: ${copy.progressEtaUnknown}`
+  }
+
+  const elapsedMs = Date.now() - startedAtMs
+  if (elapsedMs < 15_000 || sitePagesProcessed.value <= 0) {
+    return `${copy.progressEta}: ${copy.progressEtaUnknown}`
+  }
+
+  const avgMsPerPage = elapsedMs / sitePagesProcessed.value
+  if (!Number.isFinite(avgMsPerPage) || avgMsPerPage <= 0) {
+    return `${copy.progressEta}: ${copy.progressEtaUnknown}`
+  }
+
+  let remainingPages = sitePagesQueued.value
+  if (remainingPages <= 0 && sitePagesLimit.value > 0) {
+    remainingPages = Math.max(0, sitePagesLimit.value - sitePagesProcessed.value)
+  }
+  if (remainingPages <= 0) return ''
+
+  const etaMs = remainingPages * avgMsPerPage
+  const etaMinutes = Math.round(etaMs / 60_000)
+  if (etaMinutes <= 0) {
+    return `${copy.progressEta}: ${copy.progressEtaSoon}`
+  }
+  if (etaMinutes < 60) {
+    return `${copy.progressEta}: ~${etaMinutes} min`
+  }
+
+  const hours = Math.floor(etaMinutes / 60)
+  const minutes = etaMinutes % 60
+  if (minutes <= 0) {
+    return `${copy.progressEta}: ~${hours} h`
+  }
+  return `${copy.progressEta}: ~${hours} h ${minutes} min`
 })
 
 const siteProgressLine = computed(() => {
