@@ -178,7 +178,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import {
   DashboardAccessPanels,
   DashboardAuditForm,
@@ -345,11 +345,18 @@ const handleStartAuditWithSuccessModal = async () => {
 const openSiteAuditFromModal = async () => {
   closeSiteAuditSuccessModal()
   const auditId = auditStore.currentAudit?.auditId
+  activeMobileTab.value = 'issues'
   if (typeof auditId === 'string' && auditId) {
     await selectAudit(auditId)
-    return
+  } else {
+    openLatestAudit()
   }
-  openLatestAudit()
+
+  await nextTick()
+  const issuesPanel = document.querySelector('.issues-panel') as HTMLElement | null
+  if (issuesPanel) {
+    issuesPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 const lastAuditLabel = computed(() => {
