@@ -3,6 +3,14 @@ import { getErrorMessage } from './audit-site-observability'
 import { clampNumber } from './audit-site-types'
 
 const DEFAULT_DISPATCH_TIMEOUT_MS = clampNumber(process.env.AUDIT_SITE_DISPATCH_TIMEOUT_MS, 500, 10_000, 1_500)
+const DEFAULT_DISPATCH_MAX_ATTEMPTS = clampNumber(process.env.AUDIT_SITE_DISPATCH_MAX_ATTEMPTS, 1, 5, 3)
+const DEFAULT_DISPATCH_RETRY_BASE_MS = clampNumber(process.env.AUDIT_SITE_DISPATCH_RETRY_BASE_MS, 100, 3_000, 250)
+const DEFAULT_DISPATCH_RETRY_MAX_DELAY_MS = clampNumber(
+  process.env.AUDIT_SITE_DISPATCH_RETRY_MAX_DELAY_MS,
+  300,
+  10_000,
+  1_500
+)
 
 const getForwardedHeader = (headers: Record<string, string | undefined>, lower: string, upper: string) => {
   return headers[lower] || headers[upper] || ''
@@ -32,13 +40,38 @@ type DispatchWorkerOptions = {
   event?: HandlerEvent | null
   maxJobs?: number
   timeoutMs?: number
+  maxAttempts?: number
 }
 
 type DispatchWorkerResult = {
   dispatched: boolean
+  attemptsUsed: number
   statusCode?: number
   targetUrl?: string
   error?: string
+}
+
+const waitMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const shouldRetryDispatchStatus = (statusCode: number) => {
+  return (
+    statusCode === 408 ||
+    statusCode === 425 ||
+    statusCode === 429 ||
+    statusCode === 500 ||
+    statusCode === 502 ||
+    statusCode === 503 ||
+    statusCode === 504
+  )
+}
+
+const computeRetryDelayMs = (attempt: number) => {
+  const exponent = Math.max(0, attempt - 1)
+  const jitter = Math.floor(Math.random() * 120)
+  return Math.min(
+    DEFAULT_DISPATCH_RETRY_MAX_DELAY_MS,
+    DEFAULT_DISPATCH_RETRY_BASE_MS * 2 ** exponent + jitter
+  )
 }
 
 export const dispatchSiteAuditWorkerBackground = async (
@@ -48,35 +81,74 @@ export const dispatchSiteAuditWorkerBackground = async (
   if (!baseUrl) {
     return {
       dispatched: false,
+      attemptsUsed: 0,
       error: 'Nepodarilo sa zostavit URL pre background worker.'
     }
   }
 
   const maxJobs = clampNumber(options?.maxJobs, 1, 10, 1)
   const timeoutMs = clampNumber(options?.timeoutMs, 500, 10_000, DEFAULT_DISPATCH_TIMEOUT_MS)
+  const maxAttempts = clampNumber(options?.maxAttempts, 1, 5, DEFAULT_DISPATCH_MAX_ATTEMPTS)
   const query = new URLSearchParams({ maxJobs: String(maxJobs) })
   const targetUrl = `${baseUrl}/.netlify/functions/audit-site-worker-background?${query.toString()}`
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let lastStatusCode: number | undefined
+  let lastError = ''
 
-  try {
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      signal: controller.signal
-    })
-    return {
-      dispatched: response.ok || response.status === 202,
-      statusCode: response.status,
-      targetUrl
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        signal: controller.signal
+      })
+
+      const dispatched = response.ok || response.status === 202
+      if (dispatched) {
+        return {
+          dispatched: true,
+          attemptsUsed: attempt,
+          statusCode: response.status,
+          targetUrl
+        }
+      }
+
+      lastStatusCode = response.status
+      lastError = `Dispatch endpoint returned status ${response.status}.`
+      if (!shouldRetryDispatchStatus(response.status) || attempt >= maxAttempts) {
+        return {
+          dispatched: false,
+          attemptsUsed: attempt,
+          statusCode: response.status,
+          targetUrl,
+          error: lastError
+        }
+      }
+    } catch (error) {
+      lastError = getErrorMessage(error)
+      if (attempt >= maxAttempts) {
+        return {
+          dispatched: false,
+          attemptsUsed: attempt,
+          statusCode: lastStatusCode,
+          targetUrl,
+          error: lastError
+        }
+      }
+    } finally {
+      clearTimeout(timer)
     }
-  } catch (error) {
-    return {
-      dispatched: false,
-      targetUrl,
-      error: getErrorMessage(error)
-    }
-  } finally {
-    clearTimeout(timer)
+
+    await waitMs(computeRetryDelayMs(attempt))
+  }
+
+  return {
+    dispatched: false,
+    attemptsUsed: maxAttempts,
+    statusCode: lastStatusCode,
+    targetUrl,
+    error: lastError || 'Dispatch failed after retries.'
   }
 }
