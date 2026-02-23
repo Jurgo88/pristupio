@@ -21,6 +21,7 @@ import {
 } from './audit-site-persistence'
 import { isInternalHost, isLikelyCrawlableUrl, normalizeUrlForCrawl } from './audit-site-security'
 import {
+  type AuditErrorCategory,
   classifyAuditError,
   delay,
   formatCategorizedError,
@@ -65,6 +66,7 @@ const BLOCK_EXTERNAL_RESOURCES = process.env.AUDIT_SITE_BLOCK_EXTERNAL_RESOURCES
 const NON_CRITICAL_RESOURCE_TYPES = new Set(['image', 'media', 'font'])
 const HTML_CONTENT_TYPE_MARKERS = ['text/html', 'application/xhtml+xml']
 const SKIP_SCAN_PREFIX = '[audit][skip]'
+const RETRY_TELEMETRY_KEY = '__auditRetryTelemetry'
 
 type RobotsRule = {
   allow: boolean
@@ -76,6 +78,116 @@ type RobotsPolicy = {
   fetched: boolean
   statusCode: number | null
   isAllowed: (url: string) => boolean
+}
+
+type RetryTelemetry = {
+  attemptsUsed: number
+  retriesUsed: number
+  retryBackoffMs: number
+  retryCategories: AuditErrorCategory[]
+  lastErrorCategory: AuditErrorCategory | null
+}
+
+type PageScanWithRetryResult = {
+  scannedPage: ScannedPage
+  retryTelemetry: RetryTelemetry
+}
+
+type CrawlerErrorBuckets = Record<AuditErrorCategory, number>
+
+type CrawlerRunMetrics = {
+  pagesScanned: number
+  pagesFailed: number
+  pagesSkipped: number
+  retriesTotal: number
+  retryingPages: number
+  retryBackoffMsTotal: number
+  attemptsTotal: number
+  errorBuckets: CrawlerErrorBuckets
+}
+
+const createEmptyErrorBuckets = (): CrawlerErrorBuckets => ({
+  network: 0,
+  parsing: 0,
+  audit: 0,
+  timeout: 0,
+  security: 0,
+  unknown: 0
+})
+
+const isAuditErrorCategory = (value: unknown): value is AuditErrorCategory => {
+  return (
+    value === 'network' ||
+    value === 'parsing' ||
+    value === 'audit' ||
+    value === 'timeout' ||
+    value === 'security' ||
+    value === 'unknown'
+  )
+}
+
+const createRetryTelemetry = (overrides?: Partial<RetryTelemetry>): RetryTelemetry => ({
+  attemptsUsed: Math.max(1, Number(overrides?.attemptsUsed || 1)),
+  retriesUsed: Math.max(0, Number(overrides?.retriesUsed || 0)),
+  retryBackoffMs: Math.max(0, Number(overrides?.retryBackoffMs || 0)),
+  retryCategories: Array.isArray(overrides?.retryCategories)
+    ? overrides.retryCategories.filter((item) => isAuditErrorCategory(item))
+    : [],
+  lastErrorCategory: isAuditErrorCategory(overrides?.lastErrorCategory) ? overrides.lastErrorCategory : null
+})
+
+const withRetryTelemetry = (error: unknown, telemetry: RetryTelemetry) => {
+  const wrapped = error instanceof Error ? error : new Error(getErrorMessage(error))
+  ;(wrapped as any)[RETRY_TELEMETRY_KEY] = telemetry
+  return wrapped
+}
+
+const getRetryTelemetry = (error: unknown): RetryTelemetry => {
+  const raw = error && typeof error === 'object' ? (error as any)[RETRY_TELEMETRY_KEY] : null
+  if (!raw || typeof raw !== 'object') return createRetryTelemetry()
+
+  return createRetryTelemetry({
+    attemptsUsed: Number(raw.attemptsUsed || 1),
+    retriesUsed: Number(raw.retriesUsed || 0),
+    retryBackoffMs: Number(raw.retryBackoffMs || 0),
+    retryCategories: Array.isArray(raw.retryCategories) ? raw.retryCategories : [],
+    lastErrorCategory: raw.lastErrorCategory
+  })
+}
+
+const createCrawlerRunMetrics = (): CrawlerRunMetrics => ({
+  pagesScanned: 0,
+  pagesFailed: 0,
+  pagesSkipped: 0,
+  retriesTotal: 0,
+  retryingPages: 0,
+  retryBackoffMsTotal: 0,
+  attemptsTotal: 0,
+  errorBuckets: createEmptyErrorBuckets()
+})
+
+const applyRetryTelemetryToMetrics = (metrics: CrawlerRunMetrics, telemetry: RetryTelemetry) => {
+  metrics.attemptsTotal += Math.max(1, Number(telemetry.attemptsUsed || 1))
+  metrics.retriesTotal += Math.max(0, Number(telemetry.retriesUsed || 0))
+  metrics.retryBackoffMsTotal += Math.max(0, Number(telemetry.retryBackoffMs || 0))
+  if (Number(telemetry.retriesUsed || 0) > 0) {
+    metrics.retryingPages += 1
+  }
+}
+
+const incrementErrorBucket = (buckets: CrawlerErrorBuckets, category: AuditErrorCategory) => {
+  buckets[category] = Math.max(0, Number(buckets[category] || 0)) + 1
+}
+
+const roundMetric = (value: number, fractionDigits = 2) => {
+  if (!Number.isFinite(value)) return 0
+  const factor = 10 ** Math.max(0, fractionDigits)
+  return Math.round(value * factor) / factor
+}
+
+const toPerMinute = (count: number, durationMs: number) => {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 0
+  return roundMetric((Math.max(0, Number(count || 0)) * 60_000) / durationMs, 2)
 }
 
 const parseRobots = (content: string) => {
@@ -403,8 +515,11 @@ const scanSinglePageWithRetry = async (
   url: string,
   rootHost: string,
   robotsPolicy: RobotsPolicy
-): Promise<ScannedPage> => {
+): Promise<PageScanWithRetryResult> => {
   let lastError: unknown = null
+  let retriesUsed = 0
+  let retryBackoffMs = 0
+  const retryCategories: AuditErrorCategory[] = []
 
   for (let attempt = 1; attempt <= PAGE_SCAN_MAX_ATTEMPTS; attempt += 1) {
     try {
@@ -413,21 +528,51 @@ const scanSinglePageWithRetry = async (
         PAGE_SCAN_TIMEOUT_MS,
         'Page scan timeout.'
       )
-      return scanned
+      return {
+        scannedPage: scanned,
+        retryTelemetry: createRetryTelemetry({
+          attemptsUsed: attempt,
+          retriesUsed,
+          retryBackoffMs,
+          retryCategories,
+          lastErrorCategory: null
+        })
+      }
     } catch (error) {
       lastError = error
       const category = classifyAuditError(error)
       if (!isRetryableCategory(category) || attempt >= PAGE_SCAN_MAX_ATTEMPTS) {
-        break
+        throw withRetryTelemetry(
+          error,
+          createRetryTelemetry({
+            attemptsUsed: attempt,
+            retriesUsed,
+            retryBackoffMs,
+            retryCategories,
+            lastErrorCategory: category
+          })
+        )
       }
 
+      retriesUsed += 1
+      retryCategories.push(category)
       const jitter = Math.floor(Math.random() * 200)
       const backoff = Math.min(20_000, PAGE_SCAN_BACKOFF_BASE_MS * 2 ** (attempt - 1) + jitter)
+      retryBackoffMs += backoff
       await delay(backoff)
     }
   }
 
-  throw lastError || new Error('Page scan failed.')
+  throw withRetryTelemetry(
+    lastError || new Error('Page scan failed.'),
+    createRetryTelemetry({
+      attemptsUsed: Math.max(1, PAGE_SCAN_MAX_ATTEMPTS),
+      retriesUsed,
+      retryBackoffMs,
+      retryCategories,
+      lastErrorCategory: lastError ? classifyAuditError(lastError) : 'unknown'
+    })
+  )
 }
 
 const getPageConcurrency = (job: SiteAuditJobRow) => {
@@ -443,12 +588,16 @@ const getJobTimeoutMs = (job: SiteAuditJobRow) => {
 const isHeartbeatDue = (lastHeartbeatAt: number) => Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS
 
 export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: SiteAuditJobRow) => {
+  const runStartedAt = Date.now()
   let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
   const initialRootHost = new URL(job.root_url).host.toLowerCase()
   let canonicalRootHost = initialRootHost
   const jobDeadlineAt = Date.now() + getJobTimeoutMs(job)
   const robotsPolicy = await fetchRobotsPolicy(job.root_url)
   const pageConcurrency = getPageConcurrency(job)
+  const metrics = createCrawlerRunMetrics()
+  let runOutcome: 'completed' | 'cancelled' | 'timeout' | 'failed' = 'failed'
+  let runError: unknown = null
 
   logJson('info', 'crawler_started', {
     jobId: job.id,
@@ -458,6 +607,10 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
     maxDepth: job.max_depth,
     rootHost: initialRootHost,
     pageConcurrency,
+    retryMaxAttempts: PAGE_SCAN_MAX_ATTEMPTS,
+    pageScanTimeoutMs: PAGE_SCAN_TIMEOUT_MS,
+    navigationTimeoutMs: NAVIGATION_TIMEOUT_MS,
+    axeTimeoutMs: AXE_RUN_TIMEOUT_MS,
     robotsSource: robotsPolicy.sourceUrl,
     robotsFetched: robotsPolicy.fetched,
     robotsStatusCode: robotsPolicy.statusCode
@@ -606,16 +759,24 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
 
           if (Number(nextPage.depth || 0) > Number(job.max_depth || 0)) {
             await markPageSkipped(supabase, nextPage.id, '[audit] Depth limit reached.')
+            metrics.pagesSkipped += 1
             continue
           }
 
           if (!robotsPolicy.isAllowed(nextPage.url)) {
             await markPageSkipped(supabase, nextPage.id, '[audit] Skipped by robots.txt policy.')
+            metrics.pagesSkipped += 1
             continue
           }
 
           try {
-            const scannedPage = await scanSinglePageWithRetry(page, nextPage.url, canonicalRootHost, robotsPolicy)
+            const { scannedPage, retryTelemetry } = await scanSinglePageWithRetry(
+              page,
+              nextPage.url,
+              canonicalRootHost,
+              robotsPolicy
+            )
+            applyRetryTelemetryToMetrics(metrics, retryTelemetry)
             if (Number(nextPage.depth || 0) === 0) {
               const scannedHost = new URL(scannedPage.url).host.toLowerCase()
               if (scannedHost !== canonicalRootHost && isInternalHost(scannedHost, canonicalRootHost)) {
@@ -640,6 +801,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
               issuesCount: scannedPage.issues.length
             })
             countersSnapshot.pagesScanned += 1
+            metrics.pagesScanned += 1
 
             logJson('info', 'page_scanned', {
               jobId: job.id,
@@ -649,12 +811,16 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
               url: scannedPage.url,
               issues: scannedPage.issues.length,
               discovered: scannedPage.discoveredUrls.length,
-              loadMs: scannedPage.loadMs
+              loadMs: scannedPage.loadMs,
+              attemptsUsed: retryTelemetry.attemptsUsed,
+              retriesUsed: retryTelemetry.retriesUsed,
+              retryBackoffMs: retryTelemetry.retryBackoffMs
             })
           } catch (scanError) {
             if (isSkipScanError(scanError)) {
               const skippedMessage = truncateText(toSkipPageMessage(scanError), 600)
               await markPageSkipped(supabase, nextPage.id, skippedMessage)
+              metrics.pagesSkipped += 1
               logJson('info', 'page_scan_skipped_runtime', {
                 jobId: job.id,
                 pageId: nextPage.id,
@@ -668,13 +834,20 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
             const categorized = formatCategorizedError(scanError)
             await markPageFailed(supabase, nextPage.id, truncateText(categorized.message, 600))
             countersSnapshot.pagesFailed += 1
+            metrics.pagesFailed += 1
+            const retryTelemetry = getRetryTelemetry(scanError)
+            applyRetryTelemetryToMetrics(metrics, retryTelemetry)
+            incrementErrorBucket(metrics.errorBuckets, categorized.category)
             logJson('warn', 'page_scan_failed', {
               jobId: job.id,
               pageId: nextPage.id,
               workerIndex,
               url: nextPage.url,
               errorCategory: categorized.category,
-              error: truncateText(getErrorMessage(scanError), 450)
+              error: truncateText(getErrorMessage(scanError), 450),
+              attemptsUsed: retryTelemetry.attemptsUsed,
+              retriesUsed: retryTelemetry.retriesUsed,
+              retryBackoffMs: retryTelemetry.retryBackoffMs
             })
           }
         }
@@ -687,11 +860,48 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
     await syncCounters(true)
 
     if (timeoutTriggered) {
+      runOutcome = 'timeout'
       throw new Error('[timeout] Job exceeded execution watchdog limit.')
     }
 
+    runOutcome = cancelRequested ? 'cancelled' : 'completed'
     return { cancelled: cancelRequested }
+  } catch (error) {
+    runError = error
+    if (runOutcome !== 'timeout') {
+      runOutcome = 'failed'
+    }
+    throw error
   } finally {
+    const runDurationMs = Math.max(1, Date.now() - runStartedAt)
+    const processedPages = metrics.pagesScanned + metrics.pagesFailed
+    const infoPayload: Record<string, unknown> = {
+      jobId: job.id,
+      outcome: runOutcome,
+      durationMs: runDurationMs,
+      pagesScanned: metrics.pagesScanned,
+      pagesFailed: metrics.pagesFailed,
+      pagesSkipped: metrics.pagesSkipped,
+      processedPages,
+      pagesQueued: countersSnapshot.pagesQueued,
+      retriesTotal: metrics.retriesTotal,
+      retryingPages: metrics.retryingPages,
+      retryBackoffMsTotal: metrics.retryBackoffMsTotal,
+      avgAttemptsPerProcessedPage:
+        processedPages > 0 ? roundMetric(metrics.attemptsTotal / processedPages, 2) : 0,
+      scannedPerMinute: toPerMinute(metrics.pagesScanned, runDurationMs),
+      processedPerMinute: toPerMinute(processedPages, runDurationMs),
+      errorBuckets: metrics.errorBuckets
+    }
+
+    if (runError) {
+      infoPayload.errorCategory = classifyAuditError(runError)
+      infoPayload.error = truncateText(getErrorMessage(runError), 450)
+    }
+
+    const finishLevel = runOutcome === 'completed' || runOutcome === 'cancelled' ? 'info' : 'warn'
+    logJson(finishLevel, 'crawler_finished', infoPayload)
+
     if (browser) {
       await browser.close().catch((closeError) => {
         logJson('warn', 'browser_close_failed', {
