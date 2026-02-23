@@ -332,6 +332,11 @@ export const syncJobCounters = async (supabase: SupabaseAdminClient, jobId: stri
   const scanned = Math.max(0, Number(scannedResult.count || 0))
   const failed = Math.max(0, Number(failedResult.count || 0))
 
+  const countersChangedFilter = [
+    `pages_queued.neq.${queued}`,
+    `pages_scanned.neq.${scanned}`,
+    `pages_failed.neq.${failed}`
+  ].join(',')
   await supabase
     .from('audit_jobs')
     .update({
@@ -341,6 +346,7 @@ export const syncJobCounters = async (supabase: SupabaseAdminClient, jobId: stri
       updated_at: new Date().toISOString()
     })
     .eq('id', jobId)
+    .or(countersChangedFilter)
 
   return {
     pagesQueued: queued,
