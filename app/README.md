@@ -34,3 +34,10 @@ cd app
 npm install
 npm run dev
 ```
+
+## Site Audit smoke test
+```bash
+npm run site-audit:smoke -- --base-url https://pristupio.netlify.app --token "<JWT>" --root-url "https://example.com"
+```
+
+Detailed scenarios are documented in `docs/site-audit-test-plan.md`.
