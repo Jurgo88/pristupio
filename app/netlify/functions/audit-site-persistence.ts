@@ -516,6 +516,24 @@ export const markPageFailed = async (supabase: SupabaseAdminClient, pageId: numb
     .eq('id', pageId)
 }
 
+export const getFirstFailedPageForJob = async (supabase: SupabaseAdminClient, jobId: string) => {
+  const { data } = await supabase
+    .from('audit_job_pages')
+    .select('id, url, error_message')
+    .eq('job_id', jobId)
+    .eq('status', 'failed')
+    .order('id', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data?.id) return null
+  return {
+    id: Number(data.id),
+    url: typeof data.url === 'string' ? data.url : '',
+    errorMessage: typeof data.error_message === 'string' ? data.error_message : ''
+  }
+}
+
 export const markPageDone = async (
   supabase: SupabaseAdminClient,
   pageId: number,

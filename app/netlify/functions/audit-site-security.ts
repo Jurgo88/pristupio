@@ -251,6 +251,35 @@ export const ensurePublicHttpUrl = async (rawUrl: string) => {
   }
 }
 
+const normalizeHostForCompare = (value: string) => {
+  const raw = (value || '').trim().toLowerCase()
+  if (!raw) return ''
+
+  let host = raw
+  if (host.startsWith('[')) {
+    const end = host.indexOf(']')
+    if (end > 0) {
+      host = host.slice(1, end)
+    }
+  } else {
+    const colon = host.lastIndexOf(':')
+    if (colon > -1 && host.indexOf(':') === colon) {
+      const maybePort = host.slice(colon + 1)
+      if (/^\d+$/.test(maybePort)) {
+        host = host.slice(0, colon)
+      }
+    }
+  }
+
+  return host.replace(/\.$/, '')
+}
+
+const stripWwwPrefix = (hostname: string) => (hostname.startsWith('www.') ? hostname.slice(4) : hostname)
+
 export const isInternalHost = (candidateHost: string, rootHost: string) => {
-  return candidateHost.trim().toLowerCase() === rootHost.trim().toLowerCase()
+  const candidate = normalizeHostForCompare(candidateHost)
+  const root = normalizeHostForCompare(rootHost)
+  if (!candidate || !root) return false
+  if (candidate === root) return true
+  return stripWwwPrefix(candidate) === stripWwwPrefix(root)
 }
