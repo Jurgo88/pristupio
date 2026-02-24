@@ -92,9 +92,12 @@ export const handler: Handler = async (event) => {
     if (!profile?.isAdmin) {
       const rateLimit = await checkSiteAuditStartRateLimit(supabase, auth.userId)
       if (!rateLimit.allowed) {
+        const retryAfterSec = Math.max(1, Number(rateLimit.retryAfterSec || 0))
         return jsonResponse(429, {
           error: rateLimit.message || 'Prilis vela spusteni site auditu. Skuste to neskor.',
-          retryAfterSec: rateLimit.retryAfterSec || 0
+          retryAfterSec
+        }, {
+          'Retry-After': String(retryAfterSec)
         })
       }
     }

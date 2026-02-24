@@ -70,9 +70,16 @@ export const getAuthUser = async (supabase: any, token: string) => {
   return { userId: data.user.id as string, error: null }
 }
 
-export const jsonResponse = (statusCode: number, payload: Record<string, unknown>) => ({
+export const jsonResponse = (
+  statusCode: number,
+  payload: Record<string, unknown>,
+  extraHeaders?: Record<string, string>
+) => ({
   statusCode,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    ...(extraHeaders || {})
+  },
   body: JSON.stringify(payload)
 })
 
