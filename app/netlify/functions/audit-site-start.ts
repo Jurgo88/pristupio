@@ -11,6 +11,7 @@ import {
   getExistingActiveSiteAuditJob,
   jsonResponse,
   loadSiteAuditProfile,
+  markJobFailed,
   normalizeAuditUrl,
   normalizeRequestedMaxDepth,
   normalizeRequestedPagesLimit,
@@ -129,6 +130,21 @@ export const handler: Handler = async (event) => {
         targetUrl: dispatch.targetUrl,
         error: dispatch.error || 'unknown'
       })
+
+      const dispatchError = String(dispatch.error || '').toLowerCase()
+      const workerSecretConfigError =
+        dispatchError.includes('worker secret') ||
+        dispatch.statusCode === 401 ||
+        dispatch.statusCode === 403
+
+      if (workerSecretConfigError) {
+        await markJobFailed(
+          supabase,
+          job.id,
+          '[security] Worker dispatch authorization failed. Check AUDIT_SITE_WORKER_SECRET.'
+        )
+        return errorResponse(500, 'Site audit worker nie je spravne nakonfigurovany. Skontrolujte AUDIT_SITE_WORKER_SECRET.')
+      }
     } else if (dispatch.attemptsUsed > 1) {
       logJson('info', 'start_worker_dispatch_retried', {
         jobId: job.id,
