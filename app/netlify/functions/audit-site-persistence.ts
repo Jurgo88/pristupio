@@ -878,11 +878,22 @@ export const finalizeSiteAuditJob = async (supabase: SupabaseAdminClient, job: S
   }
 
   if (profile && !profile.isAdmin) {
-    const nextCredits = Math.max(0, Number(profile.paidAuditCredits || 0) - 1)
-    await supabase
-      .from('profiles')
-      .update({ paid_audit_completed: true, paid_audit_credits: nextCredits })
-      .eq('id', profile.id)
+    const consumeCredit = await supabase.rpc('consume_paid_audit_credit', {
+      p_user_id: profile.id,
+      p_mark_completed: true
+    })
+    if (consumeCredit.error) {
+      logJson('warn', 'job_credit_consume_failed', {
+        jobId: job.id,
+        userId: profile.id,
+        error: getErrorMessage(consumeCredit.error)
+      })
+    } else if (consumeCredit.data === null) {
+      logJson('warn', 'job_credit_consume_skipped', {
+        jobId: job.id,
+        userId: profile.id
+      })
+    }
   }
 
   await supabase
