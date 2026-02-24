@@ -476,14 +476,17 @@ export const handler: Handler = async (event) => {
     }
 
     if (isPaid && !isAdmin) {
-      const nextCredits = Math.max(0, paidCredits - 1)
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ paid_audit_completed: true, paid_audit_credits: nextCredits })
-        .eq('id', userData.user.id)
+      const consumeCredit = await supabase.rpc('consume_paid_audit_credit', {
+        p_user_id: userData.user.id,
+        p_mark_completed: true
+      })
 
-      if (updateError) {
-        console.error('Profile paid-audit update error:', updateError)
+      if (consumeCredit.error) {
+        console.error('Profile paid-audit consume error:', consumeCredit.error)
+      } else if (consumeCredit.data === null) {
+        console.warn('Profile paid-audit consume skipped: no credits left at commit time.', {
+          userId: userData.user.id
+        })
       }
     } else if (!isPaid) {
       const { error: updateError } = await supabase

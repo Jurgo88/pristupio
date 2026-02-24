@@ -144,6 +144,37 @@ const loadProfileByUser = async (userId?: string, userEmail?: string) => {
   return { data: null, error: null } as any
 }
 
+const adjustPaidAuditCredits = async (
+  userId: string,
+  delta: number,
+  floorZero = true
+): Promise<{ data: number | null; error: unknown | null }> => {
+  if (!supabase || !userId) {
+    return { data: null, error: new Error('Missing supabase or user id.') }
+  }
+
+  const normalizedDelta = Number.isFinite(Number(delta)) ? Math.trunc(Number(delta)) : 0
+  const rpcResult = await supabase.rpc('adjust_paid_audit_credits', {
+    p_user_id: userId,
+    p_delta: normalizedDelta,
+    p_floor_zero: floorZero
+  })
+
+  if (rpcResult.error) {
+    return { data: null, error: rpcResult.error }
+  }
+
+  const nextCredits = Number(rpcResult.data)
+  if (!Number.isFinite(nextCredits)) {
+    return { data: null, error: new Error('Credit adjustment returned invalid value.') }
+  }
+
+  return {
+    data: Math.max(0, Math.floor(nextCredits)),
+    error: null
+  }
+}
+
 const unlockLatestFreeAudit = async (userId: string) => {
   if (!supabase || !userId) return false
 
@@ -216,25 +247,29 @@ export const handler: Handler = async (event) => {
         return { statusCode: 200, body: 'OK' }
       }
 
-      const updatePayload =
-        purchaseType === 'monitoring'
-          ? {
-              monitoring_active: false,
-              monitoring_until: null,
-              monitoring_tier: 'none',
-              monitoring_domains_limit: 0,
-              monitoring_monthly_runs: 0
-            }
-          : (() => {
-              const currentCredits = Number(profileResult.data?.paid_audit_credits || 0)
-              const refundCredits = getAuditCreditsByTier(purchaseTier)
-              const nextCredits = Math.max(0, currentCredits - refundCredits)
-              return {
-                plan: nextCredits > 0 ? 'paid' : 'free',
-                paid_audit_credits: nextCredits,
-                audit_tier: nextCredits > 0 ? (profileResult.data?.audit_tier || 'basic') : 'none'
-              }
-            })()
+      let updatePayload: Record<string, unknown>
+      if (purchaseType === 'monitoring') {
+        updatePayload = {
+          monitoring_active: false,
+          monitoring_until: null,
+          monitoring_tier: 'none',
+          monitoring_domains_limit: 0,
+          monitoring_monthly_runs: 0
+        }
+      } else {
+        const refundCredits = getAuditCreditsByTier(purchaseTier)
+        const creditAdjust = await adjustPaidAuditCredits(profileResult.data.id, -refundCredits, true)
+        if (creditAdjust.error || creditAdjust.data === null) {
+          console.error('Lemon webhook credit refund error:', creditAdjust.error)
+          return { statusCode: 500, body: 'Profile credit refund failed.' }
+        }
+
+        const nextCredits = creditAdjust.data
+        updatePayload = {
+          plan: nextCredits > 0 ? 'paid' : 'free',
+          audit_tier: nextCredits > 0 ? (profileResult.data?.audit_tier || 'basic') : 'none'
+        }
+      }
       const updateResult = await supabase.from('profiles').update(updatePayload).eq('id', profileResult.data.id)
 
       if (updateResult.error) {
@@ -286,21 +321,27 @@ export const handler: Handler = async (event) => {
       return { statusCode: 200, body: 'Monitoring skipped: base audit prerequisite missing.' }
     }
 
-    const updatePayload =
-      purchaseType === 'monitoring'
-        ? {
-            monitoring_active: true,
-            monitoring_until: null,
-            monitoring_tier: purchaseTier,
-            monitoring_domains_limit: getMonitoringLimitsByTier(purchaseTier).domains,
-            monitoring_monthly_runs: getMonitoringLimitsByTier(purchaseTier).monthlyRuns
-          }
-        : {
-            plan: 'paid',
-            paid_audit_credits:
-              Number(profileResult.data?.paid_audit_credits || 0) + getAuditCreditsByTier(purchaseTier),
-            audit_tier: purchaseTier
-          }
+    let updatePayload: Record<string, unknown>
+    if (purchaseType === 'monitoring') {
+      updatePayload = {
+        monitoring_active: true,
+        monitoring_until: null,
+        monitoring_tier: purchaseTier,
+        monitoring_domains_limit: getMonitoringLimitsByTier(purchaseTier).domains,
+        monitoring_monthly_runs: getMonitoringLimitsByTier(purchaseTier).monthlyRuns
+      }
+    } else {
+      const creditAdjust = await adjustPaidAuditCredits(profileResult.data.id, getAuditCreditsByTier(purchaseTier), true)
+      if (creditAdjust.error || creditAdjust.data === null) {
+        console.error('Lemon webhook credit grant error:', creditAdjust.error)
+        return { statusCode: 500, body: 'Profile credit grant failed.' }
+      }
+
+      updatePayload = {
+        plan: 'paid',
+        audit_tier: purchaseTier
+      }
+    }
 
     const updateResult = await supabase.from('profiles').update(updatePayload).eq('id', profileResult.data.id)
 
