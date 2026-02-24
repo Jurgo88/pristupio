@@ -127,6 +127,13 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
     visibleIssuesCount.value = ISSUE_BATCH_SIZE
   }
 
+  const setImpactFilter = (impact: string) => {
+    selectedImpact.value = impact
+    selectedPrinciple.value = ''
+    searchText.value = ''
+    visibleIssuesCount.value = ISSUE_BATCH_SIZE
+  }
+
   const violationKey = (violation: DashboardIssue, index: number) => `${violation.id}-${index}`
 
   const toggleDetails = (key: string) => {
@@ -134,6 +141,18 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
   }
 
   const isOpen = (key: string) => !!openDetails.value[key]
+
+  const expandVisibleDetails = () => {
+    const next = { ...openDetails.value }
+    visibleIssues.value.forEach((issue, index) => {
+      next[violationKey(issue, index)] = true
+    })
+    openDetails.value = next
+  }
+
+  const collapseAllDetails = () => {
+    openDetails.value = {}
+  }
 
   return {
     selectedPrinciple,
@@ -156,8 +175,11 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
     hasMoreIssues,
     loadMoreIssues,
     clearFilters,
+    setImpactFilter,
     violationKey,
     toggleDetails,
-    isOpen
+    isOpen,
+    expandVisibleDetails,
+    collapseAllDetails
   }
 }

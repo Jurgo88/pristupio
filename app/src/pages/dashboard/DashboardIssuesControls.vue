@@ -54,6 +54,24 @@
           {{ DASHBOARD_ISSUES_TEXT.clearFilters }}
         </button>
       </div>
+      <div class="field field--actions">
+        <button
+          class="btn btn-sm btn-filter-clear"
+          @click="$emit('expandDetails')"
+          :disabled="!canExpandDetails"
+        >
+          {{ DASHBOARD_ISSUES_TEXT.expandDetails }}
+        </button>
+      </div>
+      <div class="field field--actions">
+        <button
+          class="btn btn-sm btn-filter-clear"
+          @click="$emit('collapseDetails')"
+          :disabled="!canCollapseDetails"
+        >
+          {{ DASHBOARD_ISSUES_TEXT.collapseDetails }}
+        </button>
+      </div>
     </div>
 
     <div v-if="exportError" class="status-alert status-alert--danger">{{ exportError }}</div>
@@ -74,6 +92,8 @@ defineProps<{
   searchText: string
   principleOptions: string[]
   exportError: string
+  canExpandDetails: boolean
+  canCollapseDetails: boolean
 }>()
 
 const emit = defineEmits<{
@@ -81,6 +101,8 @@ const emit = defineEmits<{
   (event: 'update:selectedImpact', value: string): void
   (event: 'update:searchText', value: string): void
   (event: 'clearFilters'): void
+  (event: 'expandDetails'): void
+  (event: 'collapseDetails'): void
   (event: 'exportPdf'): void
 }>()
 
@@ -134,10 +156,16 @@ const onSearchInput = (event: Event) => {
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.2rem;
   align-items: end;
+}
+
+@media (max-width: 1280px) {
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .btn-filter-clear {

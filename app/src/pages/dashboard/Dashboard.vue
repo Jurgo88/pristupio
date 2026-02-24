@@ -11,6 +11,9 @@
       :filtered-issues-count="filteredIssues.length"
       :last-audit-label="lastAuditLabel"
       :has-latest-audit="!!latestAudit"
+      @focus-high-issues="openHighIssuesView"
+      @focus-all-issues="openAllIssuesView"
+      @open-latest-audit="openLatestAuditFromMetrics"
     />
 
     <DashboardAccessPanels
@@ -121,6 +124,8 @@
           :search-text="searchText"
           :principle-options="principleOptions"
           :export-error="exportError"
+          :can-expand-details="!isPreview && visibleIssues.length > 0"
+          :can-collapse-details="!isPreview && hasOpenIssueDetails"
           :visible-issues="visibleIssues"
           :filtered-issues="filteredIssues"
           :report-issues-count="totalIssuesCount"
@@ -133,6 +138,8 @@
           @update:selected-impact="selectedImpact = $event"
           @update:search-text="searchText = $event"
           @clear-filters="clearFilters"
+          @expand-details="expandVisibleDetails"
+          @collapse-details="collapseAllDetails"
           @export-pdf="exportPdf"
           @load-more-issues="loadMoreIssues"
         />
@@ -178,7 +185,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   DashboardAccessPanels,
   DashboardAuditForm,
@@ -277,9 +284,13 @@ const {
   hasMoreIssues,
   loadMoreIssues,
   clearFilters,
+  setImpactFilter,
   violationKey,
   toggleDetails,
-  isOpen
+  isOpen,
+  openDetails,
+  expandVisibleDetails,
+  collapseAllDetails
 } = useDashboardIssues(computed(() => auditStore.report))
 
 const {
@@ -310,6 +321,7 @@ const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
 const totalIssuesCount = computed(() => auditStore.report?.issues?.length || 0)
 const scoreStateLabel = computed(() => getDashboardScoreStateLabel(!!auditStore.report, auditScore.value))
 const coreText = DASHBOARD_CORE_TEXT
+const hasOpenIssueDetails = computed(() => Object.values(openDetails.value).some(Boolean))
 const siteAuditSuccessModalVisible = ref(false)
 const auditSuccessModalMode = ref<'single' | 'site'>('site')
 const siteAuditSuccessTotal = ref(0)
@@ -351,14 +363,15 @@ const handleStartAuditWithSuccessModal = async () => {
 
 const openSiteAuditFromModal = async () => {
   closeSiteAuditSuccessModal()
-  const auditId = auditStore.currentAudit?.auditId
-  activeMobileTab.value = 'issues'
-  if (typeof auditId === 'string' && auditId) {
-    await selectAudit(auditId)
-  } else {
-    openLatestAudit()
-  }
+  await openLatestAuditFromMetrics()
+}
 
+const lastAuditLabel = computed(() => {
+  if (!latestAudit.value?.created_at) return ''
+  return formatDate(latestAudit.value.created_at)
+})
+
+const scrollToIssuesPanel = async () => {
   await nextTick()
   const issuesPanel = document.querySelector('.issues-panel') as HTMLElement | null
   if (issuesPanel) {
@@ -366,10 +379,37 @@ const openSiteAuditFromModal = async () => {
   }
 }
 
-const lastAuditLabel = computed(() => {
-  if (!latestAudit.value?.created_at) return ''
-  return formatDate(latestAudit.value.created_at)
-})
+const openHighIssuesView = async () => {
+  activeMobileTab.value = 'issues'
+  setImpactFilter('critical')
+  await scrollToIssuesPanel()
+}
+
+const openAllIssuesView = async () => {
+  activeMobileTab.value = 'issues'
+  clearFilters()
+  await scrollToIssuesPanel()
+}
+
+const openLatestAuditFromMetrics = async () => {
+  activeMobileTab.value = 'issues'
+  if (latestAudit.value?.id) {
+    await selectAudit(latestAudit.value.id)
+  } else {
+    openLatestAudit()
+  }
+  await scrollToIssuesPanel()
+}
+
+watch(
+  () => !!auditStore.report,
+  (hasReport) => {
+    if (hasReport && activeMobileTab.value === 'overview') {
+      activeMobileTab.value = 'issues'
+    }
+  },
+  { immediate: true }
+)
 
 </script>
 

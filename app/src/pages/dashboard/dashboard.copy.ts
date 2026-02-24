@@ -199,6 +199,8 @@ export const DASHBOARD_ISSUES_TEXT = {
   allOption: 'Všetky',
   searchPlaceholder: 'Napr. kontrast, tlačidlo, aria',
   clearFilters: 'Zrušiť filtre',
+  expandDetails: 'Rozbaliť detaily',
+  collapseDetails: 'Zbaliť detaily',
   shownFindings: 'Zobrazené nálezy',
   totalPrefix: 'celkovo',
   loadMoreFindings: 'Načítať ďalšie nálezy',

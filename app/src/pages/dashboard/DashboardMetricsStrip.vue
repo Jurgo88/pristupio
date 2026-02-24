@@ -5,23 +5,38 @@
       <strong>{{ hasReport ? `${auditScore}%` : '--' }}</strong>
       <small>{{ scoreStateLabel }}</small>
     </article>
-    <article class="metric-card">
+    <button
+      type="button"
+      class="metric-card metric-card--interactive"
+      :disabled="!hasReport"
+      @click="$emit('focusHighIssues')"
+    >
       <span>{{ copy.highIssuesTitle }}</span>
       <strong>{{ hasReport ? highCount : '--' }}</strong>
       <small>{{ copy.highIssuesMeta }}</small>
-    </article>
-    <article class="metric-card">
+    </button>
+    <button
+      type="button"
+      class="metric-card metric-card--interactive"
+      :disabled="!hasReport"
+      @click="$emit('focusAllIssues')"
+    >
       <span>{{ copy.allIssuesTitle }}</span>
       <strong>{{ hasReport ? totalIssuesCount : '--' }}</strong>
       <small>
         {{ hasReport ? `${copy.filteredIssuesPrefix}: ${filteredIssuesCount}` : copy.allIssuesFallback }}
       </small>
-    </article>
-    <article class="metric-card">
+    </button>
+    <button
+      type="button"
+      class="metric-card metric-card--interactive"
+      :disabled="!hasLatestAudit"
+      @click="$emit('openLatestAudit')"
+    >
       <span>{{ copy.latestAuditTitle }}</span>
       <strong>{{ lastAuditLabel || '--' }}</strong>
       <small>{{ hasLatestAudit ? copy.latestAuditWithHistory : copy.latestAuditEmpty }}</small>
-    </article>
+    </button>
   </section>
 </template>
 
@@ -39,6 +54,12 @@ defineProps<{
   filteredIssuesCount: number
   lastAuditLabel: string
   hasLatestAudit: boolean
+}>()
+
+defineEmits<{
+  (event: 'focusHighIssues'): void
+  (event: 'focusAllIssues'): void
+  (event: 'openLatestAudit'): void
 }>()
 </script>
 
@@ -58,6 +79,27 @@ defineProps<{
   gap: 0.25rem;
   backdrop-filter: blur(6px);
   box-shadow: var(--shadow-sm);
+}
+
+.metric-card--interactive {
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.metric-card--interactive:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1);
+}
+
+.metric-card--interactive:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.metric-card--interactive:disabled {
+  cursor: default;
 }
 
 .metric-card span {

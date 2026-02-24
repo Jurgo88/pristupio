@@ -12,10 +12,14 @@
         :search-text="searchText"
         :principle-options="principleOptions"
         :export-error="exportError"
+        :can-expand-details="canExpandDetails"
+        :can-collapse-details="canCollapseDetails"
         @update:selected-principle="emit('update:selectedPrinciple', $event)"
         @update:selected-impact="emit('update:selectedImpact', $event)"
         @update:search-text="emit('update:searchText', $event)"
         @clear-filters="emit('clearFilters')"
+        @expand-details="emit('expandDetails')"
+        @collapse-details="emit('collapseDetails')"
         @export-pdf="emit('exportPdf')"
       />
     </div>
@@ -75,6 +79,8 @@ defineProps<{
   searchText: string
   principleOptions: string[]
   exportError: string
+  canExpandDetails: boolean
+  canCollapseDetails: boolean
   visibleIssues: DashboardIssue[]
   filteredIssues: DashboardIssue[]
   reportIssuesCount: number
@@ -90,6 +96,8 @@ const emit = defineEmits<{
   (event: 'update:selectedImpact', value: string): void
   (event: 'update:searchText', value: string): void
   (event: 'clearFilters'): void
+  (event: 'expandDetails'): void
+  (event: 'collapseDetails'): void
   (event: 'exportPdf'): void
   (event: 'loadMoreIssues'): void
 }>()
