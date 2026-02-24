@@ -80,10 +80,12 @@ const SITE_AUDIT_POLL_HIDDEN_TAB_MULTIPLIER = 2
 const SITE_AUDIT_TIMEOUT_MIN_MS = 20 * 60 * 1_000
 const SITE_AUDIT_TIMEOUT_MAX_MS = 3 * 60 * 60 * 1_000
 const SITE_AUDIT_TIMEOUT_PER_PAGE_MS = 45_000
+const SITE_AUDIT_QUEUED_START_TIMEOUT_MS = 5 * 60 * 1_000
 const SITE_AUDIT_STALL_TIMEOUT_MS = 10 * 60 * 1_000
 const SITE_AUDIT_WORKER_KICK_INTERVAL_MS = 20_000
 const SITE_AUDIT_STATUS_MAX_CONSECUTIVE_ERRORS = 5
 const SITE_AUDIT_STATUS_ERROR_BACKOFF_MS = 1_500
+const SITE_AUDIT_CLIENT_WORKER_KICK_ENABLED = import.meta.env.DEV
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -342,22 +344,12 @@ export const useAuditStore = defineStore('audit', {
     },
 
     async triggerSiteAuditWorker(maxJobs = 1) {
+      if (!SITE_AUDIT_CLIENT_WORKER_KICK_ENABLED) return
       try {
         const query = new URLSearchParams({ maxJobs: String(Math.max(1, Math.min(10, Math.floor(maxJobs)))) })
-        const backgroundResponse = await fetch(`/.netlify/functions/audit-site-worker-background?${query.toString()}`, {
+        await fetch(`/.netlify/functions/audit-site-worker?${query.toString()}`, {
           method: 'POST'
         })
-
-        if (
-          !backgroundResponse.ok &&
-          backgroundResponse.status !== 202 &&
-          backgroundResponse.status !== 401 &&
-          backgroundResponse.status !== 403
-        ) {
-          await fetch(`/.netlify/functions/audit-site-worker?${query.toString()}`, {
-            method: 'POST'
-          })
-        }
       } catch (_error) {
         // best effort only; scheduler should still process queued jobs
       }
@@ -414,6 +406,15 @@ export const useAuditStore = defineStore('audit', {
         }
 
         const now = Date.now()
+        if (status === 'queued' && !job?.startedAt) {
+          const createdAtMs = parseUnixMs(job?.createdAt)
+          if (Number.isFinite(createdAtMs) && now - createdAtMs >= SITE_AUDIT_QUEUED_START_TIMEOUT_MS) {
+            throw new Error(
+              'Site audit caka vo fronte prilis dlho. Worker sa pravdepodobne nespustil. Skuste to znova a skontrolujte konfiguraciu workeru.'
+            )
+          }
+        }
+
         if (
           status !== lastStatus ||
           processed !== lastProcessed ||
@@ -431,7 +432,11 @@ export const useAuditStore = defineStore('audit', {
           throw new Error('Site audit bezi prilis dlho bez zmeny. Skuste kliknut na Spustit site audit pre obnovenie stavu.')
         }
 
-        if (status === 'queued' && (lastWorkerKickAt === 0 || now - lastWorkerKickAt >= SITE_AUDIT_WORKER_KICK_INTERVAL_MS)) {
+        if (
+          SITE_AUDIT_CLIENT_WORKER_KICK_ENABLED &&
+          status === 'queued' &&
+          (lastWorkerKickAt === 0 || now - lastWorkerKickAt >= SITE_AUDIT_WORKER_KICK_INTERVAL_MS)
+        ) {
           lastWorkerKickAt = now
           void this.triggerSiteAuditWorker(1)
         }
@@ -506,7 +511,9 @@ export const useAuditStore = defineStore('audit', {
           throw new Error('Site audit job sa nepodarilo inicializovat.')
         }
 
-        void this.triggerSiteAuditWorker(1)
+        if (SITE_AUDIT_CLIENT_WORKER_KICK_ENABLED) {
+          void this.triggerSiteAuditWorker(1)
+        }
         const timeoutMs = getSiteAuditTimeoutMs(this.siteAuditJob?.pagesLimit || options?.pagesLimit)
         await this.pollSiteAuditJobUntilDone(jobId, { timeoutMs })
 

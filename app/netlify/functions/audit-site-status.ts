@@ -5,6 +5,7 @@ import {
   getAuthUser,
   getBearerToken,
   getSiteAuditJobForUser,
+  markJobFailed,
   jsonResponse
 } from './audit-site-core'
 import { logJson } from './audit-site-observability'
@@ -64,6 +65,17 @@ const loadRunningPageBestEffort = async (supabase: any, jobId: string, status: s
   }
 }
 
+const isWorkerAuthorizationFailure = (dispatchResult: {
+  statusCode?: number
+  error?: string
+}) => {
+  const errorText = String(dispatchResult.error || '').toLowerCase()
+  if (dispatchResult.statusCode === 401 || dispatchResult.statusCode === 403) return true
+  if (errorText.includes('worker secret')) return true
+  if (errorText.includes('autoriz')) return true
+  return false
+}
+
 export const handler: Handler = async (event) => {
   try {
     if (event.httpMethod !== 'GET') {
@@ -98,7 +110,7 @@ export const handler: Handler = async (event) => {
       return errorResponse(404, 'Site audit job neexistuje.')
     }
 
-    const job = jobResult.data
+    let job = jobResult.data
     if (shouldRedriveQueuedJob(job)) {
       const redrive = await dispatchSiteAuditWorkerBackground({
         event,
@@ -118,6 +130,25 @@ export const handler: Handler = async (event) => {
           targetUrl: redrive.targetUrl,
           error: redrive.error || 'unknown'
         })
+
+        if (isWorkerAuthorizationFailure(redrive)) {
+          const failureMessage =
+            '[security] Site audit worker dispatch authorization failed. Check AUDIT_SITE_WORKER_SECRET.'
+          await markJobFailed(supabase, job.id, failureMessage)
+          const nowIso = new Date().toISOString()
+          job = {
+            ...job,
+            status: 'failed',
+            error_message: failureMessage,
+            finished_at: nowIso,
+            updated_at: nowIso
+          }
+          logJson('error', 'status_worker_redrive_marked_failed', {
+            jobId: job.id,
+            statusCode: redrive.statusCode,
+            error: redrive.error || 'unknown'
+          })
+        }
       }
     }
 

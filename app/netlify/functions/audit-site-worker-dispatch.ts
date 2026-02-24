@@ -18,12 +18,53 @@ const getForwardedHeader = (headers: Record<string, string | undefined>, lower: 
   return headers[lower] || headers[upper] || ''
 }
 
+const extractHostname = (host: string) => {
+  const raw = String(host || '').trim().toLowerCase()
+  if (!raw) return ''
+
+  const ipv6 = raw.match(/^\[([^\]]+)\](?::\d+)?$/)
+  if (ipv6?.[1]) return ipv6[1]
+
+  return raw.replace(/:\d+$/, '')
+}
+
+const isLoopbackHostname = (hostname: string) => {
+  const normalized = String(hostname || '').trim().toLowerCase()
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
+}
+
+const resolveProtoForHost = (rawProto: string | undefined, host: string) => {
+  if (isLoopbackHostname(extractHostname(host))) return 'http'
+
+  const normalizedProto = String(rawProto || '').trim().toLowerCase()
+  if (normalizedProto === 'http' || normalizedProto === 'http:') return 'http'
+  if (normalizedProto === 'https' || normalizedProto === 'https:') return 'https'
+  return 'https'
+}
+
+const normalizeBaseUrlCandidate = (candidate: string | undefined) => {
+  const value = String(candidate || '').trim().replace(/\/+$/, '')
+  if (!value) return ''
+
+  try {
+    const parsed = new URL(value)
+    if (isLoopbackHostname(parsed.hostname)) {
+      parsed.protocol = 'http:'
+    }
+    return parsed.toString().replace(/\/+$/, '')
+  } catch {
+    return value
+  }
+}
+
 export const resolveSiteAuditBaseUrl = (event?: HandlerEvent | null) => {
   const headers = event?.headers || {}
-  const proto = getForwardedHeader(headers, 'x-forwarded-proto', 'X-Forwarded-Proto') || 'https'
   const host =
     getForwardedHeader(headers, 'x-forwarded-host', 'X-Forwarded-Host') || headers.host || headers.Host || ''
-  if (host) return `${proto}://${host}`.replace(/\/+$/, '')
+  if (host) {
+    const proto = resolveProtoForHost(getForwardedHeader(headers, 'x-forwarded-proto', 'X-Forwarded-Proto'), host)
+    return `${proto}://${host}`.replace(/\/+$/, '')
+  }
 
   const envCandidates = [
     process.env.URL,
@@ -32,9 +73,10 @@ export const resolveSiteAuditBaseUrl = (event?: HandlerEvent | null) => {
     process.env.SITE_URL
   ]
   for (const candidate of envCandidates) {
-    const value = (candidate || '').trim()
-    if (value) return value.replace(/\/+$/, '')
+    const normalized = normalizeBaseUrlCandidate(candidate)
+    if (normalized) return normalized
   }
+  if (isDevMode()) return 'http://localhost:8888'
   return ''
 }
 
