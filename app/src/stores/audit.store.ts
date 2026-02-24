@@ -88,11 +88,19 @@ const SITE_AUDIT_STATUS_ERROR_BACKOFF_MS = 1_500
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const parseErrorMessage = async (response: Response, fallback: string) => {
+  const retryAfterHeader = Number(response.headers.get('Retry-After') || 0)
   try {
     const data = await response.json()
     if (data?.error) return String(data.error)
+    if (response.status === 429) {
+      const retryAfterSec = Math.max(1, Number(data?.retryAfterSec || retryAfterHeader || 0))
+      return `Prilis vela spusteni site auditu. Skuste to znova o ${retryAfterSec} sekund.`
+    }
   } catch (_error) {
     // ignore json parsing errors
+  }
+  if (response.status === 429 && retryAfterHeader > 0) {
+    return `Prilis vela spusteni site auditu. Skuste to znova o ${Math.max(1, Math.floor(retryAfterHeader))} sekund.`
   }
   return fallback
 }
