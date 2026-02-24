@@ -24,13 +24,61 @@ const isAuthorized = (headers: Record<string, string | undefined>, secret: strin
   return provided === secret
 }
 
-const getBaseUrl = (event: Parameters<Handler>[0]) => {
-  const proto = event.headers['x-forwarded-proto'] || event.headers['X-Forwarded-Proto'] || 'https'
-  const host = event.headers['x-forwarded-host'] || event.headers['X-Forwarded-Host'] || event.headers.host || ''
-  if (host) return `${proto}://${host}`
+const extractHostname = (host: string) => {
+  const raw = String(host || '').trim().toLowerCase()
+  if (!raw) return ''
 
-  const envUrl = (process.env.URL || '').trim()
-  return envUrl || ''
+  const ipv6 = raw.match(/^\[([^\]]+)\](?::\d+)?$/)
+  if (ipv6?.[1]) return ipv6[1]
+
+  return raw.replace(/:\d+$/, '')
+}
+
+const isLoopbackHostname = (hostname: string) => {
+  const normalized = String(hostname || '').trim().toLowerCase()
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
+}
+
+const resolveProtoForHost = (rawProto: string | undefined, host: string) => {
+  if (isLoopbackHostname(extractHostname(host))) return 'http'
+
+  const normalizedProto = String(rawProto || '').trim().toLowerCase()
+  if (normalizedProto === 'http' || normalizedProto === 'http:') return 'http'
+  if (normalizedProto === 'https' || normalizedProto === 'https:') return 'https'
+  return 'https'
+}
+
+const normalizeBaseUrlCandidate = (candidate: string | undefined) => {
+  const value = String(candidate || '').trim().replace(/\/+$/, '')
+  if (!value) return ''
+
+  try {
+    const parsed = new URL(value)
+    if (isLoopbackHostname(parsed.hostname)) {
+      parsed.protocol = 'http:'
+    }
+    return parsed.toString().replace(/\/+$/, '')
+  } catch {
+    return value
+  }
+}
+
+const getBaseUrl = (event: Parameters<Handler>[0]) => {
+  const headers = event.headers || {}
+  const host = headers['x-forwarded-host'] || headers['X-Forwarded-Host'] || headers.host || headers.Host || ''
+  if (host) {
+    const proto = resolveProtoForHost(headers['x-forwarded-proto'] || headers['X-Forwarded-Proto'], host)
+    return `${proto}://${host}`.replace(/\/+$/, '')
+  }
+
+  const envCandidates = [process.env.URL, process.env.DEPLOY_PRIME_URL, process.env.DEPLOY_URL, process.env.SITE_URL]
+  for (const candidate of envCandidates) {
+    const normalized = normalizeBaseUrlCandidate(candidate)
+    if (normalized) return normalized
+  }
+
+  if (isDevMode()) return 'http://localhost:8888'
+  return ''
 }
 
 export const handler: Handler = async (event) => {
