@@ -226,18 +226,26 @@ export const checkSiteAuditStartRateLimit = async (supabase: SupabaseAdminClient
     return { allowed: true, retryAfterSec: 0 }
   }
 
-  const since = new Date(Date.now() - START_RATE_LIMIT_WINDOW_SEC * 1_000).toISOString()
+  const normalizedUserId = typeof userId === 'string' ? userId.trim() : ''
+  if (!normalizedUserId) {
+    logJson('warn', 'rate_limit_skipped_missing_user', { userId: truncateText(userId, 64) })
+    return { allowed: true, retryAfterSec: 0 }
+  }
+
+  const nowMs = Date.now()
+  const windowMs = START_RATE_LIMIT_WINDOW_SEC * 1_000
+  const since = new Date(nowMs - windowMs).toISOString()
   const { data, error } = await supabase
     .from('audit_jobs')
     .select('id, status, created_at')
-    .eq('user_id', userId)
+    .eq('user_id', normalizedUserId)
     .gte('created_at', since)
-    .in('status', ['queued', 'running', 'completed'])
+    .in('status', ['queued', 'running', 'failed'])
     .order('created_at', { ascending: false })
-    .limit(100)
+    .limit(START_RATE_LIMIT_MAX_ATTEMPTS)
 
   if (error) {
-    logJson('warn', 'rate_limit_query_failed', { userId, error: getErrorMessage(error) })
+    logJson('warn', 'rate_limit_query_failed', { userId: normalizedUserId, error: getErrorMessage(error) })
     return { allowed: true, retryAfterSec: 0 }
   }
 
@@ -246,10 +254,22 @@ export const checkSiteAuditStartRateLimit = async (supabase: SupabaseAdminClient
     return { allowed: true, retryAfterSec: 0 }
   }
 
+  const oldestBlockingStartRaw = data?.[START_RATE_LIMIT_MAX_ATTEMPTS - 1]?.created_at
+  const oldestBlockingStartMs = oldestBlockingStartRaw ? Date.parse(oldestBlockingStartRaw) : Number.NaN
+  const retryAfterMs = Number.isFinite(oldestBlockingStartMs) ? oldestBlockingStartMs + windowMs - nowMs : windowMs
+  const retryAfterSec = Math.max(1, Math.ceil(retryAfterMs / 1_000))
+
+  logJson('info', 'rate_limit_blocked', {
+    userId: normalizedUserId,
+    attempts: used,
+    maxAttempts: START_RATE_LIMIT_MAX_ATTEMPTS,
+    retryAfterSec
+  })
+
   return {
     allowed: false,
-    retryAfterSec: START_RATE_LIMIT_WINDOW_SEC,
-    message: `Prilis vela spusteni site auditu. Skuste to znova o ${START_RATE_LIMIT_WINDOW_SEC} sekund.`
+    retryAfterSec,
+    message: `Prilis vela spusteni site auditu. Skuste to znova o ${retryAfterSec} sekund.`
   }
 }
 
