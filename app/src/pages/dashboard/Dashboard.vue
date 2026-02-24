@@ -152,8 +152,8 @@
         aria-modal="true"
         aria-labelledby="site-audit-success-title"
       >
-        <h3 id="site-audit-success-title">{{ coreText.siteAuditSuccessTitle }}</h3>
-        <p>{{ coreText.siteAuditSuccessLead }}</p>
+        <h3 id="site-audit-success-title">{{ auditSuccessModalTitle }}</h3>
+        <p>{{ auditSuccessModalLead }}</p>
         <p v-if="siteAuditSuccessUrl" class="site-audit-success-url">{{ siteAuditSuccessUrl }}</p>
         <div class="site-audit-success-stats">
           <div>
@@ -311,9 +311,16 @@ const totalIssuesCount = computed(() => auditStore.report?.issues?.length || 0)
 const scoreStateLabel = computed(() => getDashboardScoreStateLabel(!!auditStore.report, auditScore.value))
 const coreText = DASHBOARD_CORE_TEXT
 const siteAuditSuccessModalVisible = ref(false)
+const auditSuccessModalMode = ref<'single' | 'site'>('site')
 const siteAuditSuccessTotal = ref(0)
 const siteAuditSuccessHigh = ref(0)
 const siteAuditSuccessUrl = ref('')
+const auditSuccessModalTitle = computed(() =>
+  auditSuccessModalMode.value === 'site' ? coreText.siteAuditSuccessTitle : coreText.singleAuditSuccessTitle
+)
+const auditSuccessModalLead = computed(() =>
+  auditSuccessModalMode.value === 'site' ? coreText.siteAuditSuccessLead : coreText.singleAuditSuccessLead
+)
 
 const closeSiteAuditSuccessModal = () => {
   siteAuditSuccessModalVisible.value = false
@@ -321,11 +328,11 @@ const closeSiteAuditSuccessModal = () => {
 
 const handleStartAuditWithSuccessModal = async () => {
   const startedAsSiteAudit = auditMode.value === 'site'
+  auditSuccessModalMode.value = startedAsSiteAudit ? 'site' : 'single'
   siteAuditSuccessModalVisible.value = false
 
   await handleStartAudit()
 
-  if (!startedAsSiteAudit) return
   if (auditStore.error) return
   if (!auditStore.currentAudit?.auditId) return
 
@@ -337,7 +344,7 @@ const handleStartAuditWithSuccessModal = async () => {
   siteAuditSuccessHigh.value = Math.max(0, high)
   siteAuditSuccessUrl.value =
     (typeof auditStore.currentAudit?.url === 'string' && auditStore.currentAudit.url) ||
-    (typeof siteAuditJob.value?.rootUrl === 'string' && siteAuditJob.value.rootUrl) ||
+    (startedAsSiteAudit && typeof siteAuditJob.value?.rootUrl === 'string' && siteAuditJob.value.rootUrl) ||
     targetUrl.value
   siteAuditSuccessModalVisible.value = true
 }

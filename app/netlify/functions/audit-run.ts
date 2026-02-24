@@ -75,6 +75,10 @@ const ERROR_MESSAGES = {
   paidCreditsMissing: 'Nem\u00e1te kredit na z\u00e1kladn\u00fd audit. Objednajte \u010fal\u0161\u00ed audit.',
   freeAuditAlreadyUsed: 'Bezplatn\u00fd audit u\u017e bol pou\u017eit\u00fd.',
   axeTimeout: 'Vyhodnocovanie pravidiel trvalo pr\u00edli\u0161 dlho.',
+  navigationTimeout: 'Nacitanie stranky trvalo prilis dlho. Skuste to znova alebo pouzite inu URL.',
+  inactivityTimeout:
+    'Cielovy web neodpoveda dostatocne rychlo (inactivity timeout). Skuste to prosim znova neskor.',
+  requestTimeout: 'Audit trval prilis dlho na serveri. Skuste to prosim znova.',
   profileInitFailed: 'Profil sa nepodarilo inicializova\u0165.',
   auditInsertFailed: 'Audit sa nepodarilo ulo\u017ei\u0165.',
   auditDetailInsertFailed: 'Detail auditu sa nepodarilo ulo\u017ei\u0165.',
@@ -95,16 +99,52 @@ const impactOrder: Record<Impact, number> = {
   minor: 3
 }
 
-const NAVIGATION_TIMEOUT_MS = 45_000
-const AXE_RUN_TIMEOUT_MS = 90_000
-const NAVIGATION_RETRY_COUNT = 2
-const NAVIGATION_RETRY_DELAY_MS = 1_000
+const clampNumber = (value: unknown, min: number, max: number, fallback: number) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, Math.round(parsed)))
+}
+
+const AUDIT_RUN_WATCHDOG_TIMEOUT_MS = clampNumber(
+  process.env.AUDIT_RUN_WATCHDOG_TIMEOUT_MS,
+  12_000,
+  55_000,
+  26_000
+)
+const NAVIGATION_TIMEOUT_MS = clampNumber(process.env.AUDIT_RUN_NAVIGATION_TIMEOUT_MS, 5_000, 40_000, 16_000)
+const AXE_RUN_TIMEOUT_MS = clampNumber(process.env.AUDIT_RUN_AXE_TIMEOUT_MS, 4_000, 40_000, 12_000)
+const NAVIGATION_RETRY_COUNT = clampNumber(process.env.AUDIT_RUN_NAVIGATION_RETRY_COUNT, 1, 2, 1)
+const NAVIGATION_RETRY_DELAY_MS = clampNumber(process.env.AUDIT_RUN_NAVIGATION_RETRY_DELAY_MS, 100, 3_000, 500)
+const AI_COPY_TIMEOUT_CAP_MS = clampNumber(process.env.AUDIT_RUN_AI_COPY_TIMEOUT_MS, 1_500, 15_000, 6_000)
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) return error.message
   return String(error || ERROR_MESSAGES.unknownError)
+}
+
+const classifyRuntimeErrorMessage = (message: string) => {
+  const normalized = String(message || '').toLowerCase()
+  if (!normalized) return ERROR_MESSAGES.auditFailed
+
+  if (normalized.includes('inactivity timeout') || normalized.includes('too much time has passed without sending any data')) {
+    return ERROR_MESSAGES.inactivityTimeout
+  }
+
+  if (normalized.includes('task timed out') || normalized.includes('sandbox.timedout')) {
+    return ERROR_MESSAGES.requestTimeout
+  }
+
+  if (normalized.includes('navigation') && normalized.includes('timeout')) {
+    return ERROR_MESSAGES.navigationTimeout
+  }
+
+  if (normalized.includes('timeout') || normalized.includes('timed out')) {
+    return ERROR_MESSAGES.requestTimeout
+  }
+
+  return message
 }
 
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> => {
@@ -118,12 +158,30 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string)
   }) as Promise<T>
 }
 
-const gotoWithRetry = async (page: any, url: string) => {
+const getRemainingBudgetMs = (startedAtMs: number) => {
+  return AUDIT_RUN_WATCHDOG_TIMEOUT_MS - (Date.now() - startedAtMs)
+}
+
+const getBudgetedStepTimeoutMs = (
+  startedAtMs: number,
+  preferredTimeoutMs: number,
+  minTimeoutMs: number,
+  reserveAfterStepMs: number
+) => {
+  const remainingBudget = getRemainingBudgetMs(startedAtMs)
+  const allowed = remainingBudget - reserveAfterStepMs
+  if (!Number.isFinite(allowed) || allowed < minTimeoutMs) {
+    throw new Error(ERROR_MESSAGES.requestTimeout)
+  }
+  return Math.min(preferredTimeoutMs, Math.max(minTimeoutMs, Math.floor(allowed)))
+}
+
+const gotoWithRetry = async (page: any, url: string, timeoutMs: number) => {
   let lastError: unknown = null
 
   for (let attempt = 1; attempt <= NAVIGATION_RETRY_COUNT; attempt += 1) {
     try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAVIGATION_TIMEOUT_MS })
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs })
       return
     } catch (error: unknown) {
       lastError = error
@@ -218,6 +276,7 @@ const pickTopIssues = (issues: ReportIssue[], count: number) => {
 
 export const handler: Handler = async (event) => {
   let browser: Awaited<ReturnType<typeof playwright.launch>> | null = null
+  const startedAtMs = Date.now()
 
   try {
     if (!supabase) {
@@ -317,7 +376,7 @@ export const handler: Handler = async (event) => {
 
     const page = await browser.newPage()
     page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS)
-    page.setDefaultTimeout(NAVIGATION_TIMEOUT_MS)
+    page.setDefaultTimeout(Math.max(NAVIGATION_TIMEOUT_MS, AXE_RUN_TIMEOUT_MS))
 
     await page.route('**/*', (route) => {
       const type = route.request().resourceType()
@@ -327,9 +386,11 @@ export const handler: Handler = async (event) => {
       return route.continue()
     })
 
-    await gotoWithRetry(page, url)
+    const navigationTimeoutMs = getBudgetedStepTimeoutMs(startedAtMs, NAVIGATION_TIMEOUT_MS, 5_000, 9_000)
+    await gotoWithRetry(page, url, navigationTimeoutMs)
 
     await page.addScriptTag({ content: axe.source })
+    const axeTimeoutMs = getBudgetedStepTimeoutMs(startedAtMs, AXE_RUN_TIMEOUT_MS, 4_000, 4_000)
     const results = await withTimeout(
       page.evaluate(async (axeTags) => {
         // @ts-ignore
@@ -341,17 +402,29 @@ export const handler: Handler = async (event) => {
           resultTypes: ['violations']
         })
       }, [...AXE_TAGS]),
-      AXE_RUN_TIMEOUT_MS,
+      axeTimeoutMs,
       ERROR_MESSAGES.axeTimeout
     )
 
     let issues = normalizeAuditResults(results)
     if (isPaid) {
-      issues = await enrichIssuesWithAiCopy({
-        issues,
-        locale,
-        context: 'audit-run'
-      })
+      const remainingForAiMs = getRemainingBudgetMs(startedAtMs) - 2_500
+      if (remainingForAiMs >= 1_500) {
+        const aiTimeoutMs = Math.max(1_500, Math.min(AI_COPY_TIMEOUT_CAP_MS, Math.floor(remainingForAiMs)))
+        try {
+          issues = await withTimeout(
+            enrichIssuesWithAiCopy({
+              issues,
+              locale,
+              context: 'audit-run'
+            }),
+            aiTimeoutMs,
+            'AI copy timeout'
+          )
+        } catch (aiError: unknown) {
+          console.warn('AI copy skipped for manual audit:', getErrorMessage(aiError))
+        }
+      }
     }
 
     const summary = buildSummary(issues)
@@ -433,7 +506,7 @@ export const handler: Handler = async (event) => {
       }
     })
   } catch (error: unknown) {
-    const message = getErrorMessage(error) || ERROR_MESSAGES.auditFailed
+    const message = classifyRuntimeErrorMessage(getErrorMessage(error) || ERROR_MESSAGES.auditFailed)
     console.error('LOG ERROR:', message)
 
     return errorResponse(500, message)
