@@ -844,7 +844,7 @@ export const handler: Handler = async (event) => {
         : await chromium.executablePath(
             'https://github.com/sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar'
           ),
-      headless: chromium.headless
+      headless: (chromium as any).headless
     })
 
     const page = await browser.newPage()
