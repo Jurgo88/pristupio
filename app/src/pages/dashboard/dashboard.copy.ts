@@ -179,6 +179,8 @@ export const DASHBOARD_CORE_TEXT = {
   monitoringLimitReached: (limit: number) => `Dosiahli ste limit monitorovaných domén (${limit}).`,
   siteAuditSuccessTitle: 'Site audit bol úspešne dokončený.',
   siteAuditSuccessLead: 'Audit prebehol úspešne. Môžete si otvoriť report s detailami.',
+  singleAuditSuccessTitle: 'Audit bol úspešne dokončený.',
+  singleAuditSuccessLead: 'Jednostránkový audit prebehol úspešne. Môžete si otvoriť report s detailami.',
   siteAuditSuccessTotal: 'Nájdené chyby',
   siteAuditSuccessHigh: 'Kritické + závažné',
   siteAuditSuccessOpen: 'Otvoriť audit',

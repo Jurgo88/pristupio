@@ -89,8 +89,10 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const parseErrorMessage = async (response: Response, fallback: string) => {
   const retryAfterHeader = Number(response.headers.get('Retry-After') || 0)
+  const jsonClone = response.clone()
+  const textClone = response.clone()
   try {
-    const data = await response.json()
+    const data = await jsonClone.json()
     if (data?.error) return String(data.error)
     if (response.status === 429) {
       const retryAfterSec = Math.max(1, Number(data?.retryAfterSec || retryAfterHeader || 0))
@@ -99,8 +101,22 @@ const parseErrorMessage = async (response: Response, fallback: string) => {
   } catch (_error) {
     // ignore json parsing errors
   }
+
   if (response.status === 429 && retryAfterHeader > 0) {
     return `Prilis vela spusteni site auditu. Skuste to znova o ${Math.max(1, Math.floor(retryAfterHeader))} sekund.`
+  }
+
+  try {
+    const text = await textClone.text()
+    const normalized = text.toLowerCase()
+    if (normalized.includes('inactivity timeout') || normalized.includes('too much time has passed without sending any data')) {
+      return 'Cielovy web neodpoveda dostatocne rychlo (inactivity timeout). Skuste to prosim znova neskor.'
+    }
+    if (normalized.includes('sandbox.timedout') || normalized.includes('task timed out')) {
+      return 'Audit trval prilis dlho na serveri. Skuste to prosim znova.'
+    }
+  } catch (_error) {
+    // ignore text parsing errors
   }
   return fallback
 }
@@ -263,13 +279,7 @@ export const useAuditStore = defineStore('audit', {
         })
 
         if (!response.ok) {
-          let message = 'Audit zlyhal'
-          try {
-            const data = await response.json()
-            if (data?.error) message = data.error
-          } catch (_error) {
-            // ignore json parsing errors
-          }
+          const message = await parseErrorMessage(response, 'Audit zlyhal.')
           throw new Error(message)
         }
 
