@@ -682,6 +682,16 @@ export const useAuditStore = defineStore('audit', {
       } catch (_error) {
         return null
       }
+    },
+
+    resetState() {
+      this.loading = false
+      this.currentAudit = null
+      this.accessLevel = null
+      this.report = null
+      this.siteAuditJob = null
+      this.error = null
+      this.history = []
     }
   }
 })

@@ -36,7 +36,7 @@
               name="audit-mode"
               value="single"
               :checked="auditMode === 'single'"
-              :disabled="auditLocked || loading"
+              :disabled="loading"
               @change="onAuditModeChange('single')"
             />
             <span>{{ copy.modeSingle }}</span>
@@ -47,7 +47,7 @@
               name="audit-mode"
               value="site"
               :checked="auditMode === 'site'"
-              :disabled="auditLocked || loading"
+              :disabled="loading"
               @change="onAuditModeChange('site')"
             />
             <span>{{ copy.modeSite }}</span>

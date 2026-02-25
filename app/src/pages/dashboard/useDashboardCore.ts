@@ -1,4 +1,4 @@
-Ôªøimport { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -142,14 +142,23 @@ export const useDashboardCore = () => {
   )
   const monitoringDefaultCadenceLabel = computed(() => {
     const tier = monitoringStore.entitlement?.monitoringTier
-    if (tier === 'pro') return 'Pondelok a ≈°tvrtok'
-    return 'Ka≈æd√Ω pondelok'
+    if (tier === 'pro') return 'Pondelok a ötvrtok'
+    return 'Kaûd˝ pondelok'
   })
   const monitoringTier = computed(() => {
     const tier = monitoringStore.entitlement?.monitoringTier
     if (tier === 'pro' || tier === 'basic') return tier
     return 'none'
   })
+
+  watch(
+    () => auth.isLoggedIn,
+    (loggedIn) => {
+      if (!loggedIn) {
+        auditStore.resetState()
+      }
+    }
+  )
 
   const syncOpenedOrLatestAudit = async () => {
     const openedAuditId = auditStore.currentAudit?.auditId || selectedAuditId.value
@@ -238,13 +247,13 @@ export const useDashboardCore = () => {
   const profileOptions: ProfileOption[] = [
     {
       value: 'wad',
-      title: 'Verejn√Ω sektor (WAD 2016/2102)',
-      subtitle: 'Weby a aplik√°cie verejn√Ωch in≈°tit√∫ci√≠'
+      title: 'Verejn˝ sektor (WAD 2016/2102)',
+      subtitle: 'Weby a aplik·cie verejn˝ch inötit˙ciÌ'
     },
     {
       value: 'eaa',
-      title: 'Produkty a slu≈æby (EAA 2019/882)',
-      subtitle: 'E-shopy, banky, doprava, digit√°lne slu≈æby'
+      title: 'Produkty a sluûby (EAA 2019/882)',
+      subtitle: 'E-shopy, banky, doprava, digit·lne sluûby'
     }
   ]
 
