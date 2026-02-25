@@ -381,7 +381,7 @@ const scrollToIssuesPanel = async () => {
 
 const openHighIssuesView = async () => {
   activeMobileTab.value = 'issues'
-  setImpactFilter('critical')
+  setImpactFilter('high')
   await scrollToIssuesPanel()
 }
 

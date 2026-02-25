@@ -230,6 +230,7 @@ export const DASHBOARD_REPORT_PREVIEW_TEXT = {
 } as const
 
 export const IMPACT_OPTIONS = [
+  { value: 'high', label: 'Kritické + závažné' },
   { value: 'critical', label: 'Kritické' },
   { value: 'serious', label: 'Závažné' },
   { value: 'moderate', label: 'Stredné' },
