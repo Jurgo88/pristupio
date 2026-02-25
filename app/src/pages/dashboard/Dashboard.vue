@@ -79,7 +79,12 @@
         'is-tab-history': activeMobileTab === 'history'
       }"
     >
-      <DashboardMobileTabs :active-tab="activeMobileTab" @update:active-tab="activeMobileTab = $event" />
+      <DashboardMobileTabs
+        :active-tab="activeMobileTab"
+        :issues-count="filteredIssues.length"
+        :history-count="auditHistory.length"
+        @update:active-tab="activeMobileTab = $event"
+      />
       <DashboardHistoryRail
         :history-loading="historyLoading"
         :history-loading-more="historyLoadingMore"

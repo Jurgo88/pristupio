@@ -6,7 +6,7 @@
       :class="{ 'is-active': activeTab === 'overview' }"
       @click="$emit('update:activeTab', 'overview')"
     >
-      Prehľad
+      <span>Prehľad</span>
     </button>
     <button
       type="button"
@@ -14,7 +14,8 @@
       :class="{ 'is-active': activeTab === 'issues' }"
       @click="$emit('update:activeTab', 'issues')"
     >
-      Nálezy
+      <span>Nálezy</span>
+      <small v-if="issuesCount > 0" class="mobile-tab__count">{{ issuesCount }}</small>
     </button>
     <button
       type="button"
@@ -22,7 +23,8 @@
       :class="{ 'is-active': activeTab === 'history' }"
       @click="$emit('update:activeTab', 'history')"
     >
-      História
+      <span>História</span>
+      <small v-if="historyCount > 0" class="mobile-tab__count">{{ historyCount }}</small>
     </button>
   </nav>
 </template>
@@ -30,6 +32,8 @@
 <script setup lang="ts">
 defineProps<{
   activeTab: 'overview' | 'issues' | 'history'
+  issuesCount: number
+  historyCount: number
 }>()
 
 defineEmits<{
@@ -51,12 +55,31 @@ defineEmits<{
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
 }
 
 .mobile-tab.is-active {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
   background: #ffffff;
+}
+
+.mobile-tab__count {
+  min-width: 1.2rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #334155;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.mobile-tab.is-active .mobile-tab__count {
+  background: rgba(37, 99, 235, 0.15);
+  color: #1e40af;
 }
 
 @media (max-width: 980px) {
