@@ -124,6 +124,7 @@
           :search-text="searchText"
           :principle-options="principleOptions"
           :export-error="exportError"
+          :high-count="highCount"
           :can-expand-details="!isPreview && visibleIssues.length > 0"
           :can-collapse-details="!isPreview && hasOpenIssueDetails"
           :visible-issues="visibleIssues"

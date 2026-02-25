@@ -12,6 +12,8 @@
         :search-text="searchText"
         :principle-options="principleOptions"
         :export-error="exportError"
+        :total-issues-count="reportIssuesCount"
+        :high-count="highCount"
         :can-expand-details="canExpandDetails"
         :can-collapse-details="canCollapseDetails"
         @update:selected-principle="emit('update:selectedPrinciple', $event)"
@@ -79,6 +81,7 @@ defineProps<{
   searchText: string
   principleOptions: string[]
   exportError: string
+  highCount: number
   canExpandDetails: boolean
   canCollapseDetails: boolean
   visibleIssues: DashboardIssue[]
