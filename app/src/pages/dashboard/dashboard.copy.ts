@@ -199,6 +199,19 @@ export const DASHBOARD_ISSUES_TEXT = {
   allOption: 'Všetky',
   searchPlaceholder: 'Napr. kontrast, tlačidlo, aria',
   clearFilters: 'Zrušiť filtre',
+  expandDetails: 'Rozbaliť detaily',
+  collapseDetails: 'Zbaliť detaily',
+  quickFiltersLabel: 'Rýchle filtre',
+  quickFilterAll: 'Všetky',
+  quickFilterHigh: 'Vysoké',
+  quickFilterCritical: 'Kritické',
+  quickFilterSerious: 'Závažné',
+  quickFilterModerate: 'Stredné',
+  quickFilterMinor: 'Menšie',
+  topPriorityTitle: 'Top priority režim',
+  topPriorityLead: (count: number) => `Zobrazuje len kritické + závažné nálezy (${count}).`,
+  topPriorityEnable: 'Zamerať sa na top priority',
+  topPriorityDisable: 'Zobraziť všetko',
   shownFindings: 'Zobrazené nálezy',
   totalPrefix: 'celkovo',
   loadMoreFindings: 'Načítať ďalšie nálezy',
@@ -228,6 +241,7 @@ export const DASHBOARD_REPORT_PREVIEW_TEXT = {
 } as const
 
 export const IMPACT_OPTIONS = [
+  { value: 'high', label: 'Kritické + závažné' },
   { value: 'critical', label: 'Kritické' },
   { value: 'serious', label: 'Závažné' },
   { value: 'moderate', label: 'Stredné' },

@@ -3,7 +3,8 @@
     <DashboardHeroSection />
 
     <DashboardMetricsStrip
-      :has-report="!!auditStore.report"
+      v-if="hasReport"
+      :has-report="hasReport"
       :audit-score="auditScore"
       :score-state-label="scoreStateLabel"
       :high-count="highCount"
@@ -11,10 +12,13 @@
       :filtered-issues-count="filteredIssues.length"
       :last-audit-label="lastAuditLabel"
       :has-latest-audit="!!latestAudit"
+      @focus-high-issues="openHighIssuesView"
+      @focus-all-issues="openAllIssuesView"
+      @open-latest-audit="openLatestAuditFromMetrics"
     />
 
     <DashboardAccessPanels
-      :show-preview="!!auditStore.report && isPreview"
+      :show-preview="hasReport && isPreview"
       :payment-notice="paymentNotice"
       :refresh-plan-loading="refreshPlanLoading"
       :show-upgrade="showUpgrade"
@@ -25,6 +29,7 @@
       @refresh-plan="refreshPlan"
     />
     <DashboardMonitoringPanel
+      v-if="hasReport"
       :is-logged-in="auth.isLoggedIn"
       :is-admin="auth.isAdmin"
       :monitoring-is-active="monitoringIsActive"
@@ -68,7 +73,19 @@
       @cancel-site-audit="handleCancelSiteAudit"
     />
 
+    <section v-if="!hasReport" class="panel onboarding-panel">
+      <p class="kicker">Začnite auditom</p>
+      <h2>Najprv spustite prvý audit webu</h2>
+      <p class="lead">
+        Po dokončení sa zobrazí prehľad nálezov, história auditov, monitoring domén a export reportu.
+      </p>
+      <button type="button" class="btn btn-primary" @click="scrollToAuditForm">
+        Vyplniť URL a spustiť audit
+      </button>
+    </section>
+
     <section
+      v-else
       class="dashboard-workspace"
       :class="{
         'is-tab-overview': activeMobileTab === 'overview',
@@ -76,7 +93,12 @@
         'is-tab-history': activeMobileTab === 'history'
       }"
     >
-      <DashboardMobileTabs :active-tab="activeMobileTab" @update:active-tab="activeMobileTab = $event" />
+      <DashboardMobileTabs
+        :active-tab="activeMobileTab"
+        :issues-count="filteredIssues.length"
+        :history-count="auditHistory.length"
+        @update:active-tab="activeMobileTab = $event"
+      />
       <DashboardHistoryRail
         :history-loading="historyLoading"
         :history-loading-more="historyLoadingMore"
@@ -121,6 +143,10 @@
           :search-text="searchText"
           :principle-options="principleOptions"
           :export-error="exportError"
+          :high-count="highCount"
+          :top-priority-active="isTopPriorityView"
+          :can-expand-details="!isPreview && visibleIssues.length > 0"
+          :can-collapse-details="!isPreview && hasOpenIssueDetails"
           :visible-issues="visibleIssues"
           :filtered-issues="filteredIssues"
           :report-issues-count="totalIssuesCount"
@@ -133,6 +159,10 @@
           @update:selected-impact="selectedImpact = $event"
           @update:search-text="searchText = $event"
           @clear-filters="clearFilters"
+          @enable-top-priority="enableTopPriorityView"
+          @disable-top-priority="disableTopPriorityView"
+          @expand-details="expandVisibleDetails"
+          @collapse-details="collapseAllDetails"
           @export-pdf="exportPdf"
           @load-more-issues="loadMoreIssues"
         />
@@ -178,7 +208,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   DashboardAccessPanels,
   DashboardAuditForm,
@@ -277,9 +307,13 @@ const {
   hasMoreIssues,
   loadMoreIssues,
   clearFilters,
+  setImpactFilter,
   violationKey,
   toggleDetails,
-  isOpen
+  isOpen,
+  openDetails,
+  expandVisibleDetails,
+  collapseAllDetails
 } = useDashboardIssues(computed(() => auditStore.report))
 
 const {
@@ -307,9 +341,14 @@ const {
 })
 
 const activeMobileTab = ref<'overview' | 'issues' | 'history'>('overview')
+const hasReport = computed(() => !!auditStore.report)
 const totalIssuesCount = computed(() => auditStore.report?.issues?.length || 0)
-const scoreStateLabel = computed(() => getDashboardScoreStateLabel(!!auditStore.report, auditScore.value))
+const scoreStateLabel = computed(() => getDashboardScoreStateLabel(hasReport.value, auditScore.value))
 const coreText = DASHBOARD_CORE_TEXT
+const hasOpenIssueDetails = computed(() => Object.values(openDetails.value).some(Boolean))
+const isTopPriorityView = computed(
+  () => selectedImpact.value === 'high' && !selectedPrinciple.value && !searchText.value.trim()
+)
 const siteAuditSuccessModalVisible = ref(false)
 const auditSuccessModalMode = ref<'single' | 'site'>('site')
 const siteAuditSuccessTotal = ref(0)
@@ -351,14 +390,15 @@ const handleStartAuditWithSuccessModal = async () => {
 
 const openSiteAuditFromModal = async () => {
   closeSiteAuditSuccessModal()
-  const auditId = auditStore.currentAudit?.auditId
-  activeMobileTab.value = 'issues'
-  if (typeof auditId === 'string' && auditId) {
-    await selectAudit(auditId)
-  } else {
-    openLatestAudit()
-  }
+  await openLatestAuditFromMetrics()
+}
 
+const lastAuditLabel = computed(() => {
+  if (!latestAudit.value?.created_at) return ''
+  return formatDate(latestAudit.value.created_at)
+})
+
+const scrollToIssuesPanel = async () => {
   await nextTick()
   const issuesPanel = document.querySelector('.issues-panel') as HTMLElement | null
   if (issuesPanel) {
@@ -366,10 +406,59 @@ const openSiteAuditFromModal = async () => {
   }
 }
 
-const lastAuditLabel = computed(() => {
-  if (!latestAudit.value?.created_at) return ''
-  return formatDate(latestAudit.value.created_at)
-})
+const scrollToAuditForm = async () => {
+  await nextTick()
+  const formPanel = document.querySelector('.audit-form') as HTMLElement | null
+  if (formPanel) {
+    formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
+
+const openHighIssuesView = async () => {
+  activeMobileTab.value = 'issues'
+  setImpactFilter('high')
+  await scrollToIssuesPanel()
+}
+
+const openAllIssuesView = async () => {
+  activeMobileTab.value = 'issues'
+  clearFilters()
+  await scrollToIssuesPanel()
+}
+
+const enableTopPriorityView = async () => {
+  activeMobileTab.value = 'issues'
+  selectedPrinciple.value = ''
+  searchText.value = ''
+  setImpactFilter('high')
+  await scrollToIssuesPanel()
+}
+
+const disableTopPriorityView = async () => {
+  activeMobileTab.value = 'issues'
+  clearFilters()
+  await scrollToIssuesPanel()
+}
+
+const openLatestAuditFromMetrics = async () => {
+  activeMobileTab.value = 'issues'
+  if (latestAudit.value?.id) {
+    await selectAudit(latestAudit.value.id)
+  } else {
+    openLatestAudit()
+  }
+  await scrollToIssuesPanel()
+}
+
+watch(
+  () => hasReport.value,
+  (hasReport) => {
+    if (hasReport && activeMobileTab.value === 'overview') {
+      activeMobileTab.value = 'issues'
+    }
+  },
+  { immediate: true }
+)
 
 </script>
 
@@ -394,6 +483,39 @@ const lastAuditLabel = computed(() => {
 .workspace-main {
   display: grid;
   gap: 1.15rem;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.8rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.onboarding-panel {
+  display: grid;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.onboarding-panel h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.68rem);
+}
+
+.onboarding-panel .lead {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  color: #64748b;
+  font-weight: 700;
+  margin: 0;
 }
 
 .site-audit-success-modal-backdrop {
@@ -492,6 +614,10 @@ const lastAuditLabel = computed(() => {
 
   .site-audit-success-modal {
     padding: 1rem;
+  }
+
+  .panel {
+    padding: 1.4rem;
   }
 
   .site-audit-success-stats {

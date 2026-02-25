@@ -21,6 +21,64 @@
       </div>
     </div>
 
+    <div class="quick-filters">
+      <span class="quick-filters__label">{{ DASHBOARD_ISSUES_TEXT.quickFiltersLabel }}</span>
+      <button
+        type="button"
+        class="quick-filter-chip"
+        :class="{ 'is-active': selectedImpact === '' }"
+        :disabled="!hasReport || isPreview"
+        @click="$emit('update:selectedImpact', '')"
+      >
+        {{ DASHBOARD_ISSUES_TEXT.quickFilterAll }} ({{ totalIssuesCount }})
+      </button>
+      <button
+        type="button"
+        class="quick-filter-chip"
+        :class="{ 'is-active': selectedImpact === 'high' }"
+        :disabled="!hasReport || isPreview"
+        @click="$emit('update:selectedImpact', 'high')"
+      >
+        {{ DASHBOARD_ISSUES_TEXT.quickFilterHigh }} ({{ highCount }})
+      </button>
+      <button
+        type="button"
+        class="quick-filter-chip"
+        :class="{ 'is-active': selectedImpact === 'critical' }"
+        :disabled="!hasReport || isPreview"
+        @click="$emit('update:selectedImpact', 'critical')"
+      >
+        {{ DASHBOARD_ISSUES_TEXT.quickFilterCritical }}
+      </button>
+      <button
+        type="button"
+        class="quick-filter-chip"
+        :class="{ 'is-active': selectedImpact === 'serious' }"
+        :disabled="!hasReport || isPreview"
+        @click="$emit('update:selectedImpact', 'serious')"
+      >
+        {{ DASHBOARD_ISSUES_TEXT.quickFilterSerious }}
+      </button>
+      <button
+        type="button"
+        class="quick-filter-chip"
+        :class="{ 'is-active': selectedImpact === 'moderate' }"
+        :disabled="!hasReport || isPreview"
+        @click="$emit('update:selectedImpact', 'moderate')"
+      >
+        {{ DASHBOARD_ISSUES_TEXT.quickFilterModerate }}
+      </button>
+      <button
+        type="button"
+        class="quick-filter-chip"
+        :class="{ 'is-active': selectedImpact === 'minor' }"
+        :disabled="!hasReport || isPreview"
+        @click="$emit('update:selectedImpact', 'minor')"
+      >
+        {{ DASHBOARD_ISSUES_TEXT.quickFilterMinor }}
+      </button>
+    </div>
+
     <div class="filters">
       <div class="field">
         <label class="field-label">{{ DASHBOARD_ISSUES_TEXT.principleLabel }}</label>
@@ -54,6 +112,24 @@
           {{ DASHBOARD_ISSUES_TEXT.clearFilters }}
         </button>
       </div>
+      <div class="field field--actions">
+        <button
+          class="btn btn-sm btn-filter-clear"
+          @click="$emit('expandDetails')"
+          :disabled="!canExpandDetails"
+        >
+          {{ DASHBOARD_ISSUES_TEXT.expandDetails }}
+        </button>
+      </div>
+      <div class="field field--actions">
+        <button
+          class="btn btn-sm btn-filter-clear"
+          @click="$emit('collapseDetails')"
+          :disabled="!canCollapseDetails"
+        >
+          {{ DASHBOARD_ISSUES_TEXT.collapseDetails }}
+        </button>
+      </div>
     </div>
 
     <div v-if="exportError" class="status-alert status-alert--danger">{{ exportError }}</div>
@@ -74,6 +150,10 @@ defineProps<{
   searchText: string
   principleOptions: string[]
   exportError: string
+  totalIssuesCount: number
+  highCount: number
+  canExpandDetails: boolean
+  canCollapseDetails: boolean
 }>()
 
 const emit = defineEmits<{
@@ -81,6 +161,8 @@ const emit = defineEmits<{
   (event: 'update:selectedImpact', value: string): void
   (event: 'update:searchText', value: string): void
   (event: 'clearFilters'): void
+  (event: 'expandDetails'): void
+  (event: 'collapseDetails'): void
   (event: 'exportPdf'): void
 }>()
 
@@ -134,10 +216,57 @@ const onSearchInput = (event: Event) => {
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.2rem;
   align-items: end;
+}
+
+.quick-filters {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.8rem;
+  align-items: center;
+}
+
+.quick-filters__label {
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.quick-filter-chip {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 0.36rem 0.7rem;
+  font-size: 0.79rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.quick-filter-chip:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.quick-filter-chip.is-active {
+  border-color: #2563eb;
+  color: #1e40af;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.quick-filter-chip:disabled {
+  opacity: 0.6;
+}
+
+@media (max-width: 1280px) {
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .btn-filter-clear {
@@ -250,6 +379,26 @@ const onSearchInput = (event: Event) => {
 
 [data-theme='dark'] .panel-head h2 {
   color: #e2e8f0;
+}
+
+[data-theme='dark'] .quick-filters__label {
+  color: #9fb3cc;
+}
+
+[data-theme='dark'] .quick-filter-chip {
+  background: #101b2e;
+  border-color: #3b4f6e;
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .quick-filter-chip:hover:not(:disabled) {
+  background: #17243a;
+}
+
+[data-theme='dark'] .quick-filter-chip.is-active {
+  border-color: #60a5fa;
+  background: rgba(37, 99, 235, 0.3);
+  color: #bfdbfe;
 }
 
 @media (max-width: 980px) {

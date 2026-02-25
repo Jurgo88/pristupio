@@ -70,6 +70,48 @@ type DeleteTargetPayload = {
   targetId: string
 }
 
+const toDomainKey = (value?: string) => {
+  const raw = (value || '').trim()
+  if (!raw) return ''
+  const withProtocol = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw) ? raw : `https://${raw}`
+  try {
+    return new URL(withProtocol).hostname.toLowerCase()
+  } catch {
+    return raw.replace(/\/+$/, '').toLowerCase()
+  }
+}
+
+const isNewerTarget = (candidate: MonitoringTarget, current: MonitoringTarget) => {
+  const candidateTs = candidate.updated_at ? Date.parse(candidate.updated_at) : NaN
+  const currentTs = current.updated_at ? Date.parse(current.updated_at) : NaN
+  if (Number.isNaN(candidateTs) && Number.isNaN(currentTs)) return false
+  if (Number.isNaN(currentTs)) return true
+  if (Number.isNaN(candidateTs)) return false
+  return candidateTs > currentTs
+}
+
+const dedupeTargetsByDomain = (targets: MonitoringTarget[]) => {
+  const map = new Map<string, MonitoringTarget>()
+  for (const target of targets) {
+    const key = toDomainKey(target.default_url) || target.id
+    const current = map.get(key)
+    if (!current) {
+      map.set(key, target)
+      continue
+    }
+
+    // Prefer active rows, otherwise keep the most recently updated one.
+    if (target.active && !current.active) {
+      map.set(key, target)
+      continue
+    }
+    if (target.active === current.active && isNewerTarget(target, current)) {
+      map.set(key, target)
+    }
+  }
+  return Array.from(map.values())
+}
+
 const getErrorMessage = async (response: Response, fallback: string) => {
   try {
     const data = await response.json()
@@ -146,9 +188,10 @@ export const useMonitoringStore = defineStore('monitoring', {
 
         const data = await response.json()
         this.entitlement = data?.entitlement || null
-        const targets = Array.isArray(data?.targets) ? data.targets : data?.target ? [data.target] : []
+        const rawTargets = Array.isArray(data?.targets) ? data.targets : data?.target ? [data.target] : []
+        const targets = dedupeTargetsByDomain(rawTargets)
         this.targets = targets
-        this.target = data?.target || targets[0] || null
+        this.target = targets[0] || null
         this.latestRun = data?.latestRun || null
         this.latestSuccessRunByTarget =
           data?.latestSuccessRunByTarget && typeof data.latestSuccessRunByTarget === 'object'
@@ -253,7 +296,7 @@ export const useMonitoringStore = defineStore('monitoring', {
         }
 
         const data = await response.json()
-        const targets = Array.isArray(data?.targets) ? data.targets : []
+        const targets = dedupeTargetsByDomain(Array.isArray(data?.targets) ? data.targets : [])
         this.targets = targets
         this.target = targets[0] || null
         await this.fetchStatus()

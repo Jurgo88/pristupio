@@ -7,7 +7,7 @@
 
   <div v-else class="history-list">
     <article
-      v-for="audit in auditHistory"
+      v-for="(audit, index) in auditHistory"
       :key="audit.id"
       class="history-card"
       :class="{ 'is-active': selectedAuditId === audit.id }"
@@ -24,7 +24,7 @@
         </div>
       </div>
       <div class="history-card-actions">
-        <button class="btn btn-sm btn-outline history-card-btn" @click="selectAudit(audit.id)">
+        <button class="btn btn-sm btn-primary history-card-btn history-card-btn--primary" @click="selectAudit(audit.id)">
           {{ copy.openAudit }}
         </button>
         <span
@@ -33,14 +33,15 @@
           :title="monitorButtonTitle(audit)"
         >
           <button
-            class="btn btn-sm history-card-btn"
-            :class="isMonitoringAudit(audit) ? 'btn-success' : 'btn-primary'"
+            class="btn btn-sm btn-outline history-card-btn history-card-btn--monitor"
+            :class="{ 'is-active': isMonitoringAudit(audit) }"
             :disabled="monitoringLoadingAction || !canMonitorAudit(audit)"
             @click="handleRunMonitoringForAudit(audit)"
           >
             {{ isPendingAudit(audit) ? copy.monitorPending : isMonitoringAudit(audit) ? copy.monitorActive : copy.monitorIdle }}
           </button>
         </span>
+        <small v-if="monitorButtonTitle(audit)" class="history-monitor-hint">{{ monitorButtonTitle(audit) }}</small>
       </div>
     </article>
 
@@ -186,6 +187,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--surface-2);
+  min-width: 0;
 }
 
 .history-card.is-active {
@@ -197,6 +199,13 @@ onBeforeUnmount(() => {
 .history-meta strong {
   display: block;
   color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.history-meta {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .history-sub {
@@ -221,6 +230,7 @@ onBeforeUnmount(() => {
 
 .history-stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.8rem;
   margin-top: 0.4rem;
   font-size: 0.85rem;
@@ -229,16 +239,27 @@ onBeforeUnmount(() => {
 
 .history-card-actions {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.35rem;
   align-items: start;
   justify-items: stretch;
-  width: 150px;
-  flex: 0 0 150px;
+  width: min(170px, 100%);
+  min-width: 140px;
+  flex: 0 1 170px;
 }
 
 .history-card-btn {
   width: 100%;
   justify-content: center;
+}
+
+.history-card-btn--primary {
+  box-shadow: 0 10px 20px rgba(29, 78, 216, 0.22);
+}
+
+.history-card-btn--monitor.is-active {
+  border-color: rgba(22, 163, 74, 0.42);
+  color: #166534;
+  background: rgba(22, 163, 74, 0.1);
 }
 
 .history-card-btn-wrap {
@@ -248,6 +269,14 @@ onBeforeUnmount(() => {
 
 .history-card-btn-wrap.has-tooltip {
   cursor: help;
+}
+
+.history-monitor-hint {
+  display: block;
+  margin-top: 0.05rem;
+  color: #64748b;
+  font-size: 0.73rem;
+  line-height: 1.3;
 }
 
 .history-load-more {
@@ -290,6 +319,17 @@ onBeforeUnmount(() => {
 }
 
 [data-theme='dark'] .history-stats {
+  color: #9eb1c9;
+}
+
+
+[data-theme='dark'] .history-card-btn--monitor.is-active {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.18);
+}
+
+[data-theme='dark'] .history-monitor-hint {
   color: #9eb1c9;
 }
 

@@ -12,10 +12,16 @@
         :search-text="searchText"
         :principle-options="principleOptions"
         :export-error="exportError"
+        :total-issues-count="reportIssuesCount"
+        :high-count="highCount"
+        :can-expand-details="canExpandDetails"
+        :can-collapse-details="canCollapseDetails"
         @update:selected-principle="emit('update:selectedPrinciple', $event)"
         @update:selected-impact="emit('update:selectedImpact', $event)"
         @update:search-text="emit('update:searchText', $event)"
         @clear-filters="emit('clearFilters')"
+        @expand-details="emit('expandDetails')"
+        @collapse-details="emit('collapseDetails')"
         @export-pdf="emit('exportPdf')"
       />
     </div>
@@ -24,6 +30,19 @@
       {{ DASHBOARD_ISSUES_TEXT.shownFindings }}: <strong>{{ visibleIssues.length }}</strong> / {{ filteredIssues.length }}
       <span class="issues-meta-total"> ({{ DASHBOARD_ISSUES_TEXT.totalPrefix }} {{ reportIssuesCount }})</span>
     </p>
+    <div v-if="hasReport && highCount > 0" class="top-priority-banner" :class="{ 'is-active': topPriorityActive }">
+      <div>
+        <strong>{{ DASHBOARD_ISSUES_TEXT.topPriorityTitle }}</strong>
+        <p>{{ DASHBOARD_ISSUES_TEXT.topPriorityLead(highCount) }}</p>
+      </div>
+      <button
+        class="btn btn-sm"
+        :class="topPriorityActive ? 'btn-outline' : 'btn-primary'"
+        @click="topPriorityActive ? emit('disableTopPriority') : emit('enableTopPriority')"
+      >
+        {{ topPriorityActive ? DASHBOARD_ISSUES_TEXT.topPriorityDisable : DASHBOARD_ISSUES_TEXT.topPriorityEnable }}
+      </button>
+    </div>
 
     <div v-if="!hasReport" class="status-state">
       {{ DASHBOARD_ISSUES_TEXT.emptyNoReport }}
@@ -75,6 +94,10 @@ defineProps<{
   searchText: string
   principleOptions: string[]
   exportError: string
+  highCount: number
+  topPriorityActive: boolean
+  canExpandDetails: boolean
+  canCollapseDetails: boolean
   visibleIssues: DashboardIssue[]
   filteredIssues: DashboardIssue[]
   reportIssuesCount: number
@@ -90,6 +113,10 @@ const emit = defineEmits<{
   (event: 'update:selectedImpact', value: string): void
   (event: 'update:searchText', value: string): void
   (event: 'clearFilters'): void
+  (event: 'enableTopPriority'): void
+  (event: 'disableTopPriority'): void
+  (event: 'expandDetails'): void
+  (event: 'collapseDetails'): void
   (event: 'exportPdf'): void
   (event: 'loadMoreIssues'): void
 }>()
@@ -121,6 +148,34 @@ const emit = defineEmits<{
   color: #64748b;
 }
 
+.top-priority-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.72rem 0.84rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.top-priority-banner strong {
+  display: block;
+  font-size: 0.83rem;
+  color: #0f172a;
+}
+
+.top-priority-banner p {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.top-priority-banner.is-active {
+  border-color: rgba(185, 28, 28, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
 .issues-load-more {
   display: flex;
   justify-content: center;
@@ -146,6 +201,11 @@ const emit = defineEmits<{
 @media (max-width: 640px) {
   .panel {
     padding: 1.4rem;
+  }
+
+  .top-priority-banner {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

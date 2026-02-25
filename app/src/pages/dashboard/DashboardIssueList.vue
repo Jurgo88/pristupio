@@ -15,6 +15,8 @@
           v-if="!isPreview"
           class="btn btn-outline btn-sm"
           @click="toggleDetails(violationKey(violation, index))"
+          :aria-expanded="isOpen(violationKey(violation, index))"
+          :aria-controls="`issue-details-${violationKey(violation, index)}`"
         >
           {{ isOpen(violationKey(violation, index)) ? 'Skryť detail' : 'Zobraziť detail' }}
         </button>
@@ -34,7 +36,11 @@
       </div>
       <small class="issue-count">Zasiahnutých elementov: {{ violation.nodesCount ?? 0 }}</small>
 
-      <div v-if="!isPreview && isOpen(violationKey(violation, index))" class="issue-details">
+      <div
+        v-if="!isPreview && isOpen(violationKey(violation, index))"
+        :id="`issue-details-${violationKey(violation, index)}`"
+        class="issue-details"
+      >
         <div v-if="violation.nodesCount === 0" class="empty-inline">Nenašli sa konkrétne prvky.</div>
         <div v-for="(node, nIndex) in violation.nodes?.slice(0, 3) || []" :key="nIndex" class="node-detail">
           <div>{{ describeTarget(node.target) }}</div>
