@@ -142,8 +142,8 @@ export const useDashboardCore = () => {
   )
   const monitoringDefaultCadenceLabel = computed(() => {
     const tier = monitoringStore.entitlement?.monitoringTier
-    if (tier === 'pro') return 'Pondelok a ötvrtok'
-    return 'Kaûd˝ pondelok'
+    if (tier === 'pro') return 'Pondelok a ≈°tvrtok'
+    return 'Ka≈æd√Ω pondelok'
   })
   const monitoringTier = computed(() => {
     const tier = monitoringStore.entitlement?.monitoringTier
@@ -247,13 +247,13 @@ export const useDashboardCore = () => {
   const profileOptions: ProfileOption[] = [
     {
       value: 'wad',
-      title: 'Verejn˝ sektor (WAD 2016/2102)',
-      subtitle: 'Weby a aplik·cie verejn˝ch inötit˙ciÌ'
+      title: 'Verejn√Ω sektor (WAD 2016/2102)',
+      subtitle: 'Weby a aplik√°cie verejn√Ωch in≈°tit√∫ci√≠'
     },
     {
       value: 'eaa',
-      title: 'Produkty a sluûby (EAA 2019/882)',
-      subtitle: 'E-shopy, banky, doprava, digit·lne sluûby'
+      title: 'Produkty a slu≈æby (EAA 2019/882)',
+      subtitle: 'E-shopy, banky, doprava, digit√°lne slu≈æby'
     }
   ]
 
