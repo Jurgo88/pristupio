@@ -37,16 +37,18 @@ const shouldRedriveQueuedJob = (job: any) => {
   return withinWindow >= 0 && withinWindow <= QUEUED_REDRIVE_WINDOW_MS
 }
 
-const loadRunningPageBestEffort = async (supabase: any, jobId: string, status: string) => {
+const loadCurrentPageBestEffort = async (supabase: any, jobId: string, status: string) => {
   if (status !== 'running') return null
 
   try {
-    const queryPromise = supabase
+    // Prefer an actively running page. If none is currently marked as running,
+    // fall back to the most recently touched non-queued page so UI progress stays informative.
+    const runningQueryPromise = supabase
       .from('audit_job_pages')
       .select('url, depth')
       .eq('job_id', jobId)
       .eq('status', 'running')
-      .order('id', { ascending: true })
+      .order('id', { ascending: false })
       .limit(1)
       .maybeSingle()
 
@@ -54,12 +56,28 @@ const loadRunningPageBestEffort = async (supabase: any, jobId: string, status: s
       setTimeout(() => resolve(null), RUNNING_PAGE_QUERY_TIMEOUT_MS)
     )
 
-    const result = (await Promise.race([queryPromise, timeoutPromise])) as
+    const runningResult = (await Promise.race([runningQueryPromise, timeoutPromise])) as
       | { data?: { url?: string | null; depth?: number | null } | null; error?: any }
       | null
 
-    if (!result || result.error) return null
-    return result.data || null
+    if (runningResult?.data && !runningResult.error) return runningResult.data
+
+    const latestQueryPromise = supabase
+      .from('audit_job_pages')
+      .select('url, depth')
+      .eq('job_id', jobId)
+      .in('status', ['done', 'failed', 'skipped'])
+      .order('scanned_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const latestResult = (await Promise.race([latestQueryPromise, timeoutPromise])) as
+      | { data?: { url?: string | null; depth?: number | null } | null; error?: any }
+      | null
+
+    if (!latestResult || latestResult.error) return null
+    return latestResult.data || null
   } catch {
     return null
   }
@@ -170,7 +188,7 @@ export const handler: Handler = async (event) => {
       progress = Math.round((processed / limit) * 100)
     }
     progress = Math.max(0, Math.min(100, progress))
-    const runningPage = await loadRunningPageBestEffort(supabase, job.id, String(job.status || ''))
+    const runningPage = await loadCurrentPageBestEffort(supabase, job.id, String(job.status || ''))
 
     return jsonResponse(200, {
       job: {

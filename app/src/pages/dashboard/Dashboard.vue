@@ -73,7 +73,7 @@
       @cancel-site-audit="handleCancelSiteAudit"
     />
 
-    <section v-if="!hasReport" class="panel onboarding-panel">
+    <section v-if="!hasReport && !auditStore.loading" class="panel onboarding-panel">
       <p class="kicker">Začnite auditom</p>
       <h2>Najprv spustite prvý audit webu</h2>
       <p class="lead">
