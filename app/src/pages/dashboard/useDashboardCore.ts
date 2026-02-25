@@ -1,4 +1,4 @@
-﻿import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuditStore } from '@/stores/audit.store'
 import { useAuthStore } from '@/stores/auth.store'
@@ -150,6 +150,15 @@ export const useDashboardCore = () => {
     if (tier === 'pro' || tier === 'basic') return tier
     return 'none'
   })
+
+  watch(
+    () => auth.isLoggedIn,
+    (loggedIn) => {
+      if (!loggedIn) {
+        auditStore.resetState()
+      }
+    }
+  )
 
   const syncOpenedOrLatestAudit = async () => {
     const openedAuditId = auditStore.currentAudit?.auditId || selectedAuditId.value
