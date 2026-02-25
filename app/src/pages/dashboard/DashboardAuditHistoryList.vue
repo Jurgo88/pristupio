@@ -7,7 +7,7 @@
 
   <div v-else class="history-list">
     <article
-      v-for="audit in auditHistory"
+      v-for="(audit, index) in auditHistory"
       :key="audit.id"
       class="history-card"
       :class="{ 'is-active': selectedAuditId === audit.id }"
@@ -21,6 +21,15 @@
         <div class="history-stats">
           <span>{{ copy.statsTotal }}: {{ issueTotal(audit.summary) }}</span>
           <span>{{ copy.statsHigh }}: {{ issueHigh(audit.summary) }}</span>
+        </div>
+        <div v-if="compareWithPrevious(index)" class="history-delta">
+          <span class="history-delta__label">{{ copy.deltaLabel }}</span>
+          <span class="history-delta__pill" :class="deltaClass(compareWithPrevious(index)!.total)">
+            {{ copy.deltaTotal }}: {{ formatDelta(compareWithPrevious(index)!.total) }}
+          </span>
+          <span class="history-delta__pill" :class="deltaClass(compareWithPrevious(index)!.high)">
+            {{ copy.deltaHigh }}: {{ formatDelta(compareWithPrevious(index)!.high) }}
+          </span>
         </div>
       </div>
       <div class="history-card-actions">
@@ -124,6 +133,28 @@ const auditPillLabel = (audit: AuditHistoryItem) => {
   return audit.audit_kind === 'paid' ? copy.pillPaid : copy.pillFree
 }
 
+const compareWithPrevious = (index: number) => {
+  const current = props.auditHistory[index]
+  const previous = props.auditHistory[index + 1]
+  if (!current || !previous) return null
+
+  return {
+    total: props.issueTotal(current.summary) - props.issueTotal(previous.summary),
+    high: props.issueHigh(current.summary) - props.issueHigh(previous.summary)
+  }
+}
+
+const formatDelta = (value: number) => {
+  if (value > 0) return `+${value}`
+  return `${value}`
+}
+
+const deltaClass = (value: number) => {
+  if (value > 0) return 'is-worse'
+  if (value < 0) return 'is-better'
+  return 'is-neutral'
+}
+
 const handleRunMonitoringForAudit = async (audit: AuditHistoryItem) => {
   pendingMonitoringAuditId.value = audit.id
   try {
@@ -187,6 +218,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: var(--surface-2);
+  min-width: 0;
 }
 
 .history-card.is-active {
@@ -198,6 +230,13 @@ onBeforeUnmount(() => {
 .history-meta strong {
   display: block;
   color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.history-meta {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .history-sub {
@@ -222,10 +261,51 @@ onBeforeUnmount(() => {
 
 .history-stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.8rem;
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+.history-delta {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.45rem;
+  align-items: center;
+}
+
+.history-delta__label {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.history-delta__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.history-delta__pill.is-worse {
+  color: #991b1b;
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.history-delta__pill.is-better {
+  color: #166534;
+  border-color: rgba(22, 163, 74, 0.34);
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.history-delta__pill.is-neutral {
+  color: #334155;
 }
 
 .history-card-actions {
@@ -233,8 +313,9 @@ onBeforeUnmount(() => {
   gap: 0.35rem;
   align-items: start;
   justify-items: stretch;
-  width: 190px;
-  flex: 0 0 190px;
+  width: min(170px, 100%);
+  min-width: 140px;
+  flex: 0 1 170px;
 }
 
 .history-card-btn {
@@ -310,6 +391,28 @@ onBeforeUnmount(() => {
 
 [data-theme='dark'] .history-stats {
   color: #9eb1c9;
+}
+
+[data-theme='dark'] .history-delta__label {
+  color: #9eb1c9;
+}
+
+[data-theme='dark'] .history-delta__pill {
+  background: #0f1c31;
+  border-color: #334862;
+  color: #dbe7fb;
+}
+
+[data-theme='dark'] .history-delta__pill.is-worse {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(185, 28, 28, 0.28);
+}
+
+[data-theme='dark'] .history-delta__pill.is-better {
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.42);
+  background: rgba(22, 163, 74, 0.24);
 }
 
 [data-theme='dark'] .history-card-btn--monitor.is-active {
