@@ -103,19 +103,26 @@ defineEmits<{
   box-shadow: var(--shadow-sm);
 }
 
-.audit-history {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  max-height: calc(100vh - var(--dashboard-sticky-offset) - 0.5rem);
-  min-height: 280px;
-  min-width: 0;
-  overflow: hidden;
-}
 
+
+/* V Rail komponente */
 .history-scroll {
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   padding-right: 0.25rem;
+  /* Pridaj toto pre lepšiu stabilitu observera: */
+  position: relative; 
+  height: 100%;
+}
+
+/* Zabezpeč, aby panel nezmizol pri scrollovaní */
+.audit-history {
+  display: flex; /* Zmeň z grid na flex pre lepšiu kontrolu výšky */
+  flex-direction: column;
+  max-height: calc(100vh - var(--dashboard-sticky-offset, 100px) - 2rem);
+  min-height: 280px;
+  overflow: hidden;
 }
 
 .kicker {

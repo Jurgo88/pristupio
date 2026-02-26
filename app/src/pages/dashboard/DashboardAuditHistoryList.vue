@@ -1,347 +1,322 @@
 <template>
-  <div v-if="historyError" class="status-alert status-alert--danger">{{ historyError }}</div>
+  <div class="history-list">
+    <div v-if="historyError" class="alert-error">{{ historyError }}</div>
 
-  <div v-if="historyLoading" class="status-state status-state--loading">{{ copy.loading }}</div>
-
-  <div v-else-if="auditHistory.length === 0" class="status-state">{{ copy.empty }}</div>
-
-  <div v-else class="history-list">
     <article
-      v-for="(audit, index) in auditHistory"
+      v-for="audit in auditHistory"
       :key="audit.id"
       class="history-card"
       :class="{ 'is-active': selectedAuditId === audit.id }"
+      @click="selectAudit(audit.id)"
     >
-      <div class="history-meta">
-        <strong>{{ audit.url }}</strong>
-        <div class="history-sub">
-          <span>{{ formatDate(audit.created_at) }}</span>
-          <span class="pill">{{ auditPillLabel(audit) }}</span>
+      <div class="card-left">
+        <div class="score-circle" :class="getScore(audit.summary).class">
+          {{ getScore(audit.summary).value }}
         </div>
-        <div class="history-stats">
-          <span>{{ copy.statsTotal }}: {{ issueTotal(audit.summary) }}</span>
-          <span>{{ copy.statsHigh }}: {{ issueHigh(audit.summary) }}</span>
+
+        <div class="card-content">
+          <div class="url-text">
+            {{ audit.url }}
+          </div>
+
+          <div class="meta-line">
+            <span>{{ formatDate(audit.created_at) }}</span>
+            <span class="dot-sep">•</span>
+            <span class="pill-scope">{{ auditPillLabel(audit) }}</span>
+            <span class="dot-sep">•</span>
+            <span class="stat-critical">
+              {{ issueHigh(audit.summary) }} kritických
+            </span>
+            <span class="dot-sep">•</span>
+            <span class="stat-total">
+              {{ issueTotal(audit.summary) }} spolu
+            </span>
+          </div>
         </div>
       </div>
-      <div class="history-card-actions">
-        <button class="btn btn-sm btn-primary history-card-btn history-card-btn--primary" @click="selectAudit(audit.id)">
-          {{ copy.openAudit }}
-        </button>
-        <span
-          class="history-card-btn-wrap"
-          :class="{ 'has-tooltip': !!monitorButtonTitle(audit) }"
-          :title="monitorButtonTitle(audit)"
+
+      <div class="card-right" @click.stop>
+        <div v-if="isMonitoringAudit(audit)" class="monitor-tag">
+          <span class="dot"></span>
+          Aktívny
+        </div>
+
+        <button
+          v-else-if="canMonitorAudit(audit)"
+          class="btn-monitor"
+          :disabled="monitoringLoadingAction"
+          @click="handleRunMonitoringForAudit(audit)"
         >
-          <button
-            class="btn btn-sm btn-outline history-card-btn history-card-btn--monitor"
-            :class="{ 'is-active': isMonitoringAudit(audit) }"
-            :disabled="monitoringLoadingAction || !canMonitorAudit(audit)"
-            @click="handleRunMonitoringForAudit(audit)"
-          >
-            {{ isPendingAudit(audit) ? copy.monitorPending : isMonitoringAudit(audit) ? copy.monitorActive : copy.monitorIdle }}
-          </button>
-        </span>
-        <small v-if="monitorButtonTitle(audit)" class="history-monitor-hint">{{ monitorButtonTitle(audit) }}</small>
+          {{ monitoringLoadingAction ? '...' : 'Monitorovať' }}
+        </button>
       </div>
     </article>
 
-    <div v-if="historyHasMore" class="history-load-more">
-      <div ref="historySentinel" class="history-sentinel" aria-hidden="true"></div>
-      <button class="btn btn-sm btn-outline" :disabled="historyLoadingMore" @click="loadMoreHistory">
-        {{ historyLoadingMore ? copy.loadMoreLoading : copy.loadMoreIdle }}
-      </button>
+    <div 
+      v-if="historyHasMore" 
+      ref="historySentinel" 
+      class="sentinel"
+    >
+      <div v-if="historyLoadingMore" class="loader-dots">
+        <span></span><span></span><span></span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { AuditHistoryItem, DashboardReportSummary } from './dashboard.types'
+import { onMounted, onBeforeUnmount, ref, watch, nextTick } from 'vue'
 import { DASHBOARD_HISTORY_TEXT } from './dashboard.copy'
 
 const copy = DASHBOARD_HISTORY_TEXT
 
-type FormatDateFn = (value?: string) => string
-type IssueSummaryFn = (summary: DashboardReportSummary | null | undefined) => number
-type SelectAuditFn = (auditId: string) => void | Promise<void>
-type RunMonitoringFn = (audit: AuditHistoryItem) => void | Promise<void>
-
 const props = defineProps<{
-  historyError: string
-  historyLoading: boolean
-  historyLoadingMore: boolean
-  monitoringLoadingAction: boolean
-  monitoringHasAccess: boolean
-  monitoringActiveTargetUrls: string[]
-  monitoringCanAddTarget: boolean
-  monitoringDomainsLimit: number
-  historyHasMore: boolean
-  auditHistory: AuditHistoryItem[]
+  auditHistory: any[]
   selectedAuditId: string | null
-  formatDate: FormatDateFn
-  issueTotal: IssueSummaryFn
-  issueHigh: IssueSummaryFn
-  selectAudit: SelectAuditFn
-  runMonitoringForAudit: RunMonitoringFn
-  loadMoreHistory: () => void | Promise<void>
+  historyHasMore: boolean
+  historyLoadingMore: boolean
+  historyLoading: boolean 
+  historyError?: string
+  monitoringLoadingAction: boolean
+  monitoringActiveTargetUrls: string[]
+  monitoringHasAccess: boolean
+  monitoringCanAddTarget: boolean
+  formatDate: (v?: string) => string
+  issueTotal: (s: any) => number
+  issueHigh: (s: any) => number
+  selectAudit: (id: string) => void
+  runMonitoringForAudit: (a: any) => void
+  loadMoreHistory: () => void
 }>()
 
+/* ===== LOGIKA PRE INFINITE SCROLL ===== */
+
 const historySentinel = ref<HTMLElement | null>(null)
-const pendingMonitoringAuditId = ref<string | null>(null)
 let observer: IntersectionObserver | null = null
 
-const normalizeUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '').toLowerCase()
-
-const isMonitoringAudit = (audit: AuditHistoryItem) => {
-  const normalizedAuditUrl = normalizeUrl(audit.url)
-  if (!normalizedAuditUrl) return false
-  return (props.monitoringActiveTargetUrls || [])
-    .map((value) => normalizeUrl(value))
-    .includes(normalizedAuditUrl)
-}
-
-const canMonitorAudit = (audit: AuditHistoryItem) => {
-  if (!props.monitoringHasAccess) return false
-  if (isMonitoringAudit(audit)) return false
-  return props.monitoringCanAddTarget
-}
-
-const monitorButtonTitle = (audit: AuditHistoryItem) => {
-  if (!props.monitoringHasAccess) return copy.monitorTooltipNoAccess
-  if (isMonitoringAudit(audit)) return copy.monitorTooltipAlreadyActive
-  if (!isMonitoringAudit(audit) && !props.monitoringCanAddTarget) {
-    return copy.monitorTooltipLimit(props.monitoringDomainsLimit)
+// Funkcia na inicializáciu/obnovu observera
+const initObserver = () => {
+  // Ak už observer existuje, zrušíme starý, aby sme nemali duplikáty
+  if (observer) {
+    observer.disconnect()
   }
-  return ''
+
+  if (!historySentinel.value) return
+
+  // Najdôležitejšia časť: Ak je komponent v Raili (bočnom paneli), 
+  // root by mal byť ten div s overflow: auto.
+  const scrollRoot = historySentinel.value.closest('.history-scroll')
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      if (entry && entry.isIntersecting) {
+        // Kontrola, či už niečo nenačítavame
+        if (props.historyHasMore && !props.historyLoadingMore && !props.historyLoading) {
+          props.loadMoreHistory()
+        }
+      }
+    },
+    {
+      root: scrollRoot, 
+      rootMargin: '150px 0px', // Načíta s predstihom 150px
+      threshold: 0.01
+    }
+  )
+
+  observer.observe(historySentinel.value)
 }
 
-const isPendingAudit = (audit: AuditHistoryItem) => {
-  return props.monitoringLoadingAction && pendingMonitoringAuditId.value === audit.id
-}
+// Sledujeme zmeny v histórii. Keď prídu prvé dáta po refreshi, 
+// počkáme na DOM a pripojíme observer.
+watch(
+  () => props.auditHistory,
+  async (newVal) => {
+    if (newVal && newVal.length > 0) {
+      await nextTick()
+      initObserver()
+    }
+  },
+  { deep: false }
+)
 
-const auditPillLabel = (audit: AuditHistoryItem) => {
+// Sledujeme aj zmenu stavu "hasMore" - ak sa znova objaví sentinel
+watch(() => props.historyHasMore, async (hasMore) => {
+  if (hasMore) {
+    await nextTick()
+    initObserver()
+  }
+})
+
+onMounted(() => {
+  initObserver()
+})
+
+onBeforeUnmount(() => {
+  if (observer) observer.disconnect()
+})
+
+/* ===== POMOCNÉ FUNKCIE (Zostávajú rovnaké) ===== */
+
+const auditPillLabel = (audit: any) => {
   if (audit.scope === 'site') return copy.pillSite
   return audit.audit_kind === 'paid' ? copy.pillPaid : copy.pillFree
 }
 
-const handleRunMonitoringForAudit = async (audit: AuditHistoryItem) => {
-  pendingMonitoringAuditId.value = audit.id
-  try {
-    await props.runMonitoringForAudit(audit)
-  } finally {
-    pendingMonitoringAuditId.value = null
-  }
+const getScore = (summary: any) => {
+  if (!summary?.byImpact) return { value: 100, class: 'score-good' }
+  const s = summary.byImpact
+  const penalty = (s.critical || 0) * 18 + (s.serious || 0) * 10 + (s.moderate || 0) * 5 + (s.minor || 0) * 2
+  const score = Math.max(0, Math.round(100 / (1 + penalty / 60)))
+  if (score >= 80) return { value: score, class: 'score-good' }
+  if (score >= 50) return { value: score, class: 'score-medium' }
+  return { value: score, class: 'score-bad' }
 }
 
-const tryLoadMore = () => {
-  if (!props.historyHasMore || props.historyLoading || props.historyLoadingMore) return
-  void props.loadMoreHistory()
+const normalize = (u: string) => (u || '').trim().replace(/\/+$/, '').toLowerCase()
+const isMonitoringAudit = (audit: any) => {
+  const normalized = normalize(audit.url)
+  return props.monitoringActiveTargetUrls?.some(u => normalize(u) === normalized)
 }
-
-onMounted(() => {
-  const sentinel = historySentinel.value
-  if (!sentinel || typeof IntersectionObserver === 'undefined') return
-
-  const scrollRoot = sentinel.closest('.history-scroll') as HTMLElement | null
-  observer = new IntersectionObserver(
-    (entries) => {
-      const entry = entries[0]
-      if (entry?.isIntersecting) {
-        tryLoadMore()
-      }
-    },
-    {
-      root: scrollRoot,
-      rootMargin: '120px 0px',
-      threshold: 0.01
-    }
-  )
-  observer.observe(sentinel)
-})
-
-watch(
-  () => [props.historyHasMore, props.historyLoading, props.historyLoadingMore, props.auditHistory.length],
-  () => {
-    tryLoadMore()
-  }
-)
-
-onBeforeUnmount(() => {
-  observer?.disconnect()
-  observer = null
-})
+const canMonitorAudit = (audit: any) => props.monitoringHasAccess && !isMonitoringAudit(audit) && props.monitoringCanAddTarget
+const handleRunMonitoringForAudit = (audit: any) => props.runMonitoringForAudit(audit)
 </script>
 
 <style scoped>
 .history-list {
-  display: grid;
-  gap: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
 }
 
+/* DEFINÍCIA PREMENNÝCH */
 .history-card {
+  --card-bg: #ffffff;
+  --card-border: #e2e8f0;
+  --card-hover-bg: #f8fafc;
+  --card-hover-border: #cbd5e1;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --active-bg: rgba(37, 99, 235, 0.06);
+  --active-border: #2563eb;
+
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
   align-items: center;
-  padding: 0.9rem 1.1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* DARK MODE PREPIS PREMENNÝCH */
+[data-theme='dark'] .history-card {
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --card-hover-bg: #334155;
+  --card-hover-border: #475569;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --active-bg: rgba(37, 99, 235, 0.2);
+  --active-border: #3b82f6;
+}
+
+.history-card:hover {
+  border-color: var(--card-hover-border);
+  background: var(--card-hover-bg);
 }
 
 .history-card.is-active {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-  background: #ffffff;
+  border-color: var(--active-border);
+  background: var(--active-bg);
 }
 
-.history-meta strong {
-  display: block;
-  color: #0f172a;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.history-meta {
+.card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1;
 }
 
-.history-sub {
+.score-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
   display: flex;
-  gap: 0.7rem;
   align-items: center;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.history-sub .pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #ffffff;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.history-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.8rem;
-  margin-top: 0.4rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.history-card-actions {
-  display: grid;
-  gap: 0.35rem;
-  align-items: start;
-  justify-items: stretch;
-  width: min(170px, 100%);
-  min-width: 140px;
-  flex: 0 1 170px;
-}
-
-.history-card-btn {
-  width: 100%;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.history-card-btn--primary {
-  box-shadow: 0 10px 20px rgba(29, 78, 216, 0.22);
+/* Score farby vylepšené pre Dark Mode pomocou jemnejšieho pozadia */
+.score-good { 
+  background: #ecfdf5; color: #065f46; border: 1px solid #10b981; 
+}
+[data-theme='dark'] .score-good { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+.score-medium { 
+  background: #fffbeb; color: #92400e; border: 1px solid #f59e0b; 
+}
+[data-theme='dark'] .score-medium { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+.score-bad { 
+  background: #fef2f2; color: #991b1b; border: 1px solid #ef4444; 
+}
+[data-theme='dark'] .score-bad { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+.card-content { min-width: 0; flex: 1; }
+
+.url-text { 
+  font-weight: 600; 
+  font-size: 0.85rem; 
+  color: var(--text-main); 
+  word-break: break-all; 
 }
 
-.history-card-btn--monitor.is-active {
-  border-color: rgba(22, 163, 74, 0.42);
-  color: #166534;
-  background: rgba(22, 163, 74, 0.1);
+.meta-line { 
+  font-size: 0.72rem; 
+  color: var(--text-muted); 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 4px; 
+  align-items: center; 
 }
 
-.history-card-btn-wrap {
-  display: block;
-  width: 100%;
+.dot-sep { opacity: 0.4; }
+.stat-critical { color: #f87171; font-weight: 600; } 
+[data-theme='dark'] .stat-critical { color: #fb7185; }
+
+.pill-scope { font-weight: 600; text-transform: uppercase; font-size: 0.65rem; }
+
+.monitor-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 0.7rem; font-weight: 600; color: #10b981; }
+.monitor-tag .dot { width: 6px; height: 6px; background: #10b981; border-radius: 50%; }
+
+.btn-monitor {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.history-card-btn-wrap.has-tooltip {
-  cursor: help;
+.btn-monitor:hover {
+  border-color: #2563eb;
+  color: #2563eb;
 }
 
-.history-monitor-hint {
-  display: block;
-  margin-top: 0.05rem;
-  color: #64748b;
-  font-size: 0.73rem;
-  line-height: 1.3;
-}
+.sentinel { height: 30px; display: flex; align-items: center; justify-content: center; width: 100%; }
+.loader-dots { display: flex; gap: 4px; }
+.loader-dots span { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: blink 1.4s infinite both; }
 
-.history-load-more {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  justify-content: center;
-  align-items: center;
-  padding-top: 0.2rem;
-}
-
-.history-sentinel {
-  width: 100%;
-  height: 1px;
-}
-
-[data-theme='dark'] .history-card {
-  background: #13233c;
-  border-color: #2b3d5a;
-}
-
-[data-theme='dark'] .history-card.is-active {
-  background: linear-gradient(140deg, rgba(37, 99, 235, 0.28), rgba(14, 116, 144, 0.2));
-  border-color: rgba(96, 165, 250, 0.72);
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
-}
-
-[data-theme='dark'] .history-meta strong {
-  color: #e2e8f0;
-}
-
-[data-theme='dark'] .history-sub {
-  color: #a7b6cb;
-}
-
-[data-theme='dark'] .history-sub .pill {
-  background: #0f1c31;
-  border-color: #334862;
-  color: #bfdbfe;
-}
-
-[data-theme='dark'] .history-stats {
-  color: #9eb1c9;
-}
-
-
-[data-theme='dark'] .history-card-btn--monitor.is-active {
-  border-color: rgba(74, 222, 128, 0.45);
-  color: #bbf7d0;
-  background: rgba(22, 163, 74, 0.18);
-}
-
-[data-theme='dark'] .history-monitor-hint {
-  color: #9eb1c9;
-}
-
-@media (max-width: 980px) {
-  .history-card {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .history-card-actions {
-    width: 100%;
-    flex-basis: auto;
-  }
-}
+@keyframes blink { 0%, 80%, 100% { opacity: 0; } 40% { opacity: 1; } }
 </style>

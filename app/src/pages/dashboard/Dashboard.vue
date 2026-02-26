@@ -465,7 +465,7 @@ watch(
 <style scoped>
 /* Page Layout */
 .audit-page {
-  --dashboard-sticky-offset: calc(4rem + env(safe-area-inset-top));
+  --dashboard-sticky-offset: calc(6rem + env(safe-area-inset-top));
   width: 100%;
   margin: 0 auto;
   display: grid;

@@ -31,6 +31,18 @@ type AuditReport = {
     principle: string
     helpUrl?: string
     nodesCount?: number
+    occurrencesTotal?: number
+    pagesCount?: number
+    urls?: string[]
+    urlDetails?: Array<{
+      url?: string
+      occurrences?: number
+      nodes?: Array<{
+        target: string[]
+        html: string
+        failureSummary?: string
+      }>
+    }>
     nodes?: Array<{
       target: string[]
       html: string
