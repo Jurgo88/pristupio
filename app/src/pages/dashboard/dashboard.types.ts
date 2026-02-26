@@ -29,6 +29,14 @@ export type DashboardIssue = {
   principle?: string
   helpUrl?: string
   nodesCount?: number
+  occurrencesTotal?: number
+  pagesCount?: number
+  urls?: string[]
+  urlDetails?: Array<{
+    url?: string
+    occurrences?: number
+    nodes?: DashboardIssueNode[]
+  }>
   nodes?: DashboardIssueNode[]
 }
 

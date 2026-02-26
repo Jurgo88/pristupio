@@ -93,7 +93,9 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
         (selectedImpact.value === 'high'
           ? i.impact === 'critical' || i.impact === 'serious'
           : i.impact === selectedImpact.value)
-      const text = `${i.title || ''} ${i.description || ''} ${i.recommendation || ''} ${i.wcag || ''} ${i.principle || ''}`.toLowerCase()
+      const urlsText = Array.isArray(i.urls) ? i.urls.join(' ') : ''
+      const text =
+        `${i.title || ''} ${i.description || ''} ${i.recommendation || ''} ${i.wcag || ''} ${i.principle || ''} ${i.id || ''} ${urlsText}`.toLowerCase()
       const searchOk = !term || text.includes(term)
       return principleOk && impactOk && searchOk
     })
@@ -103,7 +105,9 @@ export const useDashboardIssues = (report: Ref<DashboardReport | null | undefine
       const aOrder = order[a.impact || ''] ?? 99
       const bOrder = order[b.impact || ''] ?? 99
       if (aOrder !== bOrder) return aOrder - bOrder
-      return (b.nodesCount || 0) - (a.nodesCount || 0)
+      const aCount = a.occurrencesTotal || a.nodesCount || 0
+      const bCount = b.occurrencesTotal || b.nodesCount || 0
+      return bCount - aCount
     })
   })
 

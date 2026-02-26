@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getGuidance, getWcagLevel } from './audit-guidance'
 import {
+  createIssueCopy,
   DEFAULT_ISSUE_LOCALE,
   createIssueCopyMap,
   localizeIssues,
@@ -749,25 +750,68 @@ export const insertPageIssues = async (
 }
 
 const aggregateJobIssues = async (supabase: SupabaseAdminClient, jobId: string): Promise<ReportIssue[]> => {
+  const URL_DETAIL_NODE_LIMIT = 8
   const { data: issueRows } = await supabase
     .from('audit_job_issues')
-    .select(
-      'page_id, rule_id, impact, wcag, wcag_level, principle, selector_fingerprint, nodes_count, help_url, issue_payload'
-    )
+    .select('page_id, rule_id, impact, wcag, wcag_level, principle, nodes_count, help_url, issue_payload')
     .eq('job_id', jobId)
+
+  const pageIds = Array.from(
+    new Set(
+      (issueRows || [])
+        .map((row: any) => Number(row?.page_id))
+        .filter((pageId) => Number.isFinite(pageId) && pageId > 0)
+    )
+  )
+  const pageUrlMap = new Map<number, string>()
+  if (pageIds.length > 0) {
+    const { data: pageRows } = await supabase
+      .from('audit_job_pages')
+      .select('id, url')
+      .eq('job_id', jobId)
+      .in('id', pageIds)
+
+    ;(pageRows || []).forEach((page: any) => {
+      const pageId = Number(page?.id)
+      if (!Number.isFinite(pageId) || pageId <= 0) return
+      const url = typeof page?.url === 'string' ? page.url.trim() : ''
+      if (!url) return
+      pageUrlMap.set(pageId, url)
+    })
+  }
 
   const clusters = new Map<
     string,
     {
       impact: Impact
-      nodesCount: number
+      occurrencesTotal: number
+      pageIds: Set<number>
+      urlDetailsByPageId: Map<
+        number,
+        {
+          url: string
+          occurrences: number
+          nodes: ReportIssue['nodes']
+        }
+      >
       baseIssue: ReportIssue
     }
   >()
 
   ;(issueRows || []).forEach((row: any) => {
-    const clusterKey = `${normalizeRuleId(row?.rule_id)}::${String(row?.selector_fingerprint || 'document')}`
+    const clusterKey = normalizeRuleId(row?.rule_id)
     const raw = row?.issue_payload || {}
+    const pageId = Number(row?.page_id)
+    const nodesCount = Math.max(0, Number(row?.nodes_count || raw?.nodesCount || 0))
+    const rawNodes = Array.isArray(raw?.nodes)
+      ? raw.nodes
+          .slice(0, URL_DETAIL_NODE_LIMIT)
+          .map((node: any) => ({
+            target: Array.isArray(node?.target) ? node.target : [],
+            html: typeof node?.html === 'string' ? node.html : '',
+            failureSummary: typeof node?.failureSummary === 'string' ? node.failureSummary : undefined
+          }))
+      : []
 
     const baseIssue: ReportIssue = {
       id: normalizeRuleId(row?.rule_id),
@@ -780,65 +824,283 @@ const aggregateJobIssues = async (supabase: SupabaseAdminClient, jobId: string):
       wcagLevel: String(row?.wcag_level || raw?.wcagLevel || ''),
       principle: String(row?.principle || raw?.principle || ''),
       helpUrl: row?.help_url || raw?.helpUrl || undefined,
-      nodesCount: Number(row?.nodes_count || raw?.nodesCount || 0),
-      nodes: Array.isArray(raw?.nodes)
-        ? raw.nodes.map((node: any) => ({
-            target: Array.isArray(node?.target) ? node.target : [],
-            html: typeof node?.html === 'string' ? node.html : '',
-            failureSummary: typeof node?.failureSummary === 'string' ? node.failureSummary : undefined
-          }))
-        : []
+      nodesCount,
+      occurrencesTotal: nodesCount,
+      pagesCount: Number.isFinite(pageId) && pageId > 0 ? 1 : 0,
+      urls: Number.isFinite(pageId) && pageId > 0 && pageUrlMap.get(pageId) ? [pageUrlMap.get(pageId)!] : [],
+      urlDetails:
+        Number.isFinite(pageId) && pageId > 0 && pageUrlMap.get(pageId)
+          ? [
+              {
+                url: pageUrlMap.get(pageId)!,
+                occurrences: nodesCount,
+                nodes: rawNodes
+              }
+            ]
+          : [],
+      nodes: []
     }
 
     const existing = clusters.get(clusterKey)
     if (!existing) {
+      const currentPageIds = new Set<number>()
+      const urlDetailsByPageId = new Map<
+        number,
+        {
+          url: string
+          occurrences: number
+          nodes: ReportIssue['nodes']
+        }
+      >()
+      if (Number.isFinite(pageId) && pageId > 0) currentPageIds.add(pageId)
+      if (Number.isFinite(pageId) && pageId > 0 && pageUrlMap.get(pageId)) {
+        urlDetailsByPageId.set(pageId, {
+          url: pageUrlMap.get(pageId)!,
+          occurrences: nodesCount,
+          nodes: rawNodes
+        })
+      }
       clusters.set(clusterKey, {
         impact: baseIssue.impact,
-        nodesCount: Number(row?.nodes_count || baseIssue.nodesCount || 0),
+        occurrencesTotal: nodesCount,
+        pageIds: currentPageIds,
+        urlDetailsByPageId,
         baseIssue
       })
       return
     }
 
-    existing.nodesCount += Number(row?.nodes_count || baseIssue.nodesCount || 0)
+    existing.occurrencesTotal += nodesCount
+    if (Number.isFinite(pageId) && pageId > 0) {
+      existing.pageIds.add(pageId)
+      const pageUrl = pageUrlMap.get(pageId)
+      if (pageUrl) {
+        const perUrl = existing.urlDetailsByPageId.get(pageId)
+        if (!perUrl) {
+          existing.urlDetailsByPageId.set(pageId, {
+            url: pageUrl,
+            occurrences: nodesCount,
+            nodes: rawNodes
+          })
+        } else {
+          perUrl.occurrences += nodesCount
+          if (perUrl.nodes.length < URL_DETAIL_NODE_LIMIT) {
+            const remainingSlots = URL_DETAIL_NODE_LIMIT - perUrl.nodes.length
+            perUrl.nodes = [...perUrl.nodes, ...rawNodes.slice(0, remainingSlots)]
+          }
+          existing.urlDetailsByPageId.set(pageId, perUrl)
+        }
+      }
+    }
+
     const currentOrder = IMPACT_ORDER[existing.impact] ?? 99
     const nextOrder = IMPACT_ORDER[baseIssue.impact] ?? 99
     if (nextOrder < currentOrder) {
       existing.impact = baseIssue.impact
       existing.baseIssue = {
         ...baseIssue,
-        nodesCount: existing.nodesCount
+        nodesCount: existing.occurrencesTotal
       }
     } else {
-      existing.baseIssue.nodesCount = existing.nodesCount
+      existing.baseIssue.nodesCount = existing.occurrencesTotal
     }
   })
 
   return Array.from(clusters.values())
-    .map((item) => ({
-      ...item.baseIssue,
-      impact: item.impact,
-      nodesCount: item.nodesCount
-    }))
+    .map((item) => {
+      const urls = Array.from(item.pageIds)
+        .map((pageId) => pageUrlMap.get(pageId) || '')
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b))
+      const urlDetails = Array.from(item.urlDetailsByPageId.values()).sort((a, b) => a.url.localeCompare(b.url))
+
+      return {
+        ...item.baseIssue,
+        impact: item.impact,
+        nodesCount: item.occurrencesTotal,
+        occurrencesTotal: item.occurrencesTotal,
+        pagesCount: item.pageIds.size,
+        urls,
+        urlDetails,
+        nodes: []
+      }
+    })
     .sort((a, b) => {
       const aOrder = IMPACT_ORDER[a.impact] ?? 99
       const bOrder = IMPACT_ORDER[b.impact] ?? 99
       if (aOrder !== bOrder) return aOrder - bOrder
-      return (b.nodesCount || 0) - (a.nodesCount || 0)
+      return (b.occurrencesTotal || b.nodesCount || 0) - (a.occurrencesTotal || a.nodesCount || 0)
     })
+}
+
+const loadAuditRuleCopyMap = async (supabase: SupabaseAdminClient, ruleIds: string[]) => {
+  const uniqueRuleIds = Array.from(
+    new Set(ruleIds.map((id) => normalizeRuleId(id)).filter((id) => id && id !== 'unknown'))
+  )
+  if (uniqueRuleIds.length === 0) return new Map<string, Record<string, any>>()
+
+  const { data, error } = await supabase
+    .from('audit_rule_copy')
+    .select('rule_id, locale, title, description, recommendation, source, prompt_version, generated_at')
+    .in('rule_id', uniqueRuleIds)
+    .in('locale', ['sk', 'en'])
+
+  if (error) {
+    logJson('warn', 'audit_rule_copy_load_failed', {
+      error: getErrorMessage(error),
+      ruleCount: uniqueRuleIds.length
+    })
+    return new Map<string, Record<string, any>>()
+  }
+
+  const copyByRule = new Map<string, Record<string, any>>()
+  ;(data || []).forEach((row: any) => {
+    const ruleId = normalizeRuleId(row?.rule_id)
+    if (!ruleId || ruleId === 'unknown') return
+    const locale = normalizeIssueLocale(row?.locale, DEFAULT_ISSUE_LOCALE)
+    const existing = copyByRule.get(ruleId) || {}
+    existing[locale] = createIssueCopy({
+      title: row?.title,
+      description: row?.description,
+      recommendation: row?.recommendation,
+      source: row?.source === 'ai' ? 'ai' : 'static',
+      promptVersion: row?.prompt_version,
+      generatedAt: row?.generated_at
+    })
+    copyByRule.set(ruleId, existing)
+  })
+
+  return copyByRule
+}
+
+const applyAuditRuleCopy = async (supabase: SupabaseAdminClient, issues: ReportIssue[], locale: string) => {
+  if (!Array.isArray(issues) || issues.length === 0) return issues
+  const copyByRule = await loadAuditRuleCopyMap(
+    supabase,
+    issues.map((issue) => issue.id)
+  )
+
+  return issues.map((issue) => {
+    const dbCopy = copyByRule.get(normalizeRuleId(issue.id))
+    if (!dbCopy) return issue
+
+    const mergedCopy = {
+      ...(issue.copy && typeof issue.copy === 'object' ? issue.copy : {}),
+      ...dbCopy
+    }
+    const preferredLocalized = mergedCopy[locale] || mergedCopy.sk
+    return {
+      ...issue,
+      title:
+        typeof preferredLocalized?.title === 'string' && preferredLocalized.title.trim()
+          ? preferredLocalized.title
+          : issue.title,
+      description:
+        typeof preferredLocalized?.description === 'string' && preferredLocalized.description.trim()
+          ? preferredLocalized.description
+          : issue.description,
+      recommendation:
+        typeof preferredLocalized?.recommendation === 'string' && preferredLocalized.recommendation.trim()
+          ? preferredLocalized.recommendation
+          : issue.recommendation,
+      copy: mergedCopy
+    }
+  })
+}
+
+const hasLocaleCopyInDb = (dbCopy: Record<string, any> | undefined, locale: string) => {
+  if (!dbCopy) return false
+  const localized = dbCopy[locale]
+  if (!localized || typeof localized !== 'object') return false
+  return (
+    typeof localized.title === 'string' &&
+    localized.title.trim().length > 0 &&
+    typeof localized.description === 'string' &&
+    localized.description.trim().length > 0 &&
+    typeof localized.recommendation === 'string' &&
+    localized.recommendation.trim().length > 0
+  )
+}
+
+const upsertAiRuleCopy = async (supabase: SupabaseAdminClient, issues: ReportIssue[], locale: string) => {
+  const rows = issues
+    .map((issue) => {
+      const copy = issue.copy && typeof issue.copy === 'object' ? (issue.copy as Record<string, any>) : {}
+      const localized = copy[locale]
+      if (!localized || typeof localized !== 'object') return null
+      const title = typeof localized.title === 'string' ? localized.title.trim() : ''
+      const description = typeof localized.description === 'string' ? localized.description.trim() : ''
+      const recommendation = typeof localized.recommendation === 'string' ? localized.recommendation.trim() : ''
+      if (!title || !description || !recommendation) return null
+      return {
+        rule_id: normalizeRuleId(issue.id),
+        locale,
+        title,
+        description,
+        recommendation,
+        source: localized.source === 'ai' ? 'ai' : 'static',
+        prompt_version: typeof localized.promptVersion === 'string' ? localized.promptVersion : null,
+        generated_at: typeof localized.generatedAt === 'string' ? localized.generatedAt : null,
+        updated_at: new Date().toISOString()
+      }
+    })
+    .filter(Boolean) as Array<Record<string, any>>
+
+  if (rows.length === 0) return
+
+  const { error } = await supabase.from('audit_rule_copy').upsert(rows, {
+    onConflict: 'rule_id,locale',
+    ignoreDuplicates: false
+  })
+
+  if (error) {
+    logJson('warn', 'audit_rule_copy_upsert_failed', {
+      error: getErrorMessage(error),
+      rows: rows.length
+    })
+  }
 }
 
 export const finalizeSiteAuditJob = async (supabase: SupabaseAdminClient, job: SiteAuditJobRow) => {
   const profile = await loadSiteAuditProfile(supabase, job.user_id)
-  const isPaid = profile?.isAdmin || profile?.isPaid
+  const locale = normalizeIssueLocale(job.lang, DEFAULT_ISSUE_LOCALE)
 
   let issues = await aggregateJobIssues(supabase, job.id)
-  const locale = normalizeIssueLocale(job.lang, DEFAULT_ISSUE_LOCALE)
-  if (isPaid && issues.length > 0) {
-    issues = await enrichIssuesWithAiCopy({
-      issues,
+  const initialCopyByRule = await loadAuditRuleCopyMap(
+    supabase,
+    issues.map((issue) => issue.id)
+  )
+  issues = await applyAuditRuleCopy(supabase, issues, locale)
+
+  const missingCopyIssues = issues.filter((issue) => {
+    const ruleId = normalizeRuleId(issue.id)
+    return !hasLocaleCopyInDb(initialCopyByRule.get(ruleId), locale)
+  })
+
+  if (missingCopyIssues.length > 0) {
+    const aiGenerated = await enrichIssuesWithAiCopy({
+      issues: missingCopyIssues,
       locale,
       context: 'audit-run'
+    })
+
+    await upsertAiRuleCopy(supabase, aiGenerated, locale)
+
+    const aiByRule = new Map<string, ReportIssue>()
+    aiGenerated.forEach((issue) => {
+      aiByRule.set(normalizeRuleId(issue.id), issue)
+    })
+
+    issues = issues.map((issue) => {
+      const aiIssue = aiByRule.get(normalizeRuleId(issue.id))
+      if (!aiIssue) return issue
+      return {
+        ...issue,
+        title: aiIssue.title || issue.title,
+        description: aiIssue.description || issue.description,
+        recommendation: aiIssue.recommendation || issue.recommendation,
+        copy: aiIssue.copy || issue.copy
+      }
     })
   }
 

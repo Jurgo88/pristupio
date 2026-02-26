@@ -157,23 +157,39 @@ const emit = defineEmits<{
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
+  transition: all 0.3s ease;
 }
 
+/* Štýl pre silný text (nadpis v banneri) */
 .top-priority-banner strong {
   display: block;
   font-size: 0.83rem;
-  color: #0f172a;
+  color: #0f172a; /* Slate 900 */
+  line-height: 1.2;
 }
 
+[data-theme='dark'] .top-priority-banner strong {
+  color: #f1f5f9; /* Slate 100 */
+}
+
+/* Štýl pre popis v banneri */
 .top-priority-banner p {
   margin: 0.1rem 0 0;
   font-size: 0.8rem;
-  color: #64748b;
+  color: #64748b; /* Slate 500 */
 }
 
+/* AKTÍVNY STAV: Elegantný fokus namiesto erroru */
 .top-priority-banner.is-active {
-  border-color: rgba(185, 28, 28, 0.35);
-  background: rgba(239, 68, 68, 0.08);
+  border-color: #94a3b8; /* Slate 400 - výraznejší okraj */
+  background: #f8fafc; /* Slate 50 - veľmi jemné presvetlenie */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .top-priority-banner.is-active {
+  border-color: #475569; /* Slate 600 */
+  background: rgba(71, 85, 105, 0.15); /* Jemný nádych oceľovej */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .issues-load-more {

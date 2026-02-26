@@ -1,43 +1,40 @@
 <template>
-  <section class="report-preview">
+  <section class="report-preview" aria-labelledby="report-preview-title">
     <div class="report-preview__copy">
       <p class="kicker">{{ DASHBOARD_REPORT_PREVIEW_TEXT.kicker }}</p>
-      <h2>{{ DASHBOARD_REPORT_PREVIEW_TEXT.title }}</h2>
+      <h2 id="report-preview-title">{{ DASHBOARD_REPORT_PREVIEW_TEXT.title }}</h2>
       <p class="lead">{{ DASHBOARD_REPORT_PREVIEW_TEXT.lead }}</p>
     </div>
-    <div class="hero-mockup">
+
+    <div class="hero-mockup" aria-hidden="true">
       <div class="mockup-header">
         <div class="mockup-title">Audit report</div>
         <div class="mockup-pill">WCAG 2.1 AA</div>
       </div>
-      <div class="mockup-score">
-        <div class="score-circle">{{ auditScore }}</div>
+
+      <div class="mockup-score-wrap">
+        <div class="score-circle" :class="scoreColorClass">
+          <span class="score-value">{{ auditScore }}</span>
+        </div>
         <div class="score-meta">
           <strong>{{ DASHBOARD_REPORT_PREVIEW_TEXT.accessibilityLabel }}</strong>
           <span>{{ DASHBOARD_REPORT_PREVIEW_TEXT.title }}</span>
         </div>
       </div>
+
       <div class="mockup-bars">
-        <div class="bar">
-          <span>{{ DASHBOARD_IMPACT_TEXT.high }}</span>
-          <div class="bar-track">
-            <div class="bar-fill critical" :style="{ width: criticalPercent + '%' }"></div>
+        <div v-for="bar in barData" :key="bar.label" class="bar-item">
+          <div class="bar-info">
+            <span class="bar-label">{{ bar.label }}</span>
+            <span class="bar-count">{{ bar.count }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</span>
           </div>
-          <small>{{ highCount }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</small>
-        </div>
-        <div class="bar">
-          <span>{{ DASHBOARD_IMPACT_TEXT.moderate }}</span>
-          <div class="bar-track">
-            <div class="bar-fill moderate" :style="{ width: moderatePercent + '%' }"></div>
+          <div class="bar-track" role="progressbar" :aria-valuenow="bar.percent" aria-valuemin="0" aria-valuemax="100">
+            <div 
+              class="bar-fill" 
+              :class="bar.class" 
+              :style="{ width: bar.percent + '%' }"
+            ></div>
           </div>
-          <small>{{ medCount }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</small>
-        </div>
-        <div class="bar">
-          <span>{{ DASHBOARD_IMPACT_TEXT.minor }}</span>
-          <div class="bar-track">
-            <div class="bar-fill minor" :style="{ width: minorPercent + '%' }"></div>
-          </div>
-          <small>{{ lowCount }} {{ DASHBOARD_REPORT_PREVIEW_TEXT.issuesSuffix }}</small>
         </div>
       </div>
     </div>
@@ -45,9 +42,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { DASHBOARD_IMPACT_TEXT, DASHBOARD_REPORT_PREVIEW_TEXT } from './dashboard.copy'
 
-defineProps<{
+const props = defineProps<{
   auditScore: number
   highCount: number
   medCount: number
@@ -56,199 +54,163 @@ defineProps<{
   moderatePercent: number
   minorPercent: number
 }>()
+
+// Dynamická farba skóre - kľúčové pre UX
+const scoreColorClass = computed(() => {
+  if (props.auditScore >= 80) return 'score--excellent'
+  if (props.auditScore >= 50) return 'score--average'
+  return 'score--poor'
+})
+
+// Dáta pre cyklus - čistí template od duplicity
+const barData = computed(() => [
+  { label: DASHBOARD_IMPACT_TEXT.high, count: props.highCount, percent: props.criticalPercent, class: 'critical' },
+  { label: DASHBOARD_IMPACT_TEXT.moderate, count: props.medCount, percent: props.moderatePercent, class: 'moderate' },
+  { label: DASHBOARD_IMPACT_TEXT.minor, count: props.lowCount, percent: props.minorPercent, class: 'minor' }
+])
 </script>
 
 <style scoped>
+
+.report-preview {
+  --score-green: #22c55e;
+  --score-orange: #f59e0b;
+  --score-red: #ef4444;
+  --score-blue: #38bdf8;
+  
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  gap: 3rem;
+  align-items: center;
+  padding: 2.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
 .kicker {
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  font-size: 0.75rem;
   color: #64748b;
   font-weight: 700;
-  margin: 0 0 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.report-preview__copy h2 {
+  font-size: clamp(1.5rem, 2vw, 2.25rem);
+  /* font-weight: 800; */
+  margin-bottom: 1rem;
+  line-height: 1.2;
 }
 
 .lead {
-  color: var(--text-muted);
-  font-size: 1rem;
-  margin: 0;
+  color: #64748b;
+  font-size: 1.1rem;
+  line-height: 1.6;
 }
 
 .hero-mockup {
-  background: #0b1220;
-  border-radius: var(--radius-md);
-  border: 1px solid #1f2937;
-  padding: 1.1rem 1.2rem;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.55);
-  color: #e2e8f0;
+  background: #0f172a;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
 }
 
 .mockup-header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 1rem;
 }
 
 .mockup-title {
+  font-size: 0.9rem;
   font-weight: 600;
+  color: #f8fafc;
 }
 
 .mockup-pill {
-  font-size: 0.68rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid #334155;
-  color: #94a3b8;
-  background: rgba(15, 23, 42, 0.8);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(56, 189, 248, 0.1);
+  color: #7dd3fc;
+  border-radius: 2rem;
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
-.mockup-score {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.7rem;
+.mockup-score-wrap {
+  display: flex;
+  gap: 1.25rem;
   align-items: center;
-  margin-bottom: 0.9rem;
+  margin-bottom: 1.5rem;
 }
 
 .score-circle {
-  width: 52px;
-  height: 52px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-weight: 700;
-  color: #0b1220;
-  background: linear-gradient(135deg, #22c55e, #16a34a);
-  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.35);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  transition: all 0.5s ease;
 }
 
-.score-meta strong {
-  color: #e2e8f0;
+.score-value {
+  color: #0f172a;
 }
 
-.score-meta span {
-  display: block;
-  color: #94a3b8;
-  font-size: 0.8rem;
-}
+/* Dynamické stavy skóre */
+.score--excellent { background: var(--score-green); box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
+.score--average { background: var(--score-orange); box-shadow: 0 0 20px rgba(245, 158, 11, 0.3); }
+.score--poor { background: var(--score-red); box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
 
-.mockup-bars {
-  display: grid;
-  gap: 0.65rem;
-}
+.score-meta strong { display: block; color: #f8fafc; font-size: 1rem; }
+.score-meta span { color: #94a3b8; font-size: 0.85rem; }
 
-.bar {
-  display: grid;
-  gap: 0.3rem;
-  font-size: 0.72rem;
-  color: #94a3b8;
-}
+/* Progress bary */
+.mockup-bars { display: grid; gap: 1rem; }
+.bar-info { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.4rem; }
+.bar-label { color: #cbd5e1; font-weight: 500; }
+.bar-count { color: #94a3b8; }
 
 .bar-track {
-  height: 7px;
-  background: #111827;
-  border-radius: var(--radius-sm);
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
   overflow: hidden;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
+  transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1); /* "Springy" animácia */
 }
 
-.bar-fill.critical {
-  background: linear-gradient(90deg, #ef4444, #b91c1c);
-}
+.bar-fill.critical { background: var(--score-red); }
+.bar-fill.moderate { background: var(--score-orange); }
+.bar-fill.minor { background: var(--score-blue); }
 
-.bar-fill.moderate {
-  background: linear-gradient(90deg, #f59e0b, #b45309);
-}
-
-.bar-fill.minor {
-  background: linear-gradient(90deg, #38bdf8, #0284c7);
-}
-
-.report-preview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 2rem;
-  align-items: center;
-  padding: 1.8rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
-}
-
-.report-preview__copy h2 {
-  margin: 0.2rem 0 0.6rem;
-  font-size: clamp(1.4rem, 1.1rem + 1vw, 2rem);
-}
-
+/* Dark mode overrides */
 [data-theme='dark'] .report-preview {
-  background: var(--surface);
-  border-color: var(--border);
-  box-shadow: var(--shadow-sm);
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
-[data-theme='dark'] .report-preview__copy h2 {
-  color: var(--text);
-}
-
-[data-theme='dark'] .hero-mockup {
-  background: linear-gradient(145deg, #0f1a2c, #0b1220 58%, #111f35);
-  border-color: #2e4360;
-  box-shadow: 0 16px 34px rgba(2, 6, 23, 0.44);
-}
-
-[data-theme='dark'] .mockup-title {
-  color: #dbe7fb;
-}
-
-[data-theme='dark'] .mockup-pill {
-  border-color: #3e5b80;
-  color: #bfdbfe;
-  background: rgba(15, 23, 42, 0.9);
-}
-
-[data-theme='dark'] .score-circle {
-  color: #f8fafc;
-  background: linear-gradient(135deg, #16a34a, #15803d);
-}
-
-[data-theme='dark'] .score-meta strong {
-  color: #dbe7fb;
-}
-
-[data-theme='dark'] .score-meta span {
-  color: #9fb3cc;
-}
-
-[data-theme='dark'] .bar {
-  color: #a7b6cb;
-}
-
-[data-theme='dark'] .bar-track {
-  background: #162136;
-}
-
-[data-theme='dark'] .bar-fill.critical {
-  background: linear-gradient(90deg, #f87171, #dc2626);
-}
-
-[data-theme='dark'] .bar-fill.moderate {
-  background: linear-gradient(90deg, #fbbf24, #d97706);
-}
-
-[data-theme='dark'] .bar-fill.minor {
-  background: linear-gradient(90deg, #38bdf8, #0284c7);
-}
-
-@media (max-width: 1100px) {
+/* Responzivita */
+@media (max-width: 1024px) {
   .report-preview {
     grid-template-columns: 1fr;
+    padding: 2rem;
   }
+  .hero-mockup { max-width: 450px; margin: 0 auto; }
 }
 </style>

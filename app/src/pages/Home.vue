@@ -341,7 +341,8 @@ onBeforeUnmount(() => {
           <router-link :to="startLink" class="btn btn-outline-dark">Spustiť free audit</router-link>
         </article>
 
-        <article class="pricing-card">
+        <article class="pricing-card featured">
+          <div class="pricing-badge">Najobľúbenejší</div>
           <div class="pricing-header">
             <p class="pricing-title">Audit Basic</p>
             <p class="pricing-price">99 €</p>
@@ -1560,6 +1561,9 @@ onBeforeUnmount(() => {
   padding: 1.6rem;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.2);
   transition: transform var(--motion-base) var(--ease-standard);
+}
+.step-card h3 {
+  color: inherit
 }
 
 .step-card:hover {
