@@ -276,6 +276,20 @@ export const handler: Handler = async (event) => {
         console.error('Lemon webhook update error:', updateResult.error)
         return { statusCode: 500, body: 'Profile update failed.' }
       }
+      if (purchaseType === 'monitoring') {
+        const disableTargetsResult = await supabase
+          .from('monitoring_targets')
+          .update({
+            active: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', profileResult.data.id)
+          .eq('active', true)
+
+        if (disableTargetsResult.error) {
+          console.error('Lemon webhook monitoring target disable error:', disableTargetsResult.error)
+        }
+      }
 
       return { statusCode: 200, body: 'OK' }
     }
