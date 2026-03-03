@@ -7,6 +7,8 @@ import {
   getMonitoringTarget,
   getMonitoringTargetById,
   getMonitoringTargets,
+  hasMonitoringAccess,
+  hasMonitoringPrerequisite,
   loadMonitoringEntitlement,
   normalizeAuditUrl,
   normalizeMonitoringProfile,
@@ -74,6 +76,15 @@ export const handler: Handler = async (event) => {
       return errorResponse(404, 'Ciel monitoringu neexistuje.')
     }
     const entitlement = await loadMonitoringEntitlement(supabase, auth.userId)
+    const currentOrRequestedActive =
+      typeof body.active !== 'undefined' ? !!body.active : !!targetResult.data.active
+    if (currentOrRequestedActive && !hasMonitoringPrerequisite(entitlement)) {
+      return errorResponse(403, 'Monitoring je dostupny az po zakladnom audite.')
+    }
+    if (currentOrRequestedActive && !hasMonitoringAccess(entitlement)) {
+      return errorResponse(403, 'Monitoring plan nie je aktivny pre tento ucet.')
+    }
+
     const monitoringTier = normalizeMonitoringTier(entitlement.monitoringTier)
     const tierCadenceMode = 'monthly_runs'
     const tierCadenceValue = monitoringTier === 'pro' ? 8 : 4

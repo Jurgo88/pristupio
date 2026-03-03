@@ -4,6 +4,9 @@ import {
   computeNextRunAtByTier,
   createSupabaseAdminClient,
   extractIssueIds,
+  hasMonitoringAccess,
+  hasMonitoringPrerequisite,
+  loadMonitoringEntitlement,
   normalizeMonitoringTier,
   normalizeSummary,
   runStoredAudit
@@ -49,18 +52,16 @@ export const handler: Handler = async () => {
       userIds.push(target.user_id)
     }
   })
-  const tierByUser = new Map<string, 'none' | 'basic' | 'pro'>()
   const emailByUser = new Map<string, string>()
 
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, monitoring_tier, email')
+      .select('id, email')
       .in('id', userIds)
 
     ;(profiles || []).forEach((profile: any) => {
       if (!profile?.id) return
-      tierByUser.set(profile.id, normalizeMonitoringTier(profile.monitoring_tier))
       if (profile.email) {
         emailByUser.set(profile.id, String(profile.email))
       }
@@ -75,8 +76,23 @@ export const handler: Handler = async () => {
     let runId: string | null = null
 
     try {
+      const entitlement = await loadMonitoringEntitlement(supabase, target.user_id)
+      if (!hasMonitoringPrerequisite(entitlement) || !hasMonitoringAccess(entitlement)) {
+        await supabase
+          .from('monitoring_targets')
+          .update({
+            active: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', target.id)
+          .eq('active', true)
+
+        skipped += 1
+        continue
+      }
+
       const claimTime = new Date()
-      const userTier = tierByUser.get(target.user_id) || 'basic'
+      const userTier = normalizeMonitoringTier(entitlement.monitoringTier)
       const claimedNextRunAt = computeNextRunAtByTier(claimTime, userTier).toISOString()
 
       const { data: claimedTarget, error: claimError } = await supabase
@@ -149,7 +165,7 @@ export const handler: Handler = async () => {
         issueIds: currentIssueIds
       }
 
-      await supabase
+      const { error: updateRunError } = await supabase
         .from('monitoring_runs')
         .update({
           status: 'success',
@@ -160,7 +176,11 @@ export const handler: Handler = async () => {
         })
         .eq('id', runId)
 
-      await supabase
+      if (updateRunError) {
+        throw new Error('Dokoncenie planovaneho monitoring behu zlyhalo.')
+      }
+
+      const { error: updateTargetError } = await supabase
         .from('monitoring_targets')
         .update({
           last_run_at: finishedAt,
@@ -168,15 +188,23 @@ export const handler: Handler = async () => {
         })
         .eq('id', target.id)
 
+      if (updateTargetError) {
+        throw new Error('Aktualizacia ciela po planovanom monitoring behu zlyhala.')
+      }
+
       const recipientEmail = emailByUser.get(claimedTarget.user_id)
       if (recipientEmail) {
-        await sendMonitoringWorseningEmail({
-          to: recipientEmail,
-          runUrl: claimedTarget.default_url,
-          trigger: 'scheduled',
-          diff,
-          summary: auditResult.summary
-        })
+        try {
+          await sendMonitoringWorseningEmail({
+            to: recipientEmail,
+            runUrl: claimedTarget.default_url,
+            trigger: 'scheduled',
+            diff,
+            summary: auditResult.summary
+          })
+        } catch (notifyError) {
+          console.error('Monitoring cron notify error:', notifyError)
+        }
       }
 
       processed += 1

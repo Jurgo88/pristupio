@@ -48,6 +48,26 @@ type AuditDetail = {
   }>
 }
 
+type MonitoringHealth = {
+  generatedAt: string
+  lookbackHours: number
+  staleMinutes: number
+  targets: {
+    total: number
+    active: number
+    inactive: number
+    activeNoAccess: number
+  }
+  runs: {
+    recentTotal: number
+    recentSuccess: number
+    recentFailed: number
+    recentRunning: number
+    recentPending: number
+    staleCount: number
+  }
+}
+
 const loading = ref(false)
 const error = ref('')
 const audits = ref<AuditListItem[]>([])
@@ -55,12 +75,60 @@ const detailLoading = ref(false)
 const detailError = ref('')
 const selectedAuditId = ref<string | null>(null)
 const selectedAudit = ref<AuditDetail | null>(null)
+const healthLoading = ref(false)
+const healthError = ref('')
+const monitoringHealth = ref<MonitoringHealth | null>(null)
 
 const formatDate = (value: string) => value?.slice(0, 10) || ''
+const formatDateTime = (value?: string) => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString('sk-SK')
+}
 
 const impactCount = (summary?: AuditSummary) => {
   if (!summary) return 0
   return (summary.byImpact.critical || 0) + (summary.byImpact.serious || 0)
+}
+
+const healthStatus = () => {
+  const health = monitoringHealth.value
+  if (!health) return { label: 'Bez dat', className: 'pill-muted' }
+  if (health.runs.staleCount > 0 || health.targets.activeNoAccess > 0) {
+    return { label: 'Upozornenie', className: 'pill-serious' }
+  }
+  if (health.runs.recentFailed > 0) {
+    return { label: 'Zlyhania', className: 'pill-moderate' }
+  }
+  return { label: 'OK', className: 'pill-success' }
+}
+
+const fetchMonitoringHealth = async () => {
+  healthLoading.value = true
+  healthError.value = ''
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) throw new Error('Chyba prihlasenie.')
+
+    const response = await fetch('/.netlify/functions/monitoring-health?lookbackHours=24&staleMinutes=30', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data?.error || 'Monitoring health sa nepodarilo nacitat.')
+    }
+
+    const data = await response.json()
+    monitoringHealth.value = data || null
+  } catch (err: any) {
+    healthError.value = err.message
+    monitoringHealth.value = null
+  } finally {
+    healthLoading.value = false
+  }
 }
 
 const fetchAudits = async () => {
@@ -121,8 +189,12 @@ const openDetail = (auditId: string) => {
   void fetchDetail(auditId)
 }
 
+const refreshAll = async () => {
+  await Promise.all([fetchAudits(), fetchMonitoringHealth()])
+}
+
 onMounted(() => {
-  void fetchAudits()
+  void refreshAll()
 })
 </script>
 
@@ -134,12 +206,55 @@ onMounted(() => {
         <h1>Audit prehlad</h1>
         <p class="lead">Kontrola free auditov, detailne nalezy a marketing suhlasy.</p>
       </div>
-      <button class="btn btn-outline" @click="fetchAudits" :disabled="loading">
-        {{ loading ? 'Nacitam...' : 'Obnovit data' }}
+      <button class="btn btn-outline" @click="refreshAll" :disabled="loading || healthLoading">
+        {{ loading || healthLoading ? 'Nacitam...' : 'Obnovit data' }}
       </button>
     </section>
 
     <div v-if="error" class="status-alert status-alert--danger">{{ error }}</div>
+    <div v-if="healthError" class="status-alert status-alert--danger">{{ healthError }}</div>
+
+    <section class="panel monitoring-health-panel">
+      <div class="panel-head panel-head--tight">
+        <div>
+          <p class="kicker">Monitoring Health</p>
+          <h2>Operacny stav</h2>
+        </div>
+        <span class="pill" :class="healthStatus().className">{{ healthStatus().label }}</span>
+      </div>
+
+      <div v-if="healthLoading" class="status-state status-state--loading">Nacitam monitoring health...</div>
+      <div v-else-if="!monitoringHealth" class="status-state">Monitoring health zatial nie je dostupny.</div>
+      <div v-else class="health-grid">
+        <div class="health-card">
+          <small>Aktivne targety</small>
+          <strong>{{ monitoringHealth.targets.active }} / {{ monitoringHealth.targets.total }}</strong>
+        </div>
+        <div class="health-card">
+          <small>Aktivne bez pristupu</small>
+          <strong>{{ monitoringHealth.targets.activeNoAccess }}</strong>
+        </div>
+        <div class="health-card">
+          <small>Recent failed ({{ monitoringHealth.lookbackHours }}h)</small>
+          <strong>{{ monitoringHealth.runs.recentFailed }}</strong>
+        </div>
+        <div class="health-card">
+          <small>Stale runs (>{{ monitoringHealth.staleMinutes }} min)</small>
+          <strong>{{ monitoringHealth.runs.staleCount }}</strong>
+        </div>
+        <div class="health-card">
+          <small>Recent success</small>
+          <strong>{{ monitoringHealth.runs.recentSuccess }}</strong>
+        </div>
+        <div class="health-card">
+          <small>Recent running/pending</small>
+          <strong>{{ monitoringHealth.runs.recentRunning }} / {{ monitoringHealth.runs.recentPending }}</strong>
+        </div>
+      </div>
+      <p v-if="monitoringHealth" class="health-meta">
+        Posledne obnovene: {{ formatDateTime(monitoringHealth.generatedAt) }}
+      </p>
+    </section>
 
     <section class="admin-grid">
       <div class="panel">
@@ -304,6 +419,42 @@ onMounted(() => {
   border-radius: var(--radius);
   padding: 1.6rem;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.monitoring-health-panel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.health-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem;
+  display: grid;
+  gap: 0.35rem;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.health-card small {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.health-card strong {
+  font-size: 1.15rem;
+  color: #0f172a;
+}
+
+.health-meta {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.82rem;
 }
 
 .panel-head--tight {
@@ -526,8 +677,18 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .detail-panel {
     position: static;
+  }
+}
+
+@media (max-width: 700px) {
+  .health-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
