@@ -2,9 +2,33 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { buildLemonCheckoutUrl } from '@/utils/lemon'
+import { HOME_COPY, type HomeLocale } from '@/pages/home.copy'
 
 const auth = useAuthStore()
 
+type PricingMode = 'audit' | 'monitoring'
+type CheckoutType = PricingMode
+type CheckoutTier = 'basic' | 'pro'
+
+type PlanCardLocalized = {
+  title: string
+  price: string
+  subtitle: string
+  features: string[]
+  ctaLabel: string
+  ctaClass: string
+  badge?: string
+  featured?: boolean
+}
+
+type PlanCard = PlanCardLocalized & {
+  href: string | null
+  to: string
+}
+
+const locale = ref<HomeLocale>('sk')
+
+const copy = computed(() => HOME_COPY[locale.value])
 const startLink = computed(() => (auth.isLoggedIn ? '/dashboard' : '/login'))
 const auditCheckoutBasicBase =
   import.meta.env.VITE_LEMON_AUDIT_CHECKOUT_URL_BASIC ||
@@ -17,7 +41,7 @@ const monitoringCheckoutBasicBase =
   ''
 const monitoringCheckoutProBase = import.meta.env.VITE_LEMON_MONITORING_CHECKOUT_URL_PRO || ''
 
-const buildCheckout = (baseUrl: string, purchaseType: 'audit' | 'monitoring', tier: 'basic' | 'pro') => {
+const buildCheckout = (baseUrl: string, purchaseType: CheckoutType, tier: CheckoutTier) => {
   if (!auth.user || !baseUrl) return ''
   return buildLemonCheckoutUrl({
     baseUrl,
@@ -38,8 +62,40 @@ const monitoringCheckoutBasicUrl = computed(() =>
 const monitoringCheckoutProUrl = computed(() =>
   buildCheckout(monitoringCheckoutProBase, 'monitoring', 'pro')
 )
-const pricingMode = ref<'audit' | 'monitoring'>('audit')
+const pricingMode = ref<PricingMode>('audit')
 
+const heroMeta = computed(() => copy.value.hero.meta)
+const heroProof = computed(() => copy.value.hero.proof)
+const benefitCards = computed(() => copy.value.benefits.cards)
+const valueCards = computed(() => copy.value.value.cards)
+const workflowSteps = computed(() => copy.value.workflow.steps)
+const complianceSectors = computed(() => copy.value.compliance.sectors)
+
+const resolvePlanCard = (plan: PlanCardLocalized, checkoutUrl?: string): PlanCard => ({
+  title: plan.title,
+  price: plan.price,
+  subtitle: plan.subtitle,
+  features: plan.features,
+  ctaLabel: plan.ctaLabel,
+  ctaClass: plan.ctaClass,
+  badge: plan.badge,
+  featured: plan.featured,
+  href: auth.isLoggedIn && checkoutUrl ? checkoutUrl : null,
+  to: startLink.value
+})
+
+const auditPlanCards = computed<PlanCard[]>(() => {
+  const checkouts = ['', auditCheckoutBasicUrl.value, auditCheckoutProUrl.value, '', '']
+  return copy.value.pricing.auditPlans.map((plan, index) => resolvePlanCard(plan, checkouts[index]))
+})
+
+const monitoringPlanCards = computed<PlanCard[]>(() => {
+  const checkouts = [monitoringCheckoutBasicUrl.value, monitoringCheckoutProUrl.value, '']
+  return copy.value.pricing.monitoringPlans.map((plan, index) => resolvePlanCard(plan, checkouts[index]))
+})
+
+const auditCompareMobilePlans = computed(() => copy.value.pricing.compareAuditMobile)
+const monitoringCompareMobilePlans = computed(() => copy.value.pricing.compareMonitoringMobile)
 let observer: IntersectionObserver | null = null
 
 onMounted(() => {
@@ -77,37 +133,21 @@ onBeforeUnmount(() => {
     <section class="hero reveal">
       <div class="hero-inner">
         <div class="hero-copy">
-          <span class="eyebrow">Prístupnosť bez chaosu</span>
-          <h1>WCAG audit, ktorý dáva tímu jasný plán a istotu pri kontrole.</h1>
-          <p>
-            Pristupio používa automatický sken podľa WCAG 2.1 AA a EN 301 549.
-            Dostanete prioritizované chyby, konkrétne odporúčania a report pripravený na EAA aj WAD.
-          </p>
+          <span class="eyebrow">{{ copy.hero.eyebrow }}</span>
+          <h1>{{ copy.hero.title }}</h1>
+          <p>{{ copy.hero.lead }}</p>
           <div class="hero-actions">
-            <router-link :to="startLink" class="btn btn-primary">Získať free audit</router-link>
-            <a href="#pricing" class="btn btn-outline-light btn-ghost">Pozrieť ceny</a>
+            <router-link :to="startLink" class="btn btn-primary">{{ copy.hero.primaryCta }}</router-link>
+            <a href="#pricing" class="btn btn-outline-light btn-ghost">{{ copy.hero.secondaryCta }}</a>
           </div>
-          <p class="hero-note">
-            Free audit ukáže skóre, počty a top 3 nálezy. Plné reporty získate v platených balíkoch.
-          </p>
+          <p class="hero-note">{{ copy.hero.note }}</p>
           <div class="hero-meta">
-            <span>WCAG 2.1 AA</span>
-            <span>EN 301 549</span>
-            <span>EAA 2019/882</span>
-            <span>WAD 2016/2102</span>
+            <span v-for="label in heroMeta" :key="label">{{ label }}</span>
           </div>
           <div class="hero-proof">
-            <div class="proof-item">
-              <strong>Audit s jasným výstupom</strong>
-              <span>Prioritizované chyby a odporúčania pre opravy.</span>
-            </div>
-            <div class="proof-item">
-              <strong>Priorita podľa dopadu</strong>
-              <span>Najprv riešite bariéry, ktoré blokujú používateľov.</span>
-            </div>
-            <div class="proof-item">
-              <strong>Report pre celý tím</strong>
-              <span>Výstup zrozumiteľný pre compliance, produkt aj vývoj.</span>
+            <div v-for="item in heroProof" :key="item.title" class="proof-item">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.text }}</span>
             </div>
           </div>
         </div>
@@ -125,65 +165,41 @@ onBeforeUnmount(() => {
                 <span></span>
                 <span></span>
               </div>
-              <div class="mockup-title">Audit report</div>
-              <div class="mockup-pill">WCAG 2.1 AA</div>
+              <div class="mockup-title">{{ copy.hero.mockup.title }}</div>
+              <div class="mockup-pill">{{ copy.hero.mockup.pill }}</div>
             </div>
             <div class="mockup-body">
               <div class="mockup-score">
                 <div class="score-circle">82</div>
                 <div class="score-meta">
-                  <strong>Prístupnosť</strong>
-                  <span>Index pripravenosti</span>
+                  <strong>{{ copy.hero.mockup.scoreLabel }}</strong>
+                  <span>{{ copy.hero.mockup.scoreSubLabel }}</span>
                 </div>
               </div>
               <div class="mockup-bars">
-                <div class="bar">
-                  <span>Critical</span>
-                  <div class="bar-track"><div class="bar-fill critical"></div></div>
-                  <small>12 problémov</small>
-                </div>
-                <div class="bar">
-                  <span>Moderate</span>
-                  <div class="bar-track"><div class="bar-fill moderate"></div></div>
-                  <small>18 problémov</small>
-                </div>
-                <div class="bar">
-                  <span>Minor</span>
-                  <div class="bar-track"><div class="bar-fill minor"></div></div>
-                  <small>9 problémov</small>
+                <div v-for="(bar, index) in copy.hero.mockup.bars" :key="bar.label" class="bar">
+                  <span>{{ bar.label }}</span>
+                  <div class="bar-track">
+                    <div class="bar-fill" :class="index === 0 ? 'critical' : index === 1 ? 'moderate' : 'minor'"></div>
+                  </div>
+                  <small>{{ bar.count }}</small>
                 </div>
               </div>
               <div class="mockup-list">
-                <div class="mockup-item">
-                  <span class="dot critical"></span>
+                <div v-for="(finding, index) in copy.hero.mockup.findings" :key="finding.title" class="mockup-item">
+                  <span class="dot" :class="index === 0 ? 'critical' : index === 1 ? 'moderate' : 'minor'"></span>
                   <div>
-                    <strong>Nedostatočný kontrast textu</strong>
-                    <span>WCAG 1.4.3</span>
-                  </div>
-                </div>
-                <div class="mockup-item">
-                  <span class="dot moderate"></span>
-                  <div>
-                    <strong>Chýbajúce aria-labels</strong>
-                    <span>WCAG 4.1.2</span>
-                  </div>
-                </div>
-                <div class="mockup-item">
-                  <span class="dot minor"></span>
-                  <div>
-                    <strong>Nesprávna hierarchia nadpisov</strong>
-                    <span>WCAG 1.3.1</span>
+                    <strong>{{ finding.title }}</strong>
+                    <span>{{ finding.wcag }}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div class="floating-card">
-            <div class="floating-title">Pripravenosť na legislatívu</div>
+            <div class="floating-title">{{ copy.hero.floatingCard.title }}</div>
             <ul>
-              <li>WAD 2016/2102</li>
-              <li>EAA 2019/882</li>
-              <li>EN 301 549</li>
+              <li v-for="item in copy.hero.floatingCard.items" :key="item">{{ item }}</li>
             </ul>
           </div>
         </div>
@@ -192,36 +208,15 @@ onBeforeUnmount(() => {
 
     <section class="benefits reveal">
       <div class="section-head">
-        <p class="kicker">Prečo na tom záleží</p>
-        <h2>Prístupnosť chráni ľudí, znižuje riziko a posilňuje vašu značku.</h2>
-        <p class="lead">
-          Nedostupné rozhranie znamená stratených používateľov, právne riziko aj reputačný problém.
-          Pristupio vám dá kontrolu, jasné priority a komunikáciu zrozumiteľnú pre celý tím.
-        </p>
+        <p class="kicker">{{ copy.benefits.kicker }}</p>
+        <h2>{{ copy.benefits.title }}</h2>
+        <p class="lead">{{ copy.benefits.lead }}</p>
       </div>
       <div class="benefits-grid">
-        <article class="benefit-card">
-          <div class="benefit-title">Čo tým získate</div>
+        <article v-for="card in benefitCards" :key="card.title" class="benefit-card">
+          <div class="benefit-title">{{ card.title }}</div>
           <ul>
-            <li>Jasný plán opráv podľa dopadu na používateľov.</li>
-            <li>Report, ktorý pochopí compliance aj vývoj.</li>
-            <li>Rýchly prehľad o stave prístupnosti.</li>
-          </ul>
-        </article>
-        <article class="benefit-card">
-          <div class="benefit-title">Pred čím vás to chráni</div>
-          <ul>
-            <li>Riziko sankcií pri EAA a WAD kontrolách.</li>
-            <li>Negatívne reakcie verejnosti a poškodenie značky.</li>
-            <li>Dodatočné náklady na chaotické opravy.</li>
-          </ul>
-        </article>
-        <article class="benefit-card">
-          <div class="benefit-title">Komu to pomáha</div>
-          <ul>
-            <li>Používateľom so zrakovým, sluchovým aj motorickým znevýhodnením.</li>
-            <li>Produktovým tímom, ktoré potrebujú jasné priority.</li>
-            <li>Compliance a právnym oddeleniam.</li>
+            <li v-for="item in card.items" :key="item">{{ item }}</li>
           </ul>
         </article>
       </div>
@@ -229,520 +224,171 @@ onBeforeUnmount(() => {
 
     <section id="features" class="value reveal">
       <div class="section-head">
-        <p class="kicker">Čo získate</p>
-        <h2>Prehľadné výstupy pre compliance aj produkt.</h2>
-        <p class="lead">
-          Získajte jasný obraz o stave prístupnosti a plán opráv, ktorý je zrozumiteľný pre celý tím.
-        </p>
+        <p class="kicker">{{ copy.value.kicker }}</p>
+        <h2>{{ copy.value.title }}</h2>
+        <p class="lead">{{ copy.value.lead }}</p>
       </div>
       <div class="value-grid">
-        <article class="value-card">
+        <article v-for="card in valueCards" :key="card.title" class="value-card">
           <div class="value-icon">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 12h16" />
-              <path d="M4 7h10" />
-              <path d="M4 17h7" />
-              <path d="M17 9l2 2 4-4" />
+              <path v-for="(path, idx) in card.iconPaths" :key="`${card.title}-${idx}`" :d="path" />
             </svg>
           </div>
-          <h3>Kritické chyby ako prvé</h3>
-          <p>Automaticky triedime podľa dopadu na používateľov aj rizika pre organizáciu.</p>
-        </article>
-        <article class="value-card">
-          <div class="value-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3l8 4v6c0 4-3 7-8 8-5-1-8-4-8-8V7l8-4z" />
-              <path d="M9 12l2 2 4-4" />
-            </svg>
-          </div>
-          <h3>Legislatívny kontext</h3>
-          <p>Každý nález je spojený s WCAG kritériom a relevantným rámcom EAA/WAD.</p>
-        </article>
-        <article class="value-card">
-          <div class="value-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 4h16v12H7l-3 3V4z" />
-              <path d="M7 8h10" />
-              <path d="M7 12h6" />
-            </svg>
-          </div>
-          <h3>Akčné odporúčania</h3>
-          <p>Praktické kroky pre vývoj a obsah, nie len všeobecné rady.</p>
+          <h3>{{ card.title }}</h3>
+          <p>{{ card.text }}</p>
         </article>
       </div>
     </section>
 
     <section id="how" class="workflow reveal">
       <div class="section-head">
-        <p class="kicker">Ako to funguje</p>
-        <h2>Tri kroky k auditom, ktoré obstáli aj pri kontrole.</h2>
+        <p class="kicker">{{ copy.workflow.kicker }}</p>
+        <h2>{{ copy.workflow.title }}</h2>
       </div>
       <div class="workflow-steps">
-        <article class="step-card">
-          <span class="step-num">01</span>
-          <h3>Zadajte URL a vyberte profil</h3>
-          <p>WAD pre verejný sektor alebo EAA pre služby a produkty.</p>
-        </article>
-        <article class="step-card">
-          <span class="step-num">02</span>
-          <h3>Spustite audit</h3>
-          <p>Automatický sken vyhodnotí chyby a vypočíta skóre.</p>
-        </article>
-        <article class="step-card">
-          <span class="step-num">03</span>
-          <h3>Zdieľajte report</h3>
-          <p>Výstup pre celý tím s jasným plánom opráv.</p>
+        <article v-for="step in workflowSteps" :key="step.number" class="step-card">
+          <span class="step-num">{{ step.number }}</span>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.text }}</p>
         </article>
       </div>
     </section>
 
     <section id="pricing" class="pricing reveal">
       <div class="section-head">
-        <p class="kicker">Cenník</p>
-        <h2>Balíky auditu a monitoringu podľa rozsahu.</h2>
-        <p class="lead">
-          Free audit je jednorazovo pre 1 doménu. Platené balíky fungujú na kreditoch/doménach
-          podľa zvoleného plánu.
-        </p>
+        <p class="kicker">{{ copy.pricing.kicker }}</p>
+        <h2>{{ copy.pricing.title }}</h2>
+        <p class="lead">{{ copy.pricing.lead }}</p>
       </div>
-      <div class="pricing-switch" role="tablist" aria-label="Typ cenníka">
-        <button
-          type="button"
-          class="pricing-switch-btn"
-          :class="{ 'is-active': pricingMode === 'audit' }"
-          @click="pricingMode = 'audit'"
-        >
-          Audit
+      <div class="pricing-switch" role="tablist" :aria-label="copy.pricing.ariaLabel">
+        <button type="button" class="pricing-switch-btn" :class="{ 'is-active': pricingMode === 'audit' }" @click="pricingMode = 'audit'">
+          {{ copy.pricing.switchAudit }}
         </button>
-        <button
-          type="button"
-          class="pricing-switch-btn"
-          :class="{ 'is-active': pricingMode === 'monitoring' }"
-          @click="pricingMode = 'monitoring'"
-        >
-          Monitoring
+        <button type="button" class="pricing-switch-btn" :class="{ 'is-active': pricingMode === 'monitoring' }" @click="pricingMode = 'monitoring'">
+          {{ copy.pricing.switchMonitoring }}
         </button>
       </div>
 
-      <h3 class="pricing-subhead">{{ pricingMode === 'audit' ? 'Audit' : 'Monitoring (po základnom audite)' }}</h3>
+      <h3 class="pricing-subhead">{{ pricingMode === 'audit' ? copy.pricing.subheadAudit : copy.pricing.subheadMonitoring }}</h3>
 
       <div v-if="pricingMode === 'audit'" class="pricing-grid pricing-grid--audit">
-        <article class="pricing-card">
+        <article v-for="plan in auditPlanCards" :key="plan.title" class="pricing-card" :class="{ featured: plan.featured }">
+          <div v-if="plan.badge" class="pricing-badge">{{ plan.badge }}</div>
           <div class="pricing-header">
-            <p class="pricing-title">Free audit</p>
-            <p class="pricing-price">0 €</p>
-            <p class="pricing-subtitle">1 audit / 1 doména</p>
+            <p class="pricing-title">{{ plan.title }}</p>
+            <p class="pricing-price">{{ plan.price }}</p>
+            <p class="pricing-subtitle">{{ plan.subtitle }}</p>
           </div>
           <ul class="pricing-list">
-            <li>Skóre prístupnosti</li>
-            <li>Top nálezy pre rýchly prehľad</li>
-            <li>Jednorazovo pre 1 doménu</li>
+            <li v-for="feature in plan.features" :key="feature">{{ feature }}</li>
           </ul>
-          <router-link :to="startLink" class="btn btn-outline-dark">Spustiť free audit</router-link>
-        </article>
-
-        <article class="pricing-card featured">
-          <div class="pricing-badge">Najobľúbenejší</div>
-          <div class="pricing-header">
-            <p class="pricing-title">Audit Basic</p>
-            <p class="pricing-price">99 €</p>
-            <p class="pricing-subtitle">5 kreditov / 5 domén</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Plný report + odporúčania</li>
-            <li>5 audit kreditov</li>
-            <li>Pre 5 domén</li>
-          </ul>
-          <a
-            v-if="auth.isLoggedIn && auditCheckoutBasicUrl"
-            :href="auditCheckoutBasicUrl"
-            class="btn btn-outline-dark"
-          >
-            Objednať Basic
-          </a>
-          <router-link v-else :to="startLink" class="btn btn-outline-dark">Objednať Basic</router-link>
-        </article>
-
-        <article class="pricing-card featured">
-          <div class="pricing-badge">Najvýhodnejší</div>
-          <div class="pricing-header">
-            <p class="pricing-title">Audit Pro</p>
-            <p class="pricing-price">199 €</p>
-            <p class="pricing-subtitle">15 kreditov / 15 domén</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Plný report + odporúčania</li>
-            <li>15 audit kreditov</li>
-            <li>Pre 15 domén</li>
-          </ul>
-          <a v-if="auth.isLoggedIn && auditCheckoutProUrl" :href="auditCheckoutProUrl" class="btn btn-primary">
-            Objednať Pro
-          </a>
-          <router-link v-else :to="startLink" class="btn btn-primary">Objednať Pro</router-link>
-        </article>
-
-        <article class="pricing-card">
-          <div class="pricing-header">
-            <p class="pricing-title">Hĺbkový audit</p>
-            <p class="pricing-price">od 499 €</p>
-            <p class="pricing-subtitle">Manuálny + expertný audit</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Detailný manuálny audit</li>
-            <li>Checklist povinností</li>
-            <li>Konzultácia s expertom</li>
-          </ul>
-          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť riešenie</router-link>
-        </article>
-
-        <article class="pricing-card">
-          <div class="pricing-header">
-            <p class="pricing-title">Audit Enterprise</p>
-            <p class="pricing-price">Na dohodu</p>
-            <p class="pricing-subtitle">Individuálne riešenie</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Vlastný rozsah domén</li>
-            <li>SLA a dedikovaná podpora</li>
-            <li>Proces podľa interných požiadaviek</li>
-          </ul>
-          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť riešenie</router-link>
+          <a v-if="plan.href" :href="plan.href" :class="plan.ctaClass">{{ plan.ctaLabel }}</a>
+          <router-link v-else :to="plan.to" :class="plan.ctaClass">{{ plan.ctaLabel }}</router-link>
         </article>
       </div>
 
       <div v-else class="pricing-grid pricing-grid--monitoring">
-        <article class="pricing-card featured">
-          <div class="pricing-badge">Monitoring Basic</div>
+        <article v-for="plan in monitoringPlanCards" :key="plan.title" class="pricing-card" :class="{ featured: plan.featured }">
+          <div v-if="plan.badge" class="pricing-badge">{{ plan.badge }}</div>
           <div class="pricing-header">
-            <p class="pricing-title">Basic</p>
-            <p class="pricing-price">29 € / mesiac</p>
-            <p class="pricing-subtitle">2 domény / 1× týždenne (pondelok)</p>
+            <p class="pricing-title">{{ plan.title }}</p>
+            <p class="pricing-price">{{ plan.price }}</p>
+            <p class="pricing-subtitle">{{ plan.subtitle }}</p>
           </div>
           <ul class="pricing-list">
-            <li>Monitoring pre 2 domény</li>
-            <li>Automatický beh každý pondelok</li>
-            <li>Priebežné porovnanie výsledkov</li>
+            <li v-for="feature in plan.features" :key="feature">{{ feature }}</li>
           </ul>
-          <a
-            v-if="auth.isLoggedIn && monitoringCheckoutBasicUrl"
-            :href="monitoringCheckoutBasicUrl"
-            class="btn btn-primary"
-          >
-            Objednať Monitoring Basic
-          </a>
-          <router-link v-else :to="startLink" class="btn btn-primary">Objednať Monitoring Basic</router-link>
+          <a v-if="plan.href" :href="plan.href" :class="plan.ctaClass">{{ plan.ctaLabel }}</a>
+          <router-link v-else :to="plan.to" :class="plan.ctaClass">{{ plan.ctaLabel }}</router-link>
         </article>
-
-        <article class="pricing-card">
-          <div class="pricing-header">
-            <p class="pricing-title">Monitoring Pro</p>
-            <p class="pricing-price">59 € / mesiac</p>
-            <p class="pricing-subtitle">8 domén / 2× týždenne (pondelok + štvrtok)</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Monitoring pre 8 domén</li>
-            <li>Automatický beh pondelok + štvrtok</li>
-            <li>Rozšírené kontinuálne sledovanie</li>
-          </ul>
-          <a
-            v-if="auth.isLoggedIn && monitoringCheckoutProUrl"
-            :href="monitoringCheckoutProUrl"
-            class="btn btn-outline-dark"
-          >
-            Objednať Monitoring Pro
-          </a>
-          <router-link v-else :to="startLink" class="btn btn-outline-dark">Objednať Monitoring Pro</router-link>
-        </article>
-
-        <article class="pricing-card">
-          <div class="pricing-header">
-            <p class="pricing-title">Monitoring Enterprise</p>
-            <p class="pricing-price">Na dohodu</p>
-            <p class="pricing-subtitle">Vlastné limity a SLA</p>
-          </div>
-          <ul class="pricing-list">
-            <li>Individuálny počet domén</li>
-            <li>Frekvencia podľa potreby</li>
-            <li>Onboarding a konzultácie</li>
-          </ul>
-          <router-link :to="startLink" class="btn btn-outline-dark">Dohodnúť riešenie</router-link>
-        </article>
-
       </div>
 
       <div v-if="pricingMode === 'audit'" class="pricing-compare">
         <div class="compare-row compare-row--audit compare-head">
-          <div class="compare-cell">Audit</div>
-          <div class="compare-cell">Free</div>
-          <div class="compare-cell">Basic</div>
-          <div class="compare-cell compare-col-featured">Pro</div>
-          <div class="compare-cell">Hĺbkový</div>
-          <div class="compare-cell">Enterprise</div>
+          <div v-for="(column, index) in copy.pricing.compareAudit.columns" :key="`audit-col-${index}`" class="compare-cell" :class="{ 'compare-col-featured': index === 3 }">{{ column }}</div>
         </div>
-        <div class="compare-row compare-row--audit">
-          <div class="compare-cell">Cena</div>
-          <div class="compare-cell">0 €</div>
-          <div class="compare-cell">99 €</div>
-          <div class="compare-cell compare-col-featured">199 €</div>
-          <div class="compare-cell">od 499 €</div>
-          <div class="compare-cell">Na dohodu</div>
-        </div>
-        <div class="compare-row compare-row--audit">
-          <div class="compare-cell">Počet domén</div>
-          <div class="compare-cell">1</div>
-          <div class="compare-cell">5</div>
-          <div class="compare-cell compare-col-featured">15</div>
-          <div class="compare-cell">Podľa dohody</div>
-          <div class="compare-cell">Podľa dohody</div>
-        </div>
-        <div class="compare-row compare-row--audit">
-          <div class="compare-cell">Plný report + odporúčania</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-        </div>
-        <div class="compare-row compare-row--audit">
-          <div class="compare-cell">Manuálny audit + konzultácia</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-        </div>
-        <div class="compare-row compare-row--audit">
-          <div class="compare-cell">Podpora / SLA</div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-no">—</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
+        <div v-for="(row, rowIndex) in copy.pricing.compareAudit.rows" :key="`audit-row-${rowIndex}`" class="compare-row compare-row--audit">
+          <div v-for="(cell, cellIndex) in row" :key="`audit-cell-${rowIndex}-${cellIndex}`" class="compare-cell" :class="{ 'compare-col-featured': cellIndex === 3 }">
+            <span v-if="cell === '✓'" class="compare-yes">{{ cell }}</span>
+            <span v-else-if="cell === '—'" class="compare-no">{{ cell }}</span>
+            <template v-else>{{ cell }}</template>
+          </div>
         </div>
       </div>
 
       <div v-else class="pricing-compare">
         <div class="compare-row compare-row--three compare-head">
-          <div class="compare-cell">Monitoring</div>
-          <div class="compare-cell">Basic</div>
-          <div class="compare-cell compare-col-featured">Pro</div>
-          <div class="compare-cell">Enterprise</div>
+          <div v-for="(column, index) in copy.pricing.compareMonitoring.columns" :key="`monitoring-col-${index}`" class="compare-cell" :class="{ 'compare-col-featured': index === 2 }">{{ column }}</div>
         </div>
-        <div class="compare-row compare-row--three">
-          <div class="compare-cell">Cena</div>
-          <div class="compare-cell">29 € / mesiac</div>
-          <div class="compare-cell compare-col-featured">59 € / mesiac</div>
-          <div class="compare-cell">Na dohodu</div>
-        </div>
-        <div class="compare-row compare-row--three">
-          <div class="compare-cell">Počet domén</div>
-          <div class="compare-cell">2</div>
-          <div class="compare-cell compare-col-featured">8</div>
-          <div class="compare-cell">Podľa dohody</div>
-        </div>
-        <div class="compare-row compare-row--three">
-          <div class="compare-cell">Frekvencia</div>
-          <div class="compare-cell">Pondelok</div>
-          <div class="compare-cell compare-col-featured">Pondelok + štvrtok</div>
-          <div class="compare-cell">Podľa dohody</div>
-        </div>
-        <div class="compare-row compare-row--three">
-          <div class="compare-cell">Priebežné porovnanie výsledkov</div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell compare-col-featured"><span class="compare-yes">✓</span></div>
-          <div class="compare-cell"><span class="compare-yes">✓</span></div>
+        <div v-for="(row, rowIndex) in copy.pricing.compareMonitoring.rows" :key="`monitoring-row-${rowIndex}`" class="compare-row compare-row--three">
+          <div v-for="(cell, cellIndex) in row" :key="`monitoring-cell-${rowIndex}-${cellIndex}`" class="compare-cell" :class="{ 'compare-col-featured': cellIndex === 2 }">
+            <span v-if="cell === '✓'" class="compare-yes">{{ cell }}</span>
+            <span v-else-if="cell === '—'" class="compare-no">{{ cell }}</span>
+            <template v-else>{{ cell }}</template>
+          </div>
         </div>
       </div>
 
       <div v-if="pricingMode === 'audit'" class="pricing-compare-mobile">
-        <article class="compare-plan-card">
+        <article v-for="plan in auditCompareMobilePlans" :key="plan.name" class="compare-plan-card" :class="{ featured: plan.featured }">
           <div class="compare-plan-head">
-            <p class="compare-plan-name">Free audit</p>
-            <p class="compare-plan-price">0 €</p>
+            <p class="compare-plan-name">{{ plan.name }}</p>
+            <p class="compare-plan-price">{{ plan.price }}</p>
           </div>
           <ul class="compare-plan-list">
-            <li>1 doména</li>
-            <li>Rýchly prehľad nálezov</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Audit Basic</p>
-            <p class="compare-plan-price">99 €</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>5 domén / 5 kreditov</li>
-            <li>Plný report + odporúčania</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card featured">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Audit Pro</p>
-            <p class="compare-plan-price">199 €</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>15 domén / 15 kreditov</li>
-            <li>Plný report + odporúčania</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Hĺbkový audit</p>
-            <p class="compare-plan-price">od 499 €</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>Manuálny + expertný audit</li>
-            <li>Konzultácia s expertom</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Audit Enterprise</p>
-            <p class="compare-plan-price">Na dohodu</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>Individuálny rozsah</li>
-            <li>Dedikovaná podpora a SLA</li>
+            <li v-for="item in plan.items" :key="item">{{ item }}</li>
           </ul>
         </article>
       </div>
 
       <div v-else class="pricing-compare-mobile">
-        <article class="compare-plan-card">
+        <article v-for="plan in monitoringCompareMobilePlans" :key="plan.name" class="compare-plan-card" :class="{ featured: plan.featured }">
           <div class="compare-plan-head">
-            <p class="compare-plan-name">Monitoring Basic</p>
-            <p class="compare-plan-price">29 € / mesiac</p>
+            <p class="compare-plan-name">{{ plan.name }}</p>
+            <p class="compare-plan-price">{{ plan.price }}</p>
           </div>
           <ul class="compare-plan-list">
-            <li>2 domény</li>
-            <li>Pondelok</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card featured">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Monitoring Pro</p>
-            <p class="compare-plan-price">59 € / mesiac</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>8 domén</li>
-            <li>Pondelok + štvrtok</li>
-          </ul>
-        </article>
-        <article class="compare-plan-card">
-          <div class="compare-plan-head">
-            <p class="compare-plan-name">Monitoring Enterprise</p>
-            <p class="compare-plan-price">Na dohodu</p>
-          </div>
-          <ul class="compare-plan-list">
-            <li>Vlastné limity</li>
-            <li>Frekvencia podľa dohody</li>
+            <li v-for="item in plan.items" :key="item">{{ item }}</li>
           </ul>
         </article>
       </div>
 
       <div class="pricing-summary">
-        <p>
-          Audit kredity sa odpočítavajú za každý nový audit domény. Monitoring plány sú dostupné po
-          základnom audite a limity/frekvencia sa riadia zvoleným tierom.
-        </p>
+        <p>{{ copy.pricing.summary }}</p>
       </div>
     </section>
 
     <section class="compliance reveal">
       <div class="compliance-inner">
         <div>
-          <p class="kicker">Pre koho je Pristupio</p>
-          <h2>Pre verejné inštitúcie aj komerčné služby.</h2>
-          <p class="lead">
-            Systém je navrhnutý pre tímy, ktoré potrebujú preukázateľnú zhodu a zrozumiteľný audit
-            od verejnej správy až po e-shopy a digitálne služby.
-          </p>
+          <p class="kicker">{{ copy.compliance.kicker }}</p>
+          <h2>{{ copy.compliance.title }}</h2>
+          <p class="lead">{{ copy.compliance.lead }}</p>
         </div>
         <div class="compliance-grid" aria-hidden="true">
-          <div class="compliance-card">Verejný sektor</div>
-          <div class="compliance-card">Banky a poisťovne</div>
-          <div class="compliance-card">E-shopy a retail</div>
-          <div class="compliance-card">Doprava a mobilita</div>
-          <div class="compliance-card">Vzdelávanie</div>
-          <div class="compliance-card">Digitálne služby</div>
+          <div v-for="sector in complianceSectors" :key="sector" class="compliance-card">{{ sector }}</div>
         </div>
       </div>
     </section>
 
     <section id="faq" class="faq reveal">
       <div class="section-head">
-        <p class="kicker">FAQ</p>
-        <h2>Najčastejšie otázky o audite a monitoringu.</h2>
-        <p class="lead">
-          Rýchle odpovede na to, čo riešia tímy pred nákupom a počas prvého auditu.
-        </p>
+        <p class="kicker">{{ copy.faq.kicker }}</p>
+        <h2>{{ copy.faq.title }}</h2>
+        <p class="lead">{{ copy.faq.lead }}</p>
       </div>
       <div class="faq-grid">
-        <details class="faq-item">
-          <summary>Čo je prístupnosť webu a prečo na nej záleží?</summary>
-          <p>
-            Prístupnosť znamená, že web sa dá používať aj s asistenčnými technológiami (napr. čítačky
-            obrazovky) a bez myši, len klávesnicou. V praxi to rieši kontrasty, čitateľnosť, jasnú
-            hierarchiu nadpisov, formuláre aj navigáciu. Výsledkom je web, ktorý funguje pre ľudí so
-            znevýhodnením, seniorov aj používateľov v horších podmienkach (mobil, slabé svetlo,
-            dočasné obmedzenie).
-          </p>
+        <details v-for="item in copy.faq.items" :key="item.question" class="faq-item">
+          <summary>{{ item.question }}</summary>
+          <p>{{ item.answer }}</p>
         </details>
         <details class="faq-item">
-          <summary>Čo dostanem vo free audite?</summary>
+          <summary>{{ copy.faq.legalLinksQuestion }}</summary>
           <p>
-            Skóre prístupnosti, počet nálezov a stručný prehľad top problémov. Je to rýchly screening,
-            ktorý vám dá jasnú predstavu o rozsahu, riziku a pomôže určiť priority pred detailným
-            auditom. Hodí sa na prvú diagnostiku a internú diskusiu v tíme.
-          </p>
-        </details>
-        <details class="faq-item">
-          <summary>Aký je rozdiel medzi základným auditom a monitoringom?</summary>
-          <p>
-            Základný audit je jednorazový detailný report s odporúčaniami. Monitoring opakuje sken
-            podľa zvoleného plánu (Basic pondelok, Pro pondelok + štvrtok), sleduje zmeny, porovnáva
-            trend a upozorňuje na nové chyby po úpravách webu alebo nasadení nových funkcií.
-            Vďaka tomu máte prehľad, či sa dostupnosť zlepšuje alebo zhoršuje, a nemusíte robiť
-            audit od nuly po každej zmene.
-          </p>
-        </details>
-        <details class="faq-item">
-          <summary>Aký zákon to vyžaduje na Slovensku?</summary>
-          <p>
-            Pre verejný sektor platí smernica (EÚ) 2016/2102 a jej transpozícia v SR cez zákon
-            č. 95/2019 Z. z. o IT vo verejnej správe. Pre komerčné služby a produkty platí zákon
-            č. 351/2022 Z. z. o prístupnosti výrobkov a služieb, ktorý vychádza z EAA 2019/882.
-            Výnimky a presný rozsah povinností závisia od typu služby a subjektu.
-          </p>
-        </details>
-        <details class="faq-item">
-          <summary>Dokedy musia byť weby prístupné?</summary>
-          <p>
-            Verejný sektor: nové weby od 23. 9. 2019, všetky ostatné weby od 23. 9. 2020 a mobilné
-            aplikácie od 23. 6. 2021. EAA požiadavky sa v EÚ uplatňujú od 28. 6. 2025 a zákon
-            351/2022 Z. z. je účinný od 28. 6. 2025.
-          </p>
-        </details>
-        <details class="faq-item">
-          <summary>Čo potrebujem na spustenie auditu?</summary>
-          <p>
-            Stačí URL a výber profilu (WAD alebo EAA). Sken je automatický a nevyžaduje integráciu do kódu.
-          </p>
-        </details>
-        <details class="faq-item">
-          <summary>Pomôže mi audit aj pre vývoj?</summary>
-          <p>
-            Áno. Každý nález obsahuje prioritu, popis problému a akčné odporúčanie, takže vývoj vie
-            rýchlo určiť ďalší krok.
-          </p>
-        </details>
-        <details class="faq-item">
-          <summary>Kde nájdem znenie smerníc a zákonov?</summary>
-          <p>
-            SR zákon 351/2022 Z. z.: <a href="https://www.slov-lex.sk/static/pdf/2022/351/ZZ_2022_351_20250628.pdf">Slov-Lex</a>.
-            SR zákon 95/2019 Z. z.: <a href="https://static.slov-lex.sk/pdf/SK/ZZ/2019/95/ZZ_2019_95_20250628.pdf">Slov-Lex</a>.
-            Smernica (EÚ) 2016/2102: <a href="https://eur-lex.europa.eu/EN/legal-content/summary/accessibility-of-public-sector-websites-and-mobile-apps.html">EUR-Lex</a>.
-            EAA 2019/882: <a href="https://eur-lex.europa.eu/eli/dir/2019/882/oj">EUR-Lex</a>.
+            <template v-for="link in copy.faq.legalLinks" :key="link.href">
+              {{ link.label }}: <a :href="link.href">{{ link.source }}</a>.
+            </template>
           </p>
         </details>
       </div>
@@ -751,13 +397,12 @@ onBeforeUnmount(() => {
     <section class="cta reveal">
       <div class="cta-inner">
         <div>
-          <h2>Pripravení na audit prístupnosti?</h2>
-          <p>Začnite free auditom a vyberte si balík, ktorý zodpovedá vašej potrebe.</p>
+          <h2>{{ copy.cta.title }}</h2>
+          <p>{{ copy.cta.lead }}</p>
         </div>
-        <router-link :to="startLink" class="btn btn-light">Spustiť free audit</router-link>
+        <router-link :to="startLink" class="btn btn-light">{{ copy.cta.button }}</router-link>
       </div>
     </section>
-
   </div>
 </template>
 
@@ -1431,7 +1076,7 @@ onBeforeUnmount(() => {
 }
 
 .compare-plan-list li::before {
-  content: '✓';
+  content: '?';
   color: #16a34a;
   font-weight: 700;
   line-height: 1.2;
@@ -1801,3 +1446,6 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+
+
+
