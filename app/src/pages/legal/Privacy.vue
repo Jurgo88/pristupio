@@ -15,7 +15,7 @@
       <p>
         Prev&#225;dzkovate&#318;: AJRONIK s.r.o., Clementisova 1997/11, 955 01 Topo&#318;&#269;any,
         Slovensk&#225; republika, I&#268;O: 55304052, DI&#268;: 2121943153.
-        Kontakt: <strong>support@pristupio.sk</strong>.
+        Kontakt: <strong>support@pristupio.com</strong>.
       </p>
       <p>
         Zodpovedn&#225; osoba: neustanoven&#225;.
@@ -92,7 +92,7 @@
 
       <h2>12. Kontakt</h2>
       <p>
-        Ak m&#225;te ot&#225;zky k ochrane osobn&#253;ch &#250;dajov, nap&#237;&#353;te na <strong>support@pristupio.sk</strong>.
+        Ak m&#225;te ot&#225;zky k ochrane osobn&#253;ch &#250;dajov, nap&#237;&#353;te na <strong>support@pristupio.com</strong>.
       </p>
     </div>
   </section>

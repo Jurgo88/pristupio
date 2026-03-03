@@ -18,7 +18,7 @@
         <li>S&#237;dlo: Clementisova 1997/11, 955 01 Topo&#318;&#269;any, Slovensk&#225; republika</li>
         <li>I&#268;O: 55304052</li>
         <li>DI&#268;: 2121943153</li>
-        <li>Kontaktn&#253; e-mail: support@pristupio.sk</li>
+        <li>Kontaktn&#253; e-mail: support@pristupio.com</li>
       </ul>
 
       <h2>2. Defin&#237;cie</h2>
@@ -92,7 +92,7 @@
 
       <h2>12. Kontakt</h2>
       <p>
-        Ak m&#225;te ot&#225;zky, kontaktujte n&#225;s na <strong>support@pristupio.sk</strong>.
+        Ak m&#225;te ot&#225;zky, kontaktujte n&#225;s na <strong>support@pristupio.com</strong>.
       </p>
     </div>
   </section>

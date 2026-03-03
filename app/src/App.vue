@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="footer-col">
               <p class="footer-title">Kontakt</p>
-              <span>support@pristupio.sk</span>
+              <span>support@pristupio.com</span>
               <span>AJRONIK s.r.o.</span>
               <span>IČO: 55304052</span>
               <span>DIČ: 2121943153</span>

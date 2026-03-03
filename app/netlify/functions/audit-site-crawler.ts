@@ -322,7 +322,7 @@ const fetchRobotsPolicy = async (rootUrl: string): Promise<RobotsPolicy> => {
       fetch(robotsUrl, {
         method: 'GET',
         headers: {
-          'User-Agent': 'PristupioAuditBot/1.0 (+https://pristupio.sk)'
+          'User-Agent': 'PristupioAuditBot/1.0 (+https://pristupio.com)'
         }
       }),
       8_000,
@@ -693,7 +693,7 @@ export const runSiteAuditCrawler = async (supabase: SupabaseAdminClient, job: Si
     })
 
     const context = await browser.newContext({
-      userAgent: 'PristupioAuditBot/1.0 (+https://pristupio.sk)',
+      userAgent: 'PristupioAuditBot/1.0 (+https://pristupio.com)',
       javaScriptEnabled: true
     })
     await context.addInitScript({ content: axe.source })

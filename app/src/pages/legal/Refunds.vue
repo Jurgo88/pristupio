@@ -32,7 +32,7 @@
 
       <h2>4. Ako po&#382;iada&#357; o refund&#225;ciu</h2>
       <p>
-        Nap&#237;&#353;te n&#225;m na <strong>support@pristupio.sk</strong> a uve&#271;te e-mail z objedn&#225;vky, n&#225;zov
+        Nap&#237;&#353;te n&#225;m na <strong>support@pristupio.com</strong> a uve&#271;te e-mail z objedn&#225;vky, n&#225;zov
         produktu a stru&#269;n&#253; d&#244;vod. Platby sprac&#250;va Merchant of Record Lemon Squeezy, refund&#225;cia bude
         vykonan&#225; cez p&#244;vodn&#250; platobn&#250; met&#243;du.
       </p>
