@@ -1,6 +1,6 @@
 :root {
-  --font-body: "Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-display: "Sora", "Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "InterVariable", "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "InterVariable", "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-size-base: 16px;
   --font-size-sm: 0.875rem;
   --font-size-lg: 1.125rem;
@@ -416,3 +416,4 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
