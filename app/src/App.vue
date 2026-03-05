@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -11,7 +11,15 @@ const mobileMenuOpen = ref(false)
 const isDark = ref(false)
 const isTopbarScrolled = ref(false)
 const isMobileTopbar = ref(false)
+const profileMenuOpen = ref(false)
+const profileMenuRef = ref<HTMLElement | null>(null)
+const profileTriggerRef = ref<HTMLButtonElement | null>(null)
 const THEME_KEY = 'pristupio-theme'
+const planLabel = computed(() => {
+  if (auth.isAdmin) return 'Admin'
+  return auth.isPaid ? 'Platený plán' : 'Free plán'
+})
+const creditsCount = computed(() => Number(auth.paidAuditCredits || 0))
 
 const handleLogout = async () => {
   await auth.signOut()
@@ -24,6 +32,111 @@ const toggleMobileMenu = () => {
 
 const closeMobileMenu = () => {
   mobileMenuOpen.value = false
+}
+
+const toggleProfileMenu = () => {
+  profileMenuOpen.value = !profileMenuOpen.value
+}
+
+const closeProfileMenu = (options?: { returnFocus?: boolean }) => {
+  profileMenuOpen.value = false
+  if (options?.returnFocus) {
+    nextTick(() => {
+      profileTriggerRef.value?.focus()
+    })
+  }
+}
+
+const getProfileMenuItems = () => {
+  if (!profileMenuRef.value) return [] as HTMLElement[]
+  return Array.from(
+    profileMenuRef.value.querySelectorAll<HTMLElement>('[data-profile-menu-item]')
+  ).filter((item) => !item.hasAttribute('disabled'))
+}
+
+const openProfileMenuAndFocus = (target: 'first' | 'last' = 'first') => {
+  profileMenuOpen.value = true
+  nextTick(() => {
+    const items = getProfileMenuItems()
+    if (!items.length) return
+    if (target === 'last') {
+      items[items.length - 1]?.focus()
+      return
+    }
+    items[0]?.focus()
+  })
+}
+
+const moveProfileMenuFocus = (direction: 'next' | 'prev') => {
+  const items = getProfileMenuItems()
+  if (!items.length) return
+  const active = document.activeElement as HTMLElement | null
+  const currentIndex = items.indexOf(active as HTMLElement)
+  const safeIndex = currentIndex >= 0 ? currentIndex : 0
+  const delta = direction === 'next' ? 1 : -1
+  const nextIndex = (safeIndex + delta + items.length) % items.length
+  items[nextIndex]?.focus()
+}
+
+const handleProfileTriggerKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    openProfileMenuAndFocus('first')
+    return
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    openProfileMenuAndFocus('first')
+    return
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    openProfileMenuAndFocus('last')
+  }
+}
+
+const handleProfileMenuKeydown = (event: KeyboardEvent) => {
+  if (!profileMenuOpen.value) return
+  const items = getProfileMenuItems()
+  if (!items.length) return
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeProfileMenu({ returnFocus: true })
+    return
+  }
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    moveProfileMenuFocus('next')
+    return
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveProfileMenuFocus('prev')
+    return
+  }
+
+  if (event.key === 'Home') {
+    event.preventDefault()
+    items[0]?.focus()
+    return
+  }
+
+  if (event.key === 'End') {
+    event.preventDefault()
+    items[items.length - 1]?.focus()
+    return
+  }
+
+}
+
+const handleProfileMenuFocusOut = (event: FocusEvent) => {
+  if (!profileMenuOpen.value || !profileMenuRef.value) return
+  const nextTarget = event.relatedTarget as Node | null
+  if (nextTarget && profileMenuRef.value.contains(nextTarget)) return
+  closeProfileMenu()
 }
 
 const applyTheme = (theme: 'light' | 'dark') => {
@@ -59,11 +172,13 @@ const handleViewport = () => {
 }
 
 const handlePointerDown = (event: PointerEvent) => {
-  if (!mobileMenuOpen.value) return
   const target = event.target as Node | null
-  if (!target || !topbarRef.value) return
-  if (!topbarRef.value.contains(target)) {
+  if (!target) return
+  if (mobileMenuOpen.value && topbarRef.value && !topbarRef.value.contains(target)) {
     closeMobileMenu()
+  }
+  if (profileMenuOpen.value && profileMenuRef.value && !profileMenuRef.value.contains(target)) {
+    closeProfileMenu()
   }
 }
 
@@ -90,6 +205,16 @@ watch(
   () => route.fullPath,
   () => {
     closeMobileMenu()
+    closeProfileMenu()
+  }
+)
+
+watch(
+  () => auth.isLoggedIn,
+  (loggedIn) => {
+    if (!loggedIn) {
+      closeProfileMenu()
+    }
   }
 )
 
@@ -162,15 +287,6 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-else class="d-flex align-items-center topbar-auth">
-            <div class="account-chip">
-              <span class="account-email">{{ auth.user?.email }}</span>
-              <span v-if="auth.isAdmin" class="badge bg-danger ms-1">Admin</span>
-              <span v-if="auth.isPaid && !auth.isAdmin" class="account-divider">•</span>
-              <span v-if="auth.isPaid && !auth.isAdmin" class="account-credit">
-                Kredity: {{ auth.paidAuditCredits ?? 0 }}
-              </span>
-            </div>
-
             <div v-if="!isMobileTopbar" class="topbar-links">
               <router-link to="/dashboard" class="btn btn-sm topbar-btn topbar-btn--ghost">
                 Dashboard
@@ -185,15 +301,68 @@ onBeforeUnmount(() => {
               </router-link>
             </div>
 
-            <button
-              v-if="!isMobileTopbar"
-              class="btn btn-sm topbar-btn topbar-btn--ghost logout-btn"
-              @click="handleLogout"
-              :disabled="auth.loading"
-            >
-              <span class="logout-icon" aria-hidden="true">⎋</span>
-              <span class="logout-label">Odhlásiť sa</span>
-            </button>
+            <div class="account-chip" ref="profileMenuRef" @focusout="handleProfileMenuFocusOut">
+              <button
+                type="button"
+                class="account-chip__trigger"
+                ref="profileTriggerRef"
+                @click="toggleProfileMenu"
+                @keydown="handleProfileTriggerKeydown"
+                :aria-expanded="profileMenuOpen ? 'true' : 'false'"
+                aria-haspopup="menu"
+                aria-controls="profile-menu"
+              >
+                <span class="account-email">{{ auth.user?.email }}</span>
+                <span class="account-chip__plan">{{ planLabel }}</span>
+                <span class="account-chip__arrow" :class="{ open: profileMenuOpen }" aria-hidden="true"></span>
+              </button>
+              <div
+                id="profile-menu"
+                class="account-menu"
+                :class="{ open: profileMenuOpen }"
+                role="menu"
+                aria-label="Profilové akcie"
+                @keydown="handleProfileMenuKeydown"
+              >
+                <div class="account-menu__inner">
+                  <div class="account-menu__header">
+                    <span class="account-menu__name">{{ auth.user?.email }}</span>
+                    <span class="account-menu__status">{{ auth.isAdmin ? 'Admin' : auth.isPaid ? 'Platený plán' : 'Free plán' }}</span>
+                  </div>
+                  <div class="account-menu__metrics">
+                    <div class="account-menu__metric">
+                      <span>Plán</span>
+                      <strong>{{ planLabel }}</strong>
+                    </div>
+                    <div class="account-menu__metric">
+                      <span>Kredity</span>
+                      <strong>{{ creditsCount }}</strong>
+                    </div>
+                  </div>
+                  <div v-if="auth.isAdmin" class="account-menu__actions">
+                    <router-link
+                      to="/admin"
+                      class="account-menu__link"
+                      role="menuitem"
+                      data-profile-menu-item
+                      @click="closeProfileMenu"
+                    >
+                      Admin panel
+                    </router-link>
+                  </div>
+                  <button
+                    class="account-menu__logout"
+                    type="button"
+                    role="menuitem"
+                    data-profile-menu-item
+                    @click="closeProfileMenu(); handleLogout()"
+                    :disabled="auth.loading"
+                  >
+                    Odhlásiť sa
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <button
               v-if="isMobileTopbar"
@@ -467,25 +636,6 @@ onBeforeUnmount(() => {
   min-width: 108px;
 }
 
-.logout-btn {
-  min-width: 122px;
-  padding-inline: 0.95rem;
-}
-
-.topbar .logout-btn {
-  display: inline-flex;
-  color: #e2e8f0;
-  border-color: rgba(148, 163, 184, 0.42);
-  background: rgba(15, 23, 42, 0.24);
-}
-
-.topbar .logout-btn:hover {
-  background: rgba(226, 232, 240, 0.16);
-  border-color: rgba(226, 232, 240, 0.58);
-  color: #f8fafc;
-  transform: translateY(-1px);
-}
-
 .topbar-actions {
   gap: 0.82rem;
   align-items: center;
@@ -636,18 +786,6 @@ onBeforeUnmount(() => {
   background: rgba(59, 130, 246, 0.6);
 }
 
-[data-theme='dark'] .topbar .logout-btn {
-  border-color: rgba(71, 85, 105, 0.82);
-  background: rgba(2, 6, 23, 0.32);
-  color: #dbe7fb;
-}
-
-[data-theme='dark'] .topbar .logout-btn:hover {
-  border-color: rgba(125, 211, 252, 0.5);
-  background: rgba(15, 23, 42, 0.52);
-  color: #f8fafc;
-}
-
 [data-theme='dark'] .theme-switch__thumb {
   box-shadow: 0 8px 18px rgba(2, 6, 23, 0.44);
 }
@@ -668,17 +806,166 @@ onBeforeUnmount(() => {
 }
 
 .account-chip {
-  display: flex;
+  position: relative;
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.account-chip__trigger {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.7rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.9rem;
   border-radius: var(--radius);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.38);
   color: #e2e8f0;
   font-size: 0.85rem;
-  margin-right: 0.6rem;
-  flex-wrap: wrap;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.account-chip__trigger:hover {
+  border-color: rgba(125, 211, 252, 0.7);
+  transform: translateY(-1px);
+}
+
+.account-chip__trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.35);
+}
+
+.account-chip__plan {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.account-chip__arrow {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #e2e8f0;
+  border-bottom: 2px solid #e2e8f0;
+  transform: rotate(45deg);
+  transition: transform var(--motion-fast) var(--ease-standard);
+  margin-left: 0.2rem;
+}
+
+.account-chip__arrow.open {
+  transform: rotate(225deg);
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  box-shadow: 0 20px 35px rgba(15, 23, 42, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-5px);
+  transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard);
+  z-index: 1050;
+}
+
+.account-menu.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.account-menu__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.account-menu__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.account-menu__name {
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.account-menu__status {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.account-menu__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.account-menu__metric {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.account-menu__metric strong {
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.account-menu__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.account-menu__link {
+  display: block;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-weight: 600;
+  color: #cbd5f5;
+  background: rgba(15, 23, 42, 0.5);
+  text-decoration: none;
+  transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+}
+
+.account-menu__link:hover {
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(37, 99, 235, 0.2);
+  color: #f8fafc;
+}
+
+.account-menu__logout {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(226, 232, 240, 0.4);
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard);
+}
+
+.account-menu__logout:hover {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: rgba(248, 113, 113, 0.25);
+}
+
+.account-menu__logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .account-email {
@@ -734,15 +1021,6 @@ onBeforeUnmount(() => {
 
 .mobile-menu {
   display: none;
-}
-
-.logout-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 0.35rem;
-  font-size: 1rem;
-  line-height: 1;
 }
 
 .navbar {
@@ -1028,14 +1306,6 @@ onBeforeUnmount(() => {
     background: rgba(251, 191, 36, 0.08);
     border-color: rgba(251, 191, 36, 0.35);
     color: #fef3c7;
-  }
-
-  .logout-label {
-    display: none;
-  }
-
-  .logout-icon {
-    margin-right: 0;
   }
 
   .account-chip {
