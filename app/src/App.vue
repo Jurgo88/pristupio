@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 import { useRoute, useRouter } from 'vue-router'
+import { Clarity } from '@microsoft/clarity'
 
 const auth = useAuthStore()
 const router = useRouter()
